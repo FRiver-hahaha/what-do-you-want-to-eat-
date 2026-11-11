@@ -45,24 +45,20 @@
 
   <div class="app-shell" id="appShell">
     <aside class="sidebar glass-panel" id="leftSidebar">
-      <div class="menu-anchor">
-        <button class="menu-launcher" id="menuLauncher" type="button" aria-label="打开快捷菜单，也可以拖到中间展开" aria-expanded="false">
-          <svg class="icon"><use href="#icon-menu"></use></svg>
-          <span class="menu-launcher-copy"><strong>快捷菜单</strong><small>拖到中间展开</small></span>
-          <svg class="icon grip-icon"><use href="#icon-grip"></use></svg>
-        </button>
-        <div class="sidebar-menu-popover" id="sidebarMenuPopover">
-          <button class="sidebar-menu-item" type="button" data-view="today"><svg class="icon"><use href="#icon-message"></use></svg><span>今日饮食</span></button>
-          <button class="sidebar-menu-item" type="button" data-view="report"><svg class="icon"><use href="#icon-report"></use></svg><span>健康报告</span></button>
-          <button class="sidebar-menu-item" type="button" data-view="profile"><svg class="icon"><use href="#icon-user"></use></svg><span>健康档案</span></button>
-          <button class="sidebar-menu-item" type="button" data-view="history"><svg class="icon"><use href="#icon-history"></use></svg><span>历史记录</span></button>
-        </div>
-      </div>
-
       <div class="brand">
         <div class="brand-mark" aria-hidden="true"><svg class="icon"><use href="#icon-utensils"></use></svg></div>
         <div class="brand-copy"><strong>今天你吃了吗</strong><span>记录每一餐，理解每一天</span></div>
       </div>
+
+      <section class="food-module" id="foodModule" aria-label="食物菜单">
+        <header class="food-module-header"><div><svg class="icon"><use href="#icon-utensils"></use></svg><span><strong>食物菜单</strong><small>左右翻看 · 拖到中央看全部</small></span></div><svg class="icon grip-icon"><use href="#icon-grip"></use></svg></header>
+        <div class="sidebar-food-viewport" id="sidebarFoodViewport" tabindex="0" aria-label="食物分页，使用左右方向键翻看"><div class="sidebar-food-list" id="sidebarFoodList"></div></div>
+        <footer class="food-pagination">
+          <button id="foodPrev" type="button" aria-label="上一页"><svg class="icon"><use href="#icon-chevron-right"></use></svg></button>
+          <div class="food-page-status"><span id="foodPageLabel">01 / 03</span><div class="food-page-dots" id="foodPageDots"></div></div>
+          <button id="foodNext" type="button" aria-label="下一页"><svg class="icon"><use href="#icon-chevron-right"></use></svg></button>
+        </footer>
+      </section>
 
       <div class="sidebar-bottom">
         <div class="local-card">
@@ -90,7 +86,7 @@
         <div class="top-actions">
           <div class="agent-state"><span class="status-dot"></span>健康分析已就绪</div>
           <button class="icon-button tooltip" id="settingsButton" type="button" data-tooltip="客户端设置" aria-label="客户端设置"><svg class="icon"><use href="#icon-settings"></use></svg></button>
-          <button class="icon-button tooltip" id="detailsToggle" type="button" data-tooltip="收起右侧栏" aria-label="收起右侧栏"><svg class="icon"><use href="#icon-panel-right"></use></svg></button>
+          <button class="user-avatar-button tooltip" id="userAvatarButton" type="button" data-tooltip="个人信息与设置" aria-label="设置个人信息"><span id="avatarInitial">我</span></button>
         </div>
       </header>
 
@@ -170,7 +166,7 @@
                 <div class="form-section"><label class="form-heading" for="healthNote"><h3>需要留意的身体状态</h3><span>仅作为报告背景</span></label><input class="text-input" id="healthNote" type="text" value="下午容易口渴，晚餐不宜过饱" placeholder="例如：下午容易口渴"></div>
                 <div class="form-actions"><button class="button primary-button" type="submit"><svg class="icon"><use href="#icon-check"></use></svg>保存档案</button><span id="profileSaved">上次保存：今天 09:40</span></div>
               </div>
-              <aside class="health-snapshot"><span class="section-kicker">当前分析依据</span><h3 id="profileHeadline">均衡饮食，久坐状态</h3><p id="profileDescription">报告会重点观察三餐规律、蔬菜水果、饮水与添加糖摄入。</p><div class="snapshot-metrics"><div><svg class="icon"><use href="#icon-water"></use></svg><span>饮水目标</span><strong id="snapshotWater">1800 ml</strong></div><div><svg class="icon"><use href="#icon-moon"></use></svg><span>常态睡眠</span><strong id="snapshotSleep">7 小时</strong></div><div><svg class="icon"><use href="#icon-activity"></use></svg><span>今日评分</span><strong id="snapshotScore">82</strong></div></div><div class="snapshot-note"><svg class="icon"><use href="#icon-leaf"></use></svg><p>身体状态会变化，档案也可以随时调整。报告只做生活方式参考。</p></div></aside>
+              <aside class="health-snapshot"><span class="section-kicker">当前分析依据</span><h3 id="profileHeadline">均衡饮食，久坐状态</h3><p id="profileDescription">报告会重点观察三餐规律、蔬菜水果、饮水与添加糖摄入。</p><div class="snapshot-metrics"><div><svg class="icon"><use href="#icon-user"></use></svg><span>年龄</span><strong id="snapshotAge">28 岁</strong></div><div><svg class="icon"><use href="#icon-activity"></use></svg><span>身高 / 体重</span><strong id="snapshotBody">170 cm · 60 kg</strong></div><div><svg class="icon"><use href="#icon-water"></use></svg><span>饮水目标</span><strong id="snapshotWater">1800 ml</strong></div><div><svg class="icon"><use href="#icon-moon"></use></svg><span>常态睡眠</span><strong id="snapshotSleep">7 小时</strong></div><div><svg class="icon"><use href="#icon-report"></use></svg><span>今日评分</span><strong id="snapshotScore">82</strong></div></div><button class="edit-body-button" id="editBodyInfo" type="button">编辑身高、体重与年龄</button><div class="snapshot-note"><svg class="icon"><use href="#icon-leaf"></use></svg><p>身体状态会变化，档案也可以随时调整。报告只做生活方式参考。</p></div></aside>
             </form>
           </section>
 
@@ -179,27 +175,22 @@
             <div class="history-card glass-panel"><div class="history-header"><span>日期</span><span>记录</span><span>主要饮食内容</span><span>健康评分</span></div><div id="historyList"></div></div>
           </section>
 
-          <section class="expanded-menu" id="expandedMenu" aria-label="展开快捷菜单" aria-hidden="true">
-            <header><div><span class="section-kicker">快捷菜单已展开</span><h2>想查看哪一部分</h2><p>选择后返回对应页面，菜单会自动收起</p></div><button class="icon-button" id="closeExpandedMenu" type="button" aria-label="收起菜单"><svg class="icon"><use href="#icon-x"></use></svg></button></header>
-            <div class="expanded-menu-list" id="expandedMenuList">
-              <button class="expanded-menu-item" type="button" data-view="today"><span class="expanded-menu-icon"><svg class="icon"><use href="#icon-message"></use></svg></span><span><strong>今日饮食</strong><small>记录吃过的食物，查看实时分析</small></span><svg class="icon"><use href="#icon-arrow-right"></use></svg></button>
-              <button class="expanded-menu-item" type="button" data-view="report"><span class="expanded-menu-icon"><svg class="icon"><use href="#icon-report"></use></svg></span><span><strong>健康报告</strong><small>查看营养进度、综合分析与近 7 天趋势</small></span><svg class="icon"><use href="#icon-arrow-right"></use></svg></button>
-              <button class="expanded-menu-item" type="button" data-view="profile"><span class="expanded-menu-icon"><svg class="icon"><use href="#icon-user"></use></svg></span><span><strong>健康档案</strong><small>调整健康目标、活动量、饮水与睡眠</small></span><svg class="icon"><use href="#icon-arrow-right"></use></svg></button>
-              <button class="expanded-menu-item" type="button" data-view="history"><span class="expanded-menu-icon"><svg class="icon"><use href="#icon-history"></use></svg></span><span><strong>历史记录</strong><small>回顾过去 30 天的饮食内容与评分</small></span><svg class="icon"><use href="#icon-arrow-right"></use></svg></button>
-            </div>
-            <footer><svg class="icon"><use href="#icon-grip"></use></svg>菜单来自左侧栏，关闭后回到原处</footer>
+          <section class="expanded-menu" id="expandedMenu" aria-label="展开食物菜单" aria-hidden="true">
+            <header><div><span class="section-kicker">全部食物 · 五列瀑布流</span><h2>今天吃了哪一道</h2><p>自由滚动发现食物，点击卡片即可加入今日记录</p></div><div class="expanded-menu-actions"><span id="foodFeedProgress">24 张卡片</span><button class="icon-button" id="closeExpandedMenu" type="button" aria-label="收起菜单"><svg class="icon"><use href="#icon-x"></use></svg></button></div></header>
+            <div class="expanded-menu-list food-feed" id="expandedMenuList" tabindex="0" aria-label="五列食物瀑布流，滚动持续加载"></div>
+            <footer><svg class="icon"><use href="#icon-utensils"></use></svg>连续滚动加载更多内容，不强制切屏</footer>
           </section>
         </main>
 
-        <aside class="details-panel" id="detailsPanel" aria-label="饮食记录与好友排行榜">
+        <aside class="details-panel glass-panel" id="detailsPanel" aria-label="饮食记录与好友排行榜">
           <button class="details-rail tooltip-left" id="detailsRailToggle" type="button" data-tooltip="展开右侧栏" aria-label="展开右侧栏"><svg class="icon"><use href="#icon-panel-right"></use></svg><span></span><svg class="icon"><use href="#icon-trophy"></use></svg></button>
           <div class="details-content">
-            <section class="today-card glass-panel">
-              <header class="details-heading"><div><span class="section-kicker">今日饮食记录</span><h2>吃过的，都算数</h2></div><div class="date-tile"><strong id="dateNumber">11</strong><span id="dateMonth">十一月</span></div></header>
+            <section class="today-card">
+              <header class="details-heading"><div><span class="section-kicker">今日饮食记录</span><h2>吃过的，都算数</h2></div><div class="details-heading-actions"><div class="date-tile"><strong id="dateNumber">11</strong><span id="dateMonth">十一月</span></div><button class="icon-button details-collapse-button tooltip-left" id="detailsCollapseButton" type="button" data-tooltip="收起右侧栏" aria-label="收起右侧栏"><svg class="icon"><use href="#icon-panel-right"></use></svg></button></div></header>
               <div class="meal-timeline" id="mealTimeline"></div>
             </section>
 
-            <section class="leaderboard-card glass-panel">
+            <section class="leaderboard-card">
               <header><div><span class="section-kicker">好友排行榜</span><h3>本周健康打卡</h3></div><div class="ranking-tabs" id="rankingTabs"><button type="button" data-ranking="week" class="active">本周</button><button type="button" data-ranking="today">今日</button></div></header>
               <p class="ranking-basis">综合记录完整度、蔬果与饮水打卡</p>
               <div class="leaderboard-list" id="leaderboardList"></div>
@@ -211,10 +202,26 @@
     </section>
   </div>
 
-  <div class="menu-drop-zone" id="menuDropZone" aria-hidden="true"><div><svg class="icon"><use href="#icon-menu"></use></svg><strong>松开，在这里展开菜单</strong><span>背景内容会在菜单关闭后恢复</span></div></div>
+  <div class="menu-drop-zone" id="menuDropZone" aria-hidden="true"><div><svg class="icon"><use href="#icon-menu"></use></svg><strong>松开，在这里展开食物菜单</strong><span>背景内容会在菜单关闭后恢复</span></div></div>
 
   <dialog class="settings-dialog" id="settingsDialog">
     <form method="dialog"><header><div><span class="section-kicker">客户端</span><h2>设置</h2></div><button class="icon-button" value="cancel" aria-label="关闭设置"><svg class="icon"><use href="#icon-x"></use></svg></button></header><div class="dialog-content"><label class="setting-row" for="motionToggle"><span><strong>背景动态效果</strong><small>流体极光与缓慢漂移的星座网格</small></span><span class="switch"><input id="motionToggle" type="checkbox" checked><i></i></span></label><div class="setting-row"><span><strong>本地数据</strong><small>清除饮食记录、健康档案和报告</small></span><button class="button danger-button" id="clearDataButton" type="button"><svg class="icon"><use href="#icon-trash"></use></svg>清除</button></div></div><footer><span>所有交互均在浏览器中完成</span><small>Design method · unslop by @heydamir</small></footer></form>
+  </dialog>
+
+  <dialog class="settings-dialog personal-dialog" id="userInfoDialog" aria-labelledby="personalInfoTitle">
+    <header><div><span class="section-kicker">个人档案</span><h2 id="personalInfoTitle">你的身体信息</h2></div><button class="icon-button" id="closeUserInfo" type="button" aria-label="关闭个人信息"><svg class="icon"><use href="#icon-x"></use></svg></button></header>
+    <form class="personal-form" id="personalForm">
+      <div class="personal-avatar-preview"><span id="personalAvatarPreview">我</span><div><strong id="personalPreviewName">我</strong><small>信息仅保存在当前设备，用于完善健康报告背景</small></div></div>
+      <div class="personal-field"><label for="nameInput">称呼<input id="nameInput" type="text" maxlength="12" value="我" required></label></div>
+      <div class="personal-field-grid">
+        <label for="heightInput">身高 cm<input id="heightInput" type="number" min="120" max="220" step="1" value="170" inputmode="numeric" required></label>
+        <label for="weightInput">体重 kg<input id="weightInput" type="number" min="30" max="250" step="0.1" value="60" inputmode="decimal" required></label>
+        <label for="ageInput">年龄<input id="ageInput" type="number" min="10" max="100" step="1" value="28" inputmode="numeric" required></label>
+      </div>
+      <div class="bmi-preview"><span>BMI 记录值</span><strong id="bmiValue">20.8</strong></div>
+      <p class="personal-note">BMI 仅作为身体信息记录，不用于诊断，也不会直接决定饮食评分</p>
+      <div class="personal-actions"><button class="button secondary-button" id="cancelPersonal" type="button">取消</button><button class="button primary-button" type="submit"><svg class="icon"><use href="#icon-check"></use></svg>保存个人信息</button></div>
+    </form>
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><svg class="icon"><use href="#icon-check"></use></svg><span></span></div>

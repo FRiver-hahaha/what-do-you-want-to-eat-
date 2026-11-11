@@ -6,6 +6,10 @@ const storageKeys = {
 };
 
 const defaultProfile = {
+  name: "我",
+  height: 170,
+  weight: 60,
+  age: 28,
   goal: "均衡饮食",
   activity: "久坐",
   waterTarget: 1800,
@@ -16,6 +20,15 @@ const defaultProfile = {
 const defaultMeals = [
   { type: "早餐", time: "08:20", text: "燕麦酸奶、蓝莓、水煮蛋", protein: 22, fiber: 6, veggies: 0, water: 300, penalty: 0 },
   { type: "午餐", time: "12:18", text: "柠檬鸡胸能量碗、无糖茶", protein: 38, fiber: 9, veggies: 320, water: 650, penalty: 0 }
+];
+
+const foods = [
+  { id: "lemon-chicken", name: "柠檬鸡胸能量碗", category: "高蛋白 · 清爽", description: "烤鸡胸、牛油果、藜麦与时令蔬菜", calories: 460, protein: 38, fiber: 9, veggies: 320, water: 250, image: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=82" },
+  { id: "tomato-beef", name: "番茄牛腩盖饭", category: "热乎 · 饱腹", description: "番茄牛腩、杂粮米饭与焯拌时蔬", calories: 620, protein: 32, fiber: 7, veggies: 180, water: 180, image: "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=600&q=82" },
+  { id: "mushroom-soup", name: "菌菇鸡汤面", category: "清淡 · 汤食", description: "清鸡汤、三种菌菇、细面与小青菜", calories: 430, protein: 24, fiber: 6, veggies: 160, water: 450, image: "https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=600&q=82" },
+  { id: "shrimp-pasta", name: "蒜香虾仁意面", category: "高蛋白 · 换口味", description: "虾仁、樱桃番茄与全麦意面", calories: 560, protein: 35, fiber: 8, veggies: 140, water: 160, image: "https://images.unsplash.com/photo-1563379926898-05f4575a45d8?auto=format&fit=crop&w=600&q=82" },
+  { id: "vegetable-rice", name: "时蔬豆腐拌饭", category: "植物蛋白 · 多蔬菜", description: "香煎豆腐、烤南瓜、西兰花与杂粮饭", calories: 410, protein: 22, fiber: 12, veggies: 360, water: 180, image: "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=600&q=82" },
+  { id: "pepper-chicken", name: "藤椒鸡丝拌面", category: "微辣 · 快手", description: "嫩鸡丝、黄瓜丝与荞麦面", calories: 520, protein: 30, fiber: 7, veggies: 140, water: 180, image: "https://images.unsplash.com/photo-1473093295043-cdd812d0e601?auto=format&fit=crop&w=600&q=82" }
 ];
 
 const seedHistory = [
@@ -56,7 +69,7 @@ const monthLabels = ["一月", "二月", "三月", "四月", "五月", "六月",
 const weekdayLabels = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
 const mealOrder = ["早餐", "午餐", "晚餐", "加餐"];
 
-let profile = loadStored(storageKeys.profile, defaultProfile);
+let profile = { ...defaultProfile, ...loadStored(storageKeys.profile, defaultProfile) };
 let meals = loadStored(storageKeys.meals, defaultMeals);
 let history = loadStored(storageKeys.history, seedHistory);
 let draftProfile = { ...profile };
@@ -87,13 +100,14 @@ const elements = {
   toast: document.getElementById("toast"),
   settingsDialog: document.getElementById("settingsDialog"),
   motionToggle: document.getElementById("motionToggle"),
-  menuLauncher: document.getElementById("menuLauncher"),
-  sidebarMenuPopover: document.getElementById("sidebarMenuPopover"),
+  foodModule: document.getElementById("foodModule"),
+  sidebarFoodViewport: document.getElementById("sidebarFoodViewport"),
   expandedMenu: document.getElementById("expandedMenu"),
   expandedMenuList: document.getElementById("expandedMenuList"),
   menuDropZone: document.getElementById("menuDropZone"),
   sidebarToggle: document.getElementById("sidebarToggle"),
-  detailsToggle: document.getElementById("detailsToggle"),
+  detailsCollapseButton: document.getElementById("detailsCollapseButton"),
+  userInfoDialog: document.getElementById("userInfoDialog"),
   waterRange: document.getElementById("waterRange"),
   waterOutput: document.getElementById("waterOutput"),
   sleepRange: document.getElementById("sleepRange"),
@@ -187,6 +201,9 @@ function renderReport() {
   document.getElementById("detailScoreStatus").textContent = status;
   document.getElementById("adjustmentInsight").textContent = adjustment;
   document.getElementById("snapshotScore").textContent = score;
+  document.getElementById("avatarInitial").textContent = (profile.name || "我").trim().slice(0, 1);
+  document.getElementById("snapshotAge").textContent = `${profile.age} 岁`;
+  document.getElementById("snapshotBody").textContent = `${profile.height} cm · ${profile.weight} kg`;
   document.getElementById("profileHeadline").textContent = `${profile.goal}，${profile.activity}状态`;
   document.getElementById("profileDescription").textContent = `报告会结合${profile.activity}活动量、${profile.sleep} 小时睡眠与${profile.goal}目标，观察近期饮食节奏。`;
   document.getElementById("snapshotWater").textContent = `${profile.waterTarget} ml`;
@@ -269,10 +286,128 @@ function renderHistory() {
   elements.historyList.innerHTML = filtered.length ? filtered.map(item => `<div class="history-row"><time datetime="${item.date}">${item.date.slice(5).replace("-", "/")}</time><span>${item.meals} 餐</span><span class="history-summary" title="${escapeHtml(item.summary)}">${escapeHtml(item.summary)}</span><strong class="history-score">${item.score} 分</strong></div>`).join("") : `<div class="history-empty">这个时间范围还没有饮食记录</div>`;
 }
 
+let foodPage = 0;
+const foodPageSize = 2;
+
+function renderSidebarFoodPage(direction = 0) {
+  const pageCount = Math.ceil(foods.length / foodPageSize);
+  const start = foodPage * foodPageSize;
+  const pageFoods = foods.slice(start, start + foodPageSize);
+  const list = document.getElementById("sidebarFoodList");
+  list.innerHTML = pageFoods.map(food => `<button class="sidebar-food-item" type="button" data-food-id="${food.id}"><img src="${food.image}" alt="${food.name}" loading="lazy"><span class="sidebar-food-copy"><small>${food.category}</small><strong>${food.name}</strong><span><span>${food.calories} 千卡</span><span>蛋白质 ${food.protein} g</span></span></span></button>`).join("");
+  list.classList.remove("page-forward", "page-back");
+  if (direction) {
+    void list.offsetWidth;
+    list.classList.add(direction > 0 ? "page-forward" : "page-back");
+  }
+  document.getElementById("foodPageLabel").textContent = `${String(foodPage + 1).padStart(2, "0")} / ${String(pageCount).padStart(2, "0")}`;
+  document.getElementById("foodPageDots").innerHTML = Array.from({ length: pageCount }, (_, index) => `<button type="button" data-food-page="${index}" class="${index === foodPage ? "active" : ""}" aria-label="第 ${index + 1} 页"></button>`).join("");
+}
+
+function changeFoodPage(direction) {
+  const pageCount = Math.ceil(foods.length / foodPageSize);
+  foodPage = (foodPage + direction + pageCount) % pageCount;
+  renderSidebarFoodPage(direction);
+}
+
+let masonryCycle = 0;
+let masonryLoading = false;
+
+function appendMasonryCycle() {
+  const columns = [...elements.expandedMenuList.querySelectorAll(".masonry-column")];
+  if (!columns.length) return;
+  const imageHeights = [112, 148, 128, 168, 136, 156, 120, 176];
+  foods.forEach((food, index) => {
+    const columnIndex = (index + masonryCycle * 2) % columns.length;
+    const imageHeight = imageHeights[(index + masonryCycle + columnIndex) % imageHeights.length];
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "masonry-card";
+    card.dataset.foodId = food.id;
+    card.innerHTML = `<span class="masonry-image-wrap"><img src="${food.image}" alt="${food.name}" style="height:${imageHeight}px" loading="lazy"><span class="masonry-add">${icon("plus")}</span></span><span class="masonry-copy"><small>${food.category}</small><strong>${food.name}</strong><span><span>${food.calories} 千卡</span><span>${food.protein} g 蛋白</span></span></span>`;
+    columns[columnIndex].appendChild(card);
+  });
+  masonryCycle += 1;
+}
+
+function updateFoodFeedProgress() {
+  const list = elements.expandedMenuList;
+  const cards = list.querySelectorAll(".masonry-card");
+  document.getElementById("foodFeedProgress").textContent = `${cards.length} 张卡片`;
+  const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 420;
+  if (elements.expandedMenu.classList.contains("open") && nearBottom && !masonryLoading) {
+    masonryLoading = true;
+    appendMasonryCycle();
+    document.getElementById("foodFeedProgress").textContent = `${masonryCycle * foods.length} 张卡片`;
+    requestAnimationFrame(() => { masonryLoading = false; });
+  }
+}
+
+function renderMasonryFeed() {
+  masonryCycle = 0;
+  masonryLoading = false;
+  elements.expandedMenuList.innerHTML = Array.from({ length: 5 }, (_, index) => `<div class="masonry-column" data-column="${index + 1}"></div>`).join("");
+  for (let cycle = 0; cycle < 4; cycle += 1) appendMasonryCycle();
+  updateFoodFeedProgress();
+}
+
+function renderFoodMenus() {
+  renderSidebarFoodPage();
+  renderMasonryFeed();
+}
+
+function recordFood(foodId) {
+  const food = foods.find(item => item.id === foodId);
+  if (!food) return;
+  const meal = recordMeal(food.name, { protein: food.protein, fiber: food.fiber, veggies: food.veggies, water: food.water, penalty: 0 });
+  switchView("today");
+  appendUserMessage(`吃了${food.name}`);
+  appendAgentReply(`已从食物菜单加入${meal.type}记录。${getHealthAnalysis().adjustment}`);
+  elements.conversation.scrollTo({ top: elements.conversation.scrollHeight, behavior: "smooth" });
+  showToast(`已记录「${food.name}」，健康报告已更新`);
+}
+
+function openUserInfo() {
+  document.getElementById("nameInput").value = profile.name;
+  document.getElementById("heightInput").value = profile.height;
+  document.getElementById("weightInput").value = profile.weight;
+  document.getElementById("ageInput").value = profile.age;
+  updatePersonalPreview();
+  elements.userInfoDialog.showModal();
+}
+
+function updatePersonalPreview() {
+  const name = document.getElementById("nameInput").value.trim() || "我";
+  const height = Number(document.getElementById("heightInput").value);
+  const weight = Number(document.getElementById("weightInput").value);
+  const bmi = height >= 120 && weight > 0 ? (weight / ((height / 100) ** 2)).toFixed(1) : "—";
+  document.getElementById("personalAvatarPreview").textContent = name.slice(0, 1);
+  document.getElementById("personalPreviewName").textContent = name;
+  document.getElementById("bmiValue").textContent = bmi;
+}
+
+function savePersonalInfo(event) {
+  event.preventDefault();
+  const form = document.getElementById("personalForm");
+  if (!form.reportValidity()) return;
+  profile = {
+    ...profile,
+    name: document.getElementById("nameInput").value.trim() || "我",
+    height: Number(document.getElementById("heightInput").value),
+    weight: Number(document.getElementById("weightInput").value),
+    age: Number(document.getElementById("ageInput").value)
+  };
+  draftProfile = { ...profile };
+  saveStored(storageKeys.profile, profile);
+  renderReport();
+  elements.userInfoDialog.close();
+  showToast("个人信息已保存，健康档案已同步");
+}
+
 function switchView(view) {
   if (!viewTitles[view]) return;
   closeExpandedMenu();
-  closeSidebarMenu();
+
   document.querySelectorAll(".view").forEach(section => section.classList.toggle("active", section.id === `view-${view}`));
   document.querySelectorAll(".nav-item").forEach(button => {
     const selected = button.dataset.view === view;
@@ -345,11 +480,11 @@ function determineMealType(text) {
   return mealOrder.find(type => !meals.some(meal => meal.type === type)) || "加餐";
 }
 
-function recordMeal(text) {
+function recordMeal(text, nutritionOverride = {}) {
   const type = determineMealType(text);
   const now = new Date();
   const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-  const meal = { type, time, text, ...analyzeMealText(text) };
+  const meal = { type, time, text, ...analyzeMealText(text), ...nutritionOverride };
   meals.push(meal);
   saveStored(storageKeys.meals, meals);
   renderMeals();
@@ -403,36 +538,25 @@ function setSidebarCollapsed(collapsed) {
   const label = collapsed ? "展开左侧栏" : "收起左侧栏";
   elements.sidebarToggle.dataset.tooltip = label;
   elements.sidebarToggle.setAttribute("aria-label", label);
-  if (collapsed) closeSidebarMenu();
+
 }
 
 function setDetailsCollapsed(collapsed) {
   elements.workspace.classList.toggle("right-collapsed", collapsed);
   const label = collapsed ? "展开右侧栏" : "收起右侧栏";
-  elements.detailsToggle.dataset.tooltip = label;
-  elements.detailsToggle.setAttribute("aria-label", label);
-}
-
-function closeSidebarMenu() {
-  elements.sidebarMenuPopover.classList.remove("open");
-  elements.menuLauncher.setAttribute("aria-expanded", "false");
-}
-
-function toggleSidebarMenu() {
-  if (elements.appShell.classList.contains("left-collapsed")) setSidebarCollapsed(false);
-  const open = !elements.sidebarMenuPopover.classList.contains("open");
-  elements.sidebarMenuPopover.classList.toggle("open", open);
-  elements.menuLauncher.setAttribute("aria-expanded", String(open));
+  elements.detailsCollapseButton.dataset.tooltip = label;
+  elements.detailsCollapseButton.setAttribute("aria-label", label);
 }
 
 function openExpandedMenu() {
-  closeSidebarMenu();
+  renderMasonryFeed();
   elements.expandedMenuList.scrollTop = 0;
   elements.expandedMenu.classList.remove("open");
   void elements.expandedMenu.offsetWidth;
   elements.expandedMenu.classList.add("open");
   elements.expandedMenu.setAttribute("aria-hidden", "false");
   elements.expandedMenuList.scrollTop = 0;
+  setTimeout(updateFoodFeedProgress, 60);
 }
 
 function closeExpandedMenu() {
@@ -451,15 +575,17 @@ function pointerOverCenter(event) {
 }
 
 function beginMenuDrag(event) {
-  const rect = elements.menuLauncher.getBoundingClientRect();
+  const rect = elements.foodModule.getBoundingClientRect();
   const ghost = document.createElement("div");
   ghost.className = "menu-drag-ghost";
-  ghost.innerHTML = `${icon("menu")}<strong>快捷菜单</strong>${icon("grip")}`;
+  ghost.innerHTML = `${icon("utensils")}<strong>食物菜单</strong>${icon("grip")}`;
   document.body.appendChild(ghost);
   menuDrag.ghost = ghost;
-  menuDrag.offsetX = event.clientX - rect.left;
-  menuDrag.offsetY = event.clientY - rect.top;
-  elements.menuLauncher.classList.add("is-drag-source");
+  menuDrag.swipe = false;
+  menuDrag.offsetX = menuDrag.startX - rect.left;
+  menuDrag.offsetY = menuDrag.startY - rect.top;
+  try { elements.foodModule.setPointerCapture(event.pointerId); } catch {}
+  elements.foodModule.classList.add("is-drag-source");
   document.body.classList.add("is-dragging-menu");
   positionDropZone();
   elements.menuDropZone.classList.add("visible");
@@ -477,22 +603,25 @@ function moveMenuDrag(event) {
 
 function finishMenuDrag(event) {
   if (!menuDrag) return;
-  const wasDragging = Boolean(menuDrag.ghost);
-  const shouldOpen = wasDragging && pointerOverCenter(event);
-  if (menuDrag.ghost) {
-    menuDrag.ghost.style.opacity = "0";
-    menuDrag.ghost.style.transition = "opacity 160ms var(--ease), transform 200ms var(--ease)";
-    const ghost = menuDrag.ghost;
+  const drag = menuDrag;
+  const wasDragging = Boolean(drag.ghost);
+  const shouldOpen = wasDragging && pointerOverCenter(event) && event.type !== "pointercancel";
+  const shouldTurnPage = !wasDragging && drag.swipe && event.type !== "pointercancel" && Math.abs(event.clientX - drag.startX) > 36;
+  if (drag.ghost) {
+    drag.ghost.style.opacity = "0";
+    drag.ghost.style.transition = "opacity 160ms var(--ease), transform 200ms var(--ease)";
+    const ghost = drag.ghost;
     setTimeout(() => ghost.remove(), 180);
   }
   menuDrag = null;
-  elements.menuLauncher.classList.remove("is-drag-source");
+  elements.foodModule.classList.remove("is-drag-source");
   document.body.classList.remove("is-dragging-menu");
   elements.menuDropZone.classList.remove("visible", "is-over");
-  if (wasDragging) {
+  if (wasDragging || shouldTurnPage) {
     suppressMenuClick = true;
     setTimeout(() => { suppressMenuClick = false; }, 240);
   }
+  if (shouldTurnPage) changeFoodPage(event.clientX < drag.startX ? 1 : -1);
   if (shouldOpen) setTimeout(openExpandedMenu, 100);
 }
 
@@ -656,42 +785,82 @@ document.getElementById("addMealButton").addEventListener("click", () => element
 document.getElementById("profileShortcut").addEventListener("click", () => switchView("profile"));
 document.getElementById("downloadReport").addEventListener("click", downloadReport);
 elements.sidebarToggle.addEventListener("click", () => setSidebarCollapsed(!elements.appShell.classList.contains("left-collapsed")));
-elements.detailsToggle.addEventListener("click", () => setDetailsCollapsed(!elements.workspace.classList.contains("right-collapsed")));
+elements.detailsCollapseButton.addEventListener("click", () => setDetailsCollapsed(!elements.workspace.classList.contains("right-collapsed")));
 document.getElementById("detailsRailToggle").addEventListener("click", () => setDetailsCollapsed(false));
-elements.menuLauncher.addEventListener("click", () => { if (!suppressMenuClick) toggleSidebarMenu(); });
 document.getElementById("closeExpandedMenu").addEventListener("click", closeExpandedMenu);
+const handleFoodSelection = event => {
+  if (suppressMenuClick) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+  const button = event.target.closest("[data-food-id]");
+  if (button) recordFood(button.dataset.foodId);
+};
+document.getElementById("sidebarFoodList").addEventListener("click", handleFoodSelection);
+elements.expandedMenuList.addEventListener("click", handleFoodSelection);
+document.getElementById("foodPrev").addEventListener("click", () => changeFoodPage(-1));
+document.getElementById("foodNext").addEventListener("click", () => changeFoodPage(1));
+document.getElementById("foodPageDots").addEventListener("click", event => {
+  const button = event.target.closest("[data-food-page]");
+  if (!button) return;
+  const nextPage = Number(button.dataset.foodPage);
+  const direction = nextPage > foodPage ? 1 : -1;
+  foodPage = nextPage;
+  renderSidebarFoodPage(direction);
+});
+elements.sidebarFoodViewport.addEventListener("keydown", event => {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+  event.preventDefault();
+  changeFoodPage(event.key === "ArrowRight" ? 1 : -1);
+});
+elements.expandedMenuList.addEventListener("scroll", updateFoodFeedProgress);
 
-elements.menuLauncher.addEventListener("pointerdown", event => {
-  if (event.button !== 0) return;
-  menuDrag = { startX: event.clientX, startY: event.clientY, ghost: null, overCenter: false };
-  try { elements.menuLauncher.setPointerCapture(event.pointerId); } catch { return; }
+document.getElementById("userAvatarButton").addEventListener("click", openUserInfo);
+document.getElementById("editBodyInfo").addEventListener("click", openUserInfo);
+document.getElementById("closeUserInfo").addEventListener("click", () => elements.userInfoDialog.close());
+document.getElementById("cancelPersonal").addEventListener("click", () => elements.userInfoDialog.close());
+document.getElementById("personalForm").addEventListener("submit", savePersonalInfo);
+["nameInput", "heightInput", "weightInput"].forEach(id => document.getElementById(id).addEventListener("input", updatePersonalPreview));
+elements.userInfoDialog.addEventListener("click", event => {
+  if (event.target === elements.userInfoDialog) {
+    const rect = elements.userInfoDialog.getBoundingClientRect();
+    if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) elements.userInfoDialog.close();
+  }
 });
 
-elements.menuLauncher.addEventListener("pointermove", event => {
+elements.foodModule.addEventListener("pointerdown", event => {
+  if (event.button !== 0 || event.target.closest(".food-pagination")) return;
+  menuDrag = { startX: event.clientX, startY: event.clientY, ghost: null, swipe: false, startedOnFood: Boolean(event.target.closest("#sidebarFoodViewport")) };
+});
+
+elements.foodModule.addEventListener("pointermove", event => {
   if (!menuDrag) return;
-  if (!menuDrag.ghost && Math.hypot(event.clientX - menuDrag.startX, event.clientY - menuDrag.startY) > 7) beginMenuDrag(event);
+  const dx = event.clientX - menuDrag.startX;
+  const dy = event.clientY - menuDrag.startY;
+  if (!menuDrag.ghost) {
+    if (pointerOverCenter(event) || (!menuDrag.startedOnFood && Math.hypot(dx, dy) > 9) || (menuDrag.startedOnFood && !menuDrag.swipe && Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx))) {
+      beginMenuDrag(event);
+    } else if (menuDrag.startedOnFood && !menuDrag.swipe && Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+      menuDrag.swipe = true;
+      try { elements.foodModule.setPointerCapture(event.pointerId); } catch {}
+    }
+  }
   if (menuDrag.ghost) {
     event.preventDefault();
     moveMenuDrag(event);
   }
 });
 
-elements.menuLauncher.addEventListener("pointerup", event => {
-  if (elements.menuLauncher.hasPointerCapture(event.pointerId)) elements.menuLauncher.releasePointerCapture(event.pointerId);
+elements.foodModule.addEventListener("pointerup", event => {
+  if (elements.foodModule.hasPointerCapture(event.pointerId)) elements.foodModule.releasePointerCapture(event.pointerId);
   finishMenuDrag(event);
 });
 
-elements.menuLauncher.addEventListener("pointercancel", event => finishMenuDrag(event));
-
-document.addEventListener("pointerdown", event => {
-  if (!event.target.closest(".menu-anchor")) closeSidebarMenu();
-});
+elements.foodModule.addEventListener("pointercancel", event => finishMenuDrag(event));
 
 document.addEventListener("keydown", event => {
-  if (event.key === "Escape") {
-    closeExpandedMenu();
-    closeSidebarMenu();
-  }
+  if (event.key === "Escape") closeExpandedMenu();
 });
 
 document.getElementById("rankingTabs").addEventListener("click", event => {
@@ -753,6 +922,7 @@ document.addEventListener("visibilitychange", () => {
 });
 
 initDates();
+renderFoodMenus();
 renderMeals();
 renderReport();
 renderHistory();
