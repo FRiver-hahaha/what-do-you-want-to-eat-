@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#f3f5f1">
   <title>今天你吃了吗 · 饮食健康助手</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="features.css">
 </head>
 <body>
   <div class="ambient" aria-hidden="true">
@@ -41,6 +42,7 @@
     <symbol id="icon-activity" viewBox="0 0 24 24"><path d="M3 12h4l2-7 4 14 2-7h6"></path></symbol>
     <symbol id="icon-water" viewBox="0 0 24 24"><path d="M12 2s7 7.2 7 12a7 7 0 0 1-14 0c0-4.8 7-12 7-12Z"></path><path d="M9 15a3 3 0 0 0 3 3"></path></symbol>
     <symbol id="icon-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z"></path></symbol>
+    <symbol id="icon-shop" viewBox="0 0 24 24"><path d="M20 12v9H4v-9"></path><path d="M2 7h20v5H2Z"></path><path d="M12 7v14"></path><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C10 2 12 7 12 7Z"></path><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C14 2 12 7 12 7Z"></path></symbol>
   </svg>
 
   <div class="app-shell" id="appShell">
@@ -61,11 +63,10 @@
       </section>
 
       <div class="sidebar-bottom">
-        <div class="local-card">
-          <div class="local-title"><span class="status-dot"></span>本地健康档案</div>
-          <p>近 7 天饮食记录已就绪</p>
-        </div>
-        <div class="sidebar-health-note"><svg class="icon"><use href="#icon-leaf"></use></svg><p>不评判某一口食物，<br>只观察长期的饮食节奏。</p></div>
+        <section class="today-card">
+          <header class="details-heading"><div><span class="section-kicker">今日饮食记录</span><h2>吃过的，都算数</h2></div><div class="date-tile"><strong id="dateNumber">11</strong><span id="dateMonth">十一月</span></div></header>
+          <div class="meal-timeline" id="mealTimeline"></div>
+        </section>
       </div>
     </aside>
 
@@ -81,6 +82,7 @@
           <button class="nav-item tooltip" type="button" data-view="report" data-tooltip="健康报告" aria-label="健康报告"><svg class="icon"><use href="#icon-report"></use></svg></button>
           <button class="nav-item tooltip" type="button" data-view="profile" data-tooltip="健康档案" aria-label="健康档案"><svg class="icon"><use href="#icon-user"></use></svg></button>
           <button class="nav-item tooltip" type="button" data-view="history" data-tooltip="历史记录" aria-label="历史记录"><svg class="icon"><use href="#icon-history"></use></svg></button>
+          <button class="nav-item tooltip" type="button" data-view="shop" data-tooltip="积分商城" aria-label="积分商城"><svg class="icon"><use href="#icon-shop"></use></svg></button>
         </nav>
 
         <div class="top-actions">
@@ -100,28 +102,14 @@
                   <div class="message-meta"><strong>饭饭</strong><span>结合近 7 天记录与健康档案</span></div>
                   <div class="message-bubble"><p>告诉我今天吃了什么，我会记录这一餐，并结合你近期的饮食节奏、活动量和健康目标更新今日报告。</p></div>
 
-                  <article class="health-report-card" id="healthReportCard" aria-live="polite">
-                    <header class="report-card-heading"><div><span class="section-kicker">今日饮食健康报告</span><h2>整体搭配，继续微调</h2></div><span class="report-meal-count" id="mealCount">已记录 2 餐</span></header>
-                    <div class="health-report-body">
-                      <div class="score-block">
-                        <div class="score-ring-wrap">
-                          <svg class="score-ring" viewBox="0 0 96 96" aria-label="今日饮食评分"><circle class="score-ring-track" cx="48" cy="48" r="40"></circle><circle class="score-ring-value" id="scoreCircle" cx="48" cy="48" r="40"></circle></svg>
-                          <div><strong id="scoreValue">82</strong><span>综合评分</span></div>
-                        </div>
-                        <span class="score-status" id="scoreStatus">整体均衡</span>
-                        <small id="scoreDelta">较近 7 日均值 +4</small>
-                      </div>
-                      <div class="report-main">
-                        <p class="report-summary" id="reportSummary">目前最需要补的是水分。近 7 天蔬菜摄入已有改善，晚餐保持蔬菜与全谷物即可。</p>
-                        <div class="nutrition-grid">
-                          <div class="nutrition-item"><div><span>蛋白质</span><strong id="proteinValue">60 / 90 g</strong></div><div class="nutrition-track"><i id="proteinBar" style="width:67%"></i></div></div>
-                          <div class="nutrition-item"><div><span>膳食纤维</span><strong id="fiberValue">15 / 25 g</strong></div><div class="nutrition-track"><i id="fiberBar" style="width:60%"></i></div></div>
-                          <div class="nutrition-item"><div><span>蔬菜</span><strong id="veggiesValue">320 / 500 g</strong></div><div class="nutrition-track"><i id="veggiesBar" style="width:64%"></i></div></div>
-                          <div class="nutrition-item"><div><span>饮水</span><strong id="waterValue">950 / 1800 ml</strong></div><div class="nutrition-track"><i id="waterBar" style="width:53%"></i></div></div>
-                        </div>
-                      </div>
+                  <article class="inference-card" id="inferenceCard" aria-live="polite">
+                    <header class="inference-heading"><div><span class="section-kicker">本地健康画像推理</span><h2>让我猜猜你今天吃了什么</h2></div><span class="report-meal-count" id="mealCount">已记录 2 餐</span></header>
+                    <div class="inference-body">
+                      <div class="inference-visual"><img id="guessImage" src="https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&amp;fit=crop&amp;w=600&amp;q=82" alt="猜测的食物"><span class="inference-match" id="guessMatch">82% 匹配</span></div>
+                      <div class="inference-copy"><span class="inference-period" id="guessPeriod">结合当前时段与健康档案</span><h3 id="guessName">柠檬鸡胸能量碗</h3><p class="inference-reason" id="guessReason">根据你的健康目标与近期饮食节奏做出的猜测</p><div class="inference-track"><i id="guessBar" style="width:82%"></i></div><div class="inference-evidence" id="guessEvidence"></div></div>
                     </div>
-                    <footer class="report-card-footer"><span id="reportBasis">依据：今日 2 餐、近 7 天记录、久坐与均衡饮食目标</span><div class="dish-actions"><button class="button primary-button" id="viewFullReport" type="button"><svg class="icon"><use href="#icon-report"></use></svg>查看完整报告</button><button class="button secondary-button" id="addMealButton" type="button"><svg class="icon"><use href="#icon-plus"></use></svg>记录下一餐</button></div></footer>
+                    <footer class="inference-footer"><span id="reportBasis">本地规则根据健康档案生成，不调用在线模型</span><div class="inference-actions"><button class="button primary-button" id="acceptGuess" type="button"><svg class="icon"><use href="#icon-check"></use></svg>猜对了，记录这道</button><button class="button secondary-button" id="nextGuess" type="button">再猜一次</button></div></footer>
+                    <div class="inference-secondary-actions"><button id="addMealButton" type="button">告诉饭饭实际吃了什么</button><button id="viewFullReport" type="button">查看完整健康报告</button></div>
                   </article>
                 </div>
               </article>
@@ -175,6 +163,19 @@
             <div class="history-card glass-panel"><div class="history-header"><span>日期</span><span>记录</span><span>主要饮食内容</span><span>健康评分</span></div><div id="historyList"></div></div>
           </section>
 
+          <section class="view" id="view-shop" aria-label="积分商城">
+            <div class="section-intro"><span class="section-kicker">每周重置，持续记录就有回响</span><h2>积分商城</h2><p>用健康记录积累积分，兑换自己喜欢的 Agent 背景</p></div>
+            <div class="shop-scroll">
+              <div class="points-hero">
+                <section class="points-balance-card"><span class="section-kicker">本周可用积分</span><div class="points-number"><strong id="pointsBalance">290</strong><span>分</span></div><div class="points-meta"><span>本周获得 <b id="pointsEarned">290</b></span><span>已兑换 <b id="pointsSpent">0</b></span></div><button class="button checkin-button" id="dailyCheckin" type="button"><svg class="icon"><use href="#icon-check"></use></svg><span id="checkinLabel">每日签到 +10</span></button><p class="points-reset-note">每周一 00:00 重置本周积分</p></section>
+                <section class="points-rules-card glass-panel"><h3>积分获得规则</h3><div class="points-rule-list"><div class="points-rule"><span>每日签到</span><strong>+10</strong></div><div class="points-rule"><span>早、中、晚餐上报</span><strong>每餐 +10</strong></div><div class="points-rule"><span>三餐全部上报</span><strong>额外 +20</strong></div><div class="points-rule"><span>Agent 互动</span><strong>每次 +2 · 每日上限 20</strong></div><div class="points-rule"><span>健康分 90+ / 80–89 / 80 以下</span><strong>+20 / +10 / +5</strong></div></div><p class="points-progress-copy" id="pointsProgressCopy">今日已上报 2 餐 · 互动 0 / 20 · 健康奖励 10 分</p></section>
+              </div>
+              <section class="weekly-reward-card glass-panel"><div><h3>本周健康均分排名奖励</h3><p><span id="weeklyAverageText">你的本周健康均分为 82</span> · <span id="weeklyRankText">当前第 4 名</span></p></div><strong class="weekly-bonus" id="weeklyBonus">预计 +10</strong></section>
+              <div class="theme-section-heading"><h3>背景装扮</h3><p>兑换后立即应用，已拥有的背景会在每周积分重置后保留</p></div>
+              <div class="theme-grid" id="themeGrid"></div>
+            </div>
+          </section>
+
           <section class="expanded-menu" id="expandedMenu" aria-label="展开食物菜单" aria-hidden="true">
             <header><div><span class="section-kicker">全部食物 · 五列瀑布流</span><h2>今天吃了哪一道</h2><p>自由滚动发现食物，点击卡片即可加入今日记录</p></div><div class="expanded-menu-actions"><span id="foodFeedProgress">24 张卡片</span><button class="icon-button" id="closeExpandedMenu" type="button" aria-label="收起菜单"><svg class="icon"><use href="#icon-x"></use></svg></button></div></header>
             <div class="expanded-menu-list food-feed" id="expandedMenuList" tabindex="0" aria-label="五列食物瀑布流，滚动持续加载"></div>
@@ -182,17 +183,13 @@
           </section>
         </main>
 
-        <aside class="details-panel glass-panel" id="detailsPanel" aria-label="饮食记录与好友排行榜">
+        <aside class="details-panel glass-panel" id="detailsPanel" aria-label="好友健康均分排行榜">
           <button class="details-rail tooltip-left" id="detailsRailToggle" type="button" data-tooltip="展开右侧栏" aria-label="展开右侧栏"><svg class="icon"><use href="#icon-panel-right"></use></svg><span></span><svg class="icon"><use href="#icon-trophy"></use></svg></button>
           <div class="details-content">
-            <section class="today-card">
-              <header class="details-heading"><div><span class="section-kicker">今日饮食记录</span><h2>吃过的，都算数</h2></div><div class="details-heading-actions"><div class="date-tile"><strong id="dateNumber">11</strong><span id="dateMonth">十一月</span></div><button class="icon-button details-collapse-button tooltip-left" id="detailsCollapseButton" type="button" data-tooltip="收起右侧栏" aria-label="收起右侧栏"><svg class="icon"><use href="#icon-panel-right"></use></svg></button></div></header>
-              <div class="meal-timeline" id="mealTimeline"></div>
-            </section>
-
             <section class="leaderboard-card">
-              <header><div><span class="section-kicker">好友排行榜</span><h3>本周健康打卡</h3></div><div class="ranking-tabs" id="rankingTabs"><button type="button" data-ranking="week" class="active">本周</button><button type="button" data-ranking="today">今日</button></div></header>
-              <p class="ranking-basis">综合记录完整度、蔬果与饮水打卡</p>
+              <div class="champion-cover"><img src="https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&amp;fit=crop&amp;w=800&amp;q=82" alt="排行榜第一名的好友封面"><div class="champion-info"><span class="champion-avatar" id="championAvatar">林</span><div class="champion-copy"><strong id="championName">林小满</strong><span id="championNote">本周第 1 名 · 连续 7 天记录</span></div><strong class="champion-score"><span id="championScore">92</span><small>分</small></strong></div></div>
+              <header><div><span class="section-kicker">好友排行榜</span><h3>健康均分榜</h3></div><div class="ranking-actions"><div class="ranking-tabs" id="rankingTabs"><button type="button" data-ranking="week" class="active">本周</button><button type="button" data-ranking="today">今日</button></div><button class="icon-button details-collapse-button tooltip-left" id="detailsCollapseButton" type="button" data-tooltip="收起右侧栏" aria-label="收起右侧栏"><svg class="icon"><use href="#icon-panel-right"></use></svg></button></div></header>
+              <p class="ranking-basis">按本周每日健康分数的平均值排名</p>
               <div class="leaderboard-list" id="leaderboardList"></div>
               <footer><svg class="icon"><use href="#icon-trophy"></use></svg><span id="rankingSummary">你本周连续记录 5 天，继续保持</span></footer>
             </section>

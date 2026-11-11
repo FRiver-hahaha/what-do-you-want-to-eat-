@@ -2,6 +2,7 @@ const storageKeys = {
   profile: "eat-health-profile-v2",
   meals: "eat-health-meals-v2",
   history: "eat-health-history-v2",
+  points: "eat-health-points-v1",
   motion: "eat-agent-motion"
 };
 
@@ -58,11 +59,30 @@ const rankings = {
   ]
 };
 
+const defaultPointsState = {
+  week: "",
+  baseEarned: 260,
+  spent: 0,
+  checkins: {},
+  interactions: {},
+  healthAwards: {},
+  owned: ["aurora"],
+  selected: "aurora"
+};
+
+const shopThemes = [
+  { id: "aurora", name: "轻雾极光", description: "保留当前的浅色极光与星座网格", price: 0 },
+  { id: "sage", name: "森间早餐", description: "柔和鼠尾草绿与清晨薄雾", price: 120 },
+  { id: "peach", name: "蜜桃餐桌", description: "低饱和杏桃色与暖白光线", price: 180 },
+  { id: "sky", name: "晴空餐垫", description: "安静天蓝色与清透云层", price: 260 }
+];
+
 const viewTitles = {
   today: "今天吃了什么",
   report: "健康报告",
   profile: "健康档案",
-  history: "历史记录"
+  history: "历史记录",
+  shop: "积分商城"
 };
 
 const monthLabels = ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"];
@@ -72,6 +92,10 @@ const mealOrder = ["早餐", "午餐", "晚餐", "加餐"];
 let profile = { ...defaultProfile, ...loadStored(storageKeys.profile, defaultProfile) };
 let meals = loadStored(storageKeys.meals, defaultMeals);
 let history = loadStored(storageKeys.history, seedHistory);
+let pointsState = { ...defaultPointsState, ...loadStored(storageKeys.points, defaultPointsState) };
+let currentWeeklyRank = 4;
+let guessIndex = 0;
+let currentGuessFoodId = "lemon-chicken";
 let draftProfile = { ...profile };
 let historyFilter = "week";
 let activeRanking = "week";
@@ -152,6 +176,163 @@ function todayKey() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
+function getWeekKey(date = new Date()) {
+  const mondayOffset = (date.getDay() + 6) % 7;
+  const monday = new Date(date.getFullYear(), date.getMonth(), date.getDate() - mondayOffset);
+  return `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
+}
+
+function getWeeklyAverage() {
+  const week = getWeekKey();
+  const entries = history.filter(item => item.date >= week && item.date <= todayKey());
+  return entries.length ? Math.round(entries.reduce((sum, item) => sum + item.score, 0) / entries.length) : 0;
+}
+
+function ensurePointsState() {
+  const currentWeek = getWeekKey();
+  if (!pointsState.week) {
+    pointsState.week = currentWeek;
+  } else if (pointsState.week !== currentWeek) {
+    pointsState = {
+      ...defaultPointsState,
+      week: currentWeek,
+      baseEarned: 0,
+      spent: 0,
+      owned: [...new Set(pointsState.owned || ["aurora"])],
+      selected: pointsState.selected || "aurora"
+    };
+  }
+  saveStored(storageKeys.points, pointsState);
+  return pointsState;
+}
+
+function getMealPoints() {
+  const types = new Set(meals.filter(meal => ["早餐", "午餐", "晚餐"].includes(meal.type)).map(meal => meal.type));
+  return { count: types.size, points: types.size * 10 + (types.size === 3 ? 20 : 0) };
+}
+
+function getDailyPoints() {
+  ensurePointsState();
+  const today = todayKey();
+  return (pointsState.checkins[today] ? 10 : 0) + getMealPoints().points + (pointsState.interactions[today] || 0) + (pointsState.healthAwards[today] || 0);
+}
+
+function getWeeklyEarned() {
+  ensurePointsState();
+  const rankingBonus = new Date().getDay() === 0 ? getWeeklyBonus() : 0;
+  return pointsState.baseEarned + getDailyPoints() + rankingBonus;
+}
+
+function getPointsBalance() {
+  return Math.max(0, getWeeklyEarned() - pointsState.spent);
+}
+
+function getWeeklyBonus() {
+  if (currentWeeklyRank === 1) return 50;
+  if (currentWeeklyRank === 2) return 30;
+  if (currentWeeklyRank === 3) return 20;
+  return 10;
+}
+
+function rewardInteraction() {
+  ensurePointsState();
+  const today = todayKey();
+  pointsState.interactions[today] = Math.min(20, (pointsState.interactions[today] || 0) + 2);
+  saveStored(storageKeys.points, pointsState);
+  if (document.getElementById("view-shop").classList.contains("active")) renderShop();
+}
+
+function rewardHealthScore(score) {
+  ensurePointsState();
+  const today = todayKey();
+  const reward = score >= 90 ? 20 : score >= 80 ? 10 : 5;
+  if (reward > (pointsState.healthAwards[today] || 0)) {
+    pointsState.healthAwards[today] = reward;
+    saveStored(storageKeys.points, pointsState);
+    if (document.getElementById("view-shop").classList.contains("active")) renderShop();
+  }
+}
+
+function applyTheme(themeId) {
+  if (!shopThemes.some(theme => theme.id === themeId)) return;
+  pointsState.selected = themeId;
+  document.body.dataset.theme = themeId;
+  saveStored(storageKeys.points, pointsState);
+  if (document.getElementById("view-shop").classList.contains("active")) renderShop();
+}
+
+function renderShop() {
+  ensurePointsState();
+  const today = todayKey();
+  const earned = getWeeklyEarned();
+  const balance = getPointsBalance();
+  const mealPoints = getMealPoints();
+  const interactions = pointsState.interactions[today] || 0;
+  const healthAward = pointsState.healthAwards[today] || 0;
+  const checkedIn = Boolean(pointsState.checkins[today]);
+  document.getElementById("pointsBalance").textContent = balance;
+  document.getElementById("pointsEarned").textContent = earned;
+  document.getElementById("pointsSpent").textContent = pointsState.spent;
+  document.getElementById("dailyCheckin").disabled = checkedIn;
+  document.getElementById("checkinLabel").textContent = checkedIn ? "今日已签到" : "每日签到 +10";
+  document.getElementById("pointsProgressCopy").textContent = `今日已上报 ${mealPoints.count} / 3 餐 · 互动 ${interactions} / 20 · 健康奖励 ${healthAward} 分`;
+  document.getElementById("weeklyAverageText").textContent = `你的本周健康均分为 ${getWeeklyAverage()}`;
+  document.getElementById("weeklyRankText").textContent = `当前第 ${currentWeeklyRank} 名`;
+  document.getElementById("weeklyBonus").textContent = `预计 +${getWeeklyBonus()}`;
+  document.getElementById("themeGrid").innerHTML = shopThemes.map(theme => {
+    const owned = pointsState.owned.includes(theme.id);
+    const selected = pointsState.selected === theme.id;
+    const affordable = balance >= theme.price;
+    const label = selected ? "使用中" : owned ? "应用" : affordable ? "兑换" : "积分不足";
+    return `<article class="theme-card${selected ? " selected" : ""}"><div class="theme-preview theme-${theme.id}"></div><div class="theme-card-body"><h4>${theme.name}</h4><p>${theme.description}</p><div class="theme-card-footer"><span class="theme-price">${theme.price ? `${theme.price} 积分` : "免费"}</span><button class="theme-action${selected ? " applied" : ""}" type="button" data-theme-id="${theme.id}" ${!owned && !affordable ? "disabled" : ""}>${label}</button></div></div></article>`;
+  }).join("");
+}
+
+function handleThemeAction(event) {
+  const button = event.target.closest("[data-theme-id]");
+  if (!button || button.disabled) return;
+  const theme = shopThemes.find(item => item.id === button.dataset.themeId);
+  if (!theme) return;
+  if (!pointsState.owned.includes(theme.id)) {
+    if (getPointsBalance() < theme.price) {
+      showToast("本周可用积分不足");
+      return;
+    }
+    pointsState.spent += theme.price;
+    pointsState.owned.push(theme.id);
+    showToast(`已兑换「${theme.name}」并应用`);
+  } else {
+    showToast(`已应用「${theme.name}」`);
+  }
+  applyTheme(theme.id);
+}
+
+function getGuessSequence() {
+  const hour = new Date().getHours();
+  const ids = hour < 11 ? ["vegetable-rice", "lemon-chicken", "mushroom-soup"] : hour < 17 ? ["lemon-chicken", "tomato-beef", "shrimp-pasta"] : ["mushroom-soup", "vegetable-rice", "tomato-beef"];
+  return ids.map(id => foods.find(food => food.id === id));
+}
+
+function renderInference() {
+  const analysis = getHealthAnalysis();
+  const sequence = getGuessSequence();
+  const index = guessIndex % sequence.length;
+  const food = sequence[index];
+  const match = Math.min(94, Math.max(58, 68 + Math.round(analysis.score / 5) - index * 6 + (profile.goal === "增加蛋白" ? 4 : 0)));
+  const period = new Date().getHours() < 11 ? "早餐猜测" : new Date().getHours() < 17 ? "午餐猜测" : "晚餐猜测";
+  const average = getWeeklyAverage();
+  currentGuessFoodId = food.id;
+  document.getElementById("guessPeriod").textContent = `${period} · 根据当前个人健康状况`;
+  document.getElementById("guessName").textContent = food.name;
+  document.getElementById("guessImage").src = food.image;
+  document.getElementById("guessImage").alt = `猜测你吃了${food.name}`;
+  document.getElementById("guessMatch").textContent = `${match}% 匹配`;
+  document.getElementById("guessBar").style.width = `${match}%`;
+  document.getElementById("guessReason").textContent = `你的目标是「${profile.goal}」，日常${profile.activity}、睡眠 ${profile.sleep} 小时；结合近 7 天健康均分 ${average} 和当前${analysis.ratios.water < 0.8 ? "饮水不足" : "饮水节奏"}，我猜你更可能选择了这道${food.category}的食物。`;
+  document.getElementById("guessEvidence").innerHTML = [profile.goal, profile.activity, `${profile.age} 岁`, `近 7 天均分 ${average}`].map(text => `<span>${text}</span>`).join("");
+  elements.reportBasis.textContent = "本地规则推理：健康档案 + 近 7 天记录 + 当前营养进度，不调用在线模型";
+}
+
 function getNutrition() {
   return meals.reduce((total, meal) => ({
     protein: total.protein + meal.protein,
@@ -188,15 +369,8 @@ function getHealthAnalysis() {
 
 function renderReport() {
   const analysis = getHealthAnalysis();
-  const { nutrition, targets, ratios, score, status, summary, adjustment } = analysis;
+  const { nutrition, targets, ratios, score, status, adjustment } = analysis;
   elements.mealCount.textContent = `已记录 ${meals.length} 餐`;
-  elements.scoreValue.textContent = score;
-  elements.scoreCircle.style.strokeDashoffset = `${251.33 * (1 - score / 100)}`;
-  elements.scoreStatus.textContent = status;
-  const delta = score - 78;
-  elements.scoreDelta.textContent = `较近 7 日均值 ${delta >= 0 ? "+" : ""}${delta}`;
-  elements.reportSummary.textContent = summary;
-  elements.reportBasis.textContent = `依据：今日 ${meals.length} 餐、近 7 天记录、${profile.activity}与${profile.goal}目标`;
   document.getElementById("detailScoreValue").textContent = score;
   document.getElementById("detailScoreStatus").textContent = status;
   document.getElementById("adjustmentInsight").textContent = adjustment;
@@ -214,17 +388,16 @@ function renderReport() {
     veggies: `${nutrition.veggies} / ${targets.veggies} g`,
     water: `${nutrition.water} / ${targets.water} ml`
   };
-  Object.keys(values).forEach(key => {
-    document.getElementById(`${key}Value`).textContent = values[key];
-    document.getElementById(`${key}Bar`).style.width = `${Math.round(ratios[key] * 100)}%`;
-  });
   const labels = { protein: "蛋白质", fiber: "膳食纤维", veggies: "蔬菜", water: "饮水" };
   document.getElementById("detailNutritionList").innerHTML = `<div class="detail-nutrition-list">${Object.keys(labels).map(key => `<div class="detail-nutrition-row"><span>${labels[key]}</span><div class="nutrition-track"><i style="width:${Math.round(ratios[key] * 100)}%"></i></div><strong>${values[key]}</strong></div>`).join("")}</div>`;
   const tags = [ratios.veggies >= 0.6 ? "蔬菜摄入良好" : "蔬菜待补充", ratios.protein >= 1 ? "蛋白质已达标" : "蛋白质进行中", ratios.water < 0.8 ? "饮水待补充" : "饮水节奏良好"];
   document.getElementById("reportTags").innerHTML = tags.map(tag => `<span>${tag}</span>`).join("");
   renderTrend(score);
   updateTodayHistory(score);
+  rewardHealthScore(score);
+  renderInference();
   renderLeaderboard(score);
+  if (document.getElementById("view-shop").classList.contains("active")) renderShop();
 }
 
 function renderTrend(score) {
@@ -253,11 +426,19 @@ function renderMeals() {
 }
 
 function renderLeaderboard(currentScore = getHealthAnalysis().score) {
-  const data = rankings[activeRanking].map(item => item.current ? { ...item, score: currentScore, note: activeRanking === "today" ? `已记录 ${meals.length} 餐` : item.note } : { ...item });
-  data.sort((a, b) => b.score - a.score);
+  const weeklyAverage = getWeeklyAverage();
+  const weeklyData = rankings.week.map(item => item.current ? { ...item, score: weeklyAverage } : { ...item }).sort((a, b) => b.score - a.score);
+  currentWeeklyRank = weeklyData.findIndex(item => item.current) + 1;
+  const data = activeRanking === "week" ? weeklyData : rankings.today.map(item => item.current ? { ...item, score: currentScore, note: `已记录 ${meals.length} 餐` } : { ...item }).sort((a, b) => b.score - a.score);
+  const champion = data[0];
+  document.getElementById("championAvatar").textContent = champion.name === "你" ? "我" : champion.name.slice(0, 1);
+  document.getElementById("championName").textContent = champion.name;
+  document.getElementById("championScore").textContent = champion.score;
+  document.getElementById("championNote").textContent = `${activeRanking === "week" ? "本周" : "今日"}第 1 名 · ${champion.note}`;
   elements.leaderboardList.innerHTML = data.map((item, index) => `<div class="leaderboard-row${item.current ? " current-user" : ""}"><span class="rank-number">${index + 1}</span><span class="friend-avatar">${escapeHtml(item.name === "你" ? "我" : item.name.slice(0, 1))}</span><div class="friend-copy"><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.note)}</small></div><span class="friend-score">${item.score}<small>分</small></span></div>`).join("");
   const rank = data.findIndex(item => item.current) + 1;
-  document.getElementById("rankingSummary").textContent = activeRanking === "week" ? `你本周连续记录 5 天，当前第 ${rank} 名` : `你今日已记录 ${meals.length} 餐，当前第 ${rank} 名`;
+  document.getElementById("rankingSummary").textContent = activeRanking === "week" ? `本周健康均分 ${weeklyAverage} · 当前第 ${rank} 名 · 周奖励预计 +${getWeeklyBonus()}` : `今日健康分 ${currentScore} · 当前第 ${rank} 名`;
+  if (document.getElementById("view-shop").classList.contains("active")) renderShop();
 }
 
 function updateTodayHistory(score) {
@@ -419,6 +600,7 @@ function switchView(view) {
   if (view === "history") renderHistory();
   if (view === "profile") syncProfileForm();
   if (view === "report") renderReport();
+  if (view === "shop") renderShop();
 }
 
 function appendUserMessage(text) {
@@ -489,6 +671,7 @@ function recordMeal(text, nutritionOverride = {}) {
   saveStored(storageKeys.meals, meals);
   renderMeals();
   renderReport();
+  rewardInteraction();
   return meal;
 }
 
@@ -508,6 +691,7 @@ function sendPrompt(rawText) {
   replyTimer = setTimeout(() => {
     document.getElementById("typingMessage")?.remove();
     if (/报告|分析|总结/.test(text) && !/吃|喝/.test(text)) {
+      rewardInteraction();
       const analysis = getHealthAnalysis();
       appendAgentReply(`今日综合评分是 ${analysis.score} 分，${analysis.status}。${analysis.summary}`);
     } else {
@@ -629,6 +813,8 @@ function clearLocalData() {
   profile = { ...defaultProfile };
   meals = structuredClone(defaultMeals);
   history = structuredClone(seedHistory);
+  pointsState = { ...defaultPointsState, week: getWeekKey() };
+  guessIndex = 0;
   Object.values(storageKeys).forEach(key => {
     try { localStorage.removeItem(key); } catch { return; }
   });
@@ -638,6 +824,8 @@ function clearLocalData() {
   renderReport();
   renderHistory();
   syncProfileForm();
+  applyTheme(pointsState.selected);
+  if (document.getElementById("view-shop").classList.contains("active")) renderShop();
   elements.settingsDialog.close();
   showToast("本地饮食记录与健康档案已恢复为演示数据");
 }
@@ -784,6 +972,21 @@ document.getElementById("viewFullReport").addEventListener("click", () => switch
 document.getElementById("addMealButton").addEventListener("click", () => elements.chatInput.focus());
 document.getElementById("profileShortcut").addEventListener("click", () => switchView("profile"));
 document.getElementById("downloadReport").addEventListener("click", downloadReport);
+document.getElementById("dailyCheckin").addEventListener("click", () => {
+  ensurePointsState();
+  const today = todayKey();
+  if (pointsState.checkins[today]) return;
+  pointsState.checkins[today] = true;
+  saveStored(storageKeys.points, pointsState);
+  renderShop();
+  showToast("签到成功，本周积分 +10");
+});
+document.getElementById("themeGrid").addEventListener("click", handleThemeAction);
+document.getElementById("nextGuess").addEventListener("click", () => {
+  guessIndex += 1;
+  renderInference();
+});
+document.getElementById("acceptGuess").addEventListener("click", () => recordFood(currentGuessFoodId));
 elements.sidebarToggle.addEventListener("click", () => setSidebarCollapsed(!elements.appShell.classList.contains("left-collapsed")));
 elements.detailsCollapseButton.addEventListener("click", () => setDetailsCollapsed(!elements.workspace.classList.contains("right-collapsed")));
 document.getElementById("detailsRailToggle").addEventListener("click", () => setDetailsCollapsed(false));
@@ -921,6 +1124,8 @@ document.addEventListener("visibilitychange", () => {
   else if (!document.body.classList.contains("motion-off")) startConstellation();
 });
 
+ensurePointsState();
+applyTheme(pointsState.selected || "aurora");
 initDates();
 renderFoodMenus();
 renderMeals();
