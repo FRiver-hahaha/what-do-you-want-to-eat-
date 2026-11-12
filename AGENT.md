@@ -8,7 +8,7 @@
 
 | 部分 | 状态 | 职责 |
 | --- | --- | --- |
-| 客户端前端 | 已同步上游 32ec689 | 页面、交互、本地规则降级；未新增 Agent 网络调用 |
+| 客户端前端 | 已同步上游 32ec689 | 页面与交互保持上游；新增 `agent-adapter.js` 接入 Agent，离线时回退本地规则 |
 | Agent 服务 | 本次新增 | 模型接入、工具、MCP、Skill、RAG、上下文与记忆 |
 | C++ 服务端 | 由其他成员实现 | epoll、主从 Reactor、MySQL、Redis、账号与好友关系 |
 
@@ -35,7 +35,7 @@
 
 ```
 客户端 UI（index.html / styles.css / features.css / app.js，基线 32ec689）
-        │  HTTP + SSE（接口已预留，前端尚未接入）
+        │  HTTP + SSE（agent-adapter.js 已接入，离线回退本地规则）
         ▼
 Agent 服务（Python，本次实现）
   ├─ 接入层：HTTP 路由、SSE、CORS、请求限长
@@ -82,7 +82,7 @@ AgentApp
 
 ## 4. 已实现功能
 
-### 4.1 客户端（已同步上游 32ec689，未改动）
+### 4.1 客户端（上游 32ec689 + Agent 适配层）
 
 #### 4.1.1 饮食记录与健康分析
 
@@ -183,8 +183,8 @@ AgentApp
 | 服务端数据 | HTTP/JSON，通过 `ServiceClient` 访问 |
 | 模型接入 | OpenAI 兼容 `chat/completions`，支持 function calling |
 | 检索 | BM25 + 字符 bigram 哈希向量，纯 Python 实现 |
-| 前端 | HTML5、CSS3、原生 JavaScript（保持原样） |
-| 前端存储 | localStorage（保持原样） |
+| 前端 | HTML5、CSS3、原生 JavaScript；上游视觉保持，新增 `agent-adapter.js` 接入 Agent |
+| 前端存储 | localStorage；页面状态经 `client_context` 传给 Agent |
 | 静态服务 | Python 内置 http.server，可选 |
 
 Agent 服务不需要 pip install，不引入 FastAPI、LangChain、向量数据库或 ORM。这样做的原因是项目前端没有构建步骤，服务也应保持零依赖、可直接启动。
@@ -197,6 +197,8 @@ Agent 服务不需要 pip install，不引入 FastAPI、LangChain、向量数据
 ├── styles.css                  # 客户端基础样式
 ├── features.css                # 客户端功能样式
 ├── app.js                      # 客户端交互与本地规则
+├── agent-adapter.js            # 前端 Agent 适配层：SSE、client_context、确认与降级
+├── agent.css                   # Agent 工具条、确认弹窗、Skill 市场样式
 ├── AGENT.md                    # 项目、Agent 架构、提示词、接口与协作说明
 └── agent/
     ├── __init__.py
@@ -636,6 +638,15 @@ priority: 12
 | POST | `/api/feedback` | 用户反馈写入长期记忆 |
 | GET | `/api/service/status` | 服务端连接状态 |
 
+前端已通过 `agent-adapter.js` 接入：
+
+- `/api/agent/meta`：启动时检查 Agent 与 MCP 状态，更新 `.agent-state`。
+- `/api/models`：加载模型下拉，未配置 Key 的模型置灰。
+- `/api/chat/stream`：全部对话、工具事件、引用与确认流程。
+- `/api/skills/market`、`/api/skills/market/install`、`/api/skills/market/share`：Skill 市场弹窗。
+
+仍保留接口但暂无界面：`/api/sessions`、`/api/rag/*`、`/api/memory`、`/api/tools` 调试接口。
+
 对话请求体：
 
 ```json
@@ -975,6 +986,21 @@ python -m agent.scripts.live_check --port 4173
 - RAG 是否只引用公共知识，没有泄露用户数据。
 - 好友分享是否拒绝不存在好友关系的用户。
 
+### 13.4 前端接入验收
+
+页面已通过 `agent-adapter.js` 接入，人工验收步骤：
+
+1. 启动静态服务与 Agent 服务，访问 4173。
+2. 顶部与输入框上方应出现 Agent 工具条：模式、模型、Skill 市场、新对话、连接状态。
+3. 输入“今天该吃什么”：应出现工具调用状态、流式回答与参考来源。
+4. 切换到工作模式，输入“帮我看看实时菜单有什么”：应返回 16 道菜与匹配度。
+5. 输入“午餐吃了鸡胸肉沙拉”：应弹出确认框，确认后写入并返回回执。
+6. 打开 Skill 市场：应列出市场技能；工作模式下可安装与分享。
+7. 停止 Agent 服务后刷新：应显示“本地模式”，输入仍走本地规则，不白屏。
+8. 点击新对话：消息清空，session_id 更新。
+
+静态服务与 Agent 服务是两个独立进程。端口被占用时替换端口，并通过 `localStorage.setItem("eat-agent-base", "...")` 指向新的 Agent 地址。
+
 ## 14. 后续协作约定
 
 - 客户端继续保持可交互性；接入 Agent 时新增独立适配层，不把网络逻辑塞进 `app.js` 的主流程。
@@ -1077,11 +1103,19 @@ python -m agent.scripts.live_check --port 4173
 
 ### 16.1 基线说明
 
-本次已执行 `git checkout origin/main -- index.html styles.css features.css app.js`，前端四个文件与上游 `32ec689` 完全一致，未做任何手工修改。Agent 服务按该版本的数据结构与 DOM 做适配。
+上游四个文件 `index.html`、`styles.css`、`features.css`、`app.js` 保持 `origin/main 32ec689` 的视觉与交互，没有改动样式规则和页面结构。
 
-前端当前没有任何 `fetch`、`EventSource` 或 `/api/` 调用，`sendPrompt()` 仍是本地规则：先 `appendUserMessage`，720ms 后 `recordMeal` 或生成本地分析。因此 Agent 服务不会被前端自动触发，需要后续新增独立适配层。
+为接入 Agent，新增两个独立文件：
 
-### 16.2 Agent 侧已对齐的内容
+- `agent-adapter.js`：读取 localStorage、组装 `client_context`、请求 SSE、解析事件、渲染消息、确认弹窗、模型与模式切换、Skill 市场、连接状态、失败降级。
+- `agent.css`：工具条、引用区、确认弹窗、Skill 市场与响应式样式，沿用珊瑚粉强调色、毛玻璃面板与 18px 圆角。
+
+`index.html` 只新增两行引用：`agent.css` 与 `agent-adapter.js`。`app.js` 只新增两个挂载点：
+
+1. `sendPrompt()` 开头调用 `window.eatAgent.intercept(rawText)`，返回 true 时由适配层接管。
+2. 文件末尾导出 `window.eatLocal = { sendPrompt, recordMeal, getHealthAnalysis, showToast }`，供降级与 `client_context` 使用。
+
+### 16.2 Agent 侧已对齐并已接入的内容
 
 | 项 | 对齐方式 |
 | --- | --- |
@@ -1092,11 +1126,11 @@ python -m agent.scripts.live_check --port 4173
 | 餐次字段 | 支持前端 `text` 原文写入，`record_meal` 不再强制要求 `items` |
 | 今日营养 | 前端 `today.nutrition` 可直接作为缺口计算输入，蔬菜目标对齐为 500g |
 | 健康目标 | 使用前端取值：均衡饮食、控制体重、增加蛋白、减少添加糖 |
-| 输入入口 | `#chatForm` + `#chatInput` 的自由文本可直接作为 `message` |
-| 消息 DOM | SSE 事件可映射到现有 `.message.agent-message`、`.agent-avatar`、`.message-meta`、`.message-bubble` |
-| 猜餐卡 | Agent 的 `meal-guess` 结果可映射到 `#guessName`、`#guessReason`、`#guessMatch`、`#guessBar` |
+| 输入入口 | `#chatForm` + `#chatInput` 的自由文本直接作为 `message` |
+| 消息 DOM | SSE 事件渲染到 `.message.agent-message`、`.agent-avatar`、`.message-meta`、`.message-bubble` |
+| 猜餐卡 | 本地猜餐保留；Agent 的 `meal-guess` 可作为后续增强，字段已就绪 |
 
-契约可通过 `GET /api/frontend/contract` 获取，包含 DOM 映射、事件映射、`client_context` 字段与缺口清单。
+契约可通过 `GET /api/frontend/contract` 获取，包含 DOM 映射、事件映射、`client_context` 字段与剩余缺口清单。
 
 ### 16.3 client_context 契约
 
@@ -1151,77 +1185,75 @@ python -m agent.scripts.live_check --port 4173
 | `done` | 结束输入中状态，恢复发送按钮 |
 | `error` | 显示错误，并回退现有本地规则 `renderInference()` |
 
-### 16.6 前端尚未提供的接口与界面
+### 16.6 已补齐的能力与仍待细化的事项
 
-以下能力 Agent 侧已就绪，但前端没有对应入口。按要求没有修改现有前端文件，接入时需要新增 UI 或独立适配层：
+本次已把 Agent 接入页面，以下能力从“缺口”变为“可用”：
 
-| 缺口 | 前端现状 | Agent 已就绪接口 | 接入建议 |
+| 能力 | 状态 | 实现位置 | 说明 |
 | --- | --- | --- | --- |
-| 问答 / 工作模式切换 | 没有模式概念 | `POST /api/chat/stream` 的 `mode` 字段 | 在 `#chatForm` 附近增加切换；默认问答，写操作前提示切到工作模式 |
-| 模型选择 | 没有模型下拉 | `GET /api/models`、请求体 `model_id` | 放入设置弹窗，显示 `available`，不可用时提示降级 |
-| SSE 流式适配层 | 没有 fetch / EventSource | `POST /api/chat/stream` | 新增独立 `agent-adapter.js`，由页面旁边加载，不改 `app.js` 主流程 |
-| 写操作确认弹窗 | 本地 `recordMeal` 直接写入 | `confirm_required` + `confirmed_tools` | 复用现有 `dialog` 样式，确认后重发请求 |
-| Skill 市场与安装 | 没有入口 | `GET /api/skills/market`、`POST /api/skills/market/install`、`share` | 新增市场视图或弹窗；工作模式下才显示安装与导入 |
-| 知识引用展示 | 没有来源区域 | `citation` 事件 | 在回答气泡下方增加可折叠来源列表 |
-| 会话列表与清空 | 没有会话概念 | `GET /api/sessions/{id}/messages`、`DELETE /api/sessions/{id}` | 新增会话记录入口，默认使用单会话 |
-| Agent 连接状态 | `.agent-state` 固定显示“健康分析已就绪” | `GET /api/agent/meta`、`GET /api/mcp/status` | 改为显示 mock / service、MCP 在线状态与当前模型 |
-| 菜品搜索走后端 | 搜索与随机完全本地 | `search_foods`（支持 `nature`、`match`、忌口过滤） | 可保留本地逻辑；接入后把结果替换为 Agent 返回，字段已对齐 |
-| 猜餐走后端 | 本地规则生成 | `meal-guess` Skill + 工具 | 保留本地 `renderInference()` 作为降级，命中 Agent 时用事件更新猜餐卡 |
+| 问答 / 工作模式切换 | 已补齐 | `#agentToolbar` | 默认问答，切换后写入 localStorage；工作模式才允许写记录、读实时菜单、安装技能 |
+| 模型选择 | 已补齐 | `#agentModelSelect` | 从 `/api/models` 加载，未配置 Key 的模型置灰；选择结果持久化 |
+| SSE 流式适配 | 已补齐 | `agent-adapter.js` | `fetch` + `ReadableStream`，按 `event:` / `data:` 分帧 |
+| 写操作确认 | 已补齐 | `#agentConfirmDialog` | `confirm_required` 时弹窗，确认后带 `confirmed_tools` 重发 |
+| Skill 市场与安装 | 已补齐 | `#agentSkillDialog` | 列表、安装、好友分享；安装与分享需要工作模式 |
+| 知识引用展示 | 已补齐 | `.agent-citations` | `citation` 事件收集后以可折叠来源列表展示 |
+| 会话管理 | 已补齐 | `#agentNewSession` | 生成新 session_id 并清空消息 |
+| Agent 连接状态 | 已补齐 | `.agent-state` / `.agent-conn` | 显示 mock / service、MCP 在线与本地模式 |
+| 菜品搜索走后端 | 未接 | 保留本地 `searchFoods` | Agent 的 `search_foods` 已支持相同字段、`nature` 与 `match`，可后续替换 |
+| 猜餐走后端 | 未接 | 保留本地 `renderInference` | 作为 Agent 不可用时的降级；`meal-guess` 技能已就绪 |
+| 真实账号与好友数据 | 依赖服务端 | `ServiceClient` | 需要 C++ 服务端实现第 12.3 节接口并提供 Token |
+| 模型微调 | 未做 | 可选 | 当前用 RAG 与工具增强；微调需要数据与训练流程 |
 
-### 16.7 独立适配层示例
+### 16.7 适配层实现与运行
 
-不修改 `app.js`，新增一个独立文件并在页面末尾加载即可：
+文件：
+
+- `agent-adapter.js`：独立 IIFE，不污染 `app.js` 内部作用域。
+- `agent.css`：新增样式，不修改 `styles.css` 与 `features.css`。
+
+启动顺序：
+
+```
+python -m http.server 4173 --bind 127.0.0.1
+python -m agent --host 127.0.0.1 --port 8787
+```
+
+访问 http://127.0.0.1:4173 。页面加载后适配层会请求 `/api/agent/meta`：
+
+- 成功：顶部显示“Agent 在线 · mock”或“Agent 在线 · 服务端 · MCP”，输入框交给 Agent。
+- 失败：显示“本地模式”，`sendPrompt()` 继续执行原有本地规则，页面功能不中断。
+
+Agent 地址默认 `http://127.0.0.1:8787`，可在浏览器控制台修改：
 
 ```javascript
-const storageKeys = {
-  profile: "eat-health-profile-v2",
-  meals: "eat-health-meals-v2"
-};
+localStorage.setItem("eat-agent-base", "http://127.0.0.1:8787");
+location.reload();
+```
 
-function readClientContext() {
-  const read = (key, fallback) => {
-    try {
-      return JSON.parse(localStorage.getItem(key)) || fallback;
-    } catch {
-      return fallback;
-    }
-  };
-  return {
-    profile: read(storageKeys.profile, {}),
-    meals: read(storageKeys.meals, []),
-    today: window.getHealthAnalysis ? window.getHealthAnalysis() : {}
-  };
-}
+关键挂载点：
 
-async function askAgent(message, options = {}) {
-  const response = await fetch("http://127.0.0.1:8787/api/chat/stream", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      user_id: "u_demo",
-      session_id: options.sessionId || "web_demo",
-      message,
-      mode: options.mode || "qa",
-      model_id: options.modelId,
-      confirmed_tools: options.confirmedTools || [],
-      client_context: readClientContext()
-    })
-  });
-  if (!response.ok) throw new Error(`agent ${response.status}`);
-  return response.body;
+```javascript
+function sendPrompt(rawText) {
+  if (window.eatAgent && window.eatAgent.intercept(rawText)) return;
+  const text = rawText.trim();
+  // 原有本地逻辑
 }
 ```
 
-说明：
+```javascript
+window.eatLocal = { sendPrompt, recordMeal, getHealthAnalysis, showToast };
+```
 
-- `getHealthAnalysis()` 是页面内全局函数，适配层可直接读取，不需要改 `app.js`。
-- 流式解析按 SSE 的 `event:` 与 `data:` 分帧，逐条更新 `.message-bubble`。
-- Agent 不可用时捕获异常，回退现有 `renderInference()` 与本地 `recordMeal`。
-- 当前前端没有导出任何模块，适配层通过 `window` 访问现有函数，避免改动页面结构。
+降级行为：
+
+- Agent 请求失败时，移除本次 Agent 消息与用户消息，显示 toast，并调用 `window.eatLocal.sendPrompt()` 回到本地规则。
+- 通过 `window.eatAgent.fallback` 防止降级调用再次进入适配层。
+- 本地降级不会写入服务端，只更新 localStorage。
 
 ### 16.8 结论
 
-- 前端四个文件已完全同步上游，视觉与交互保持最新。
-- Agent 侧的数据结构、匹配度、档案字段、餐次字段、猜餐与输入入口已适配。
-- 前端没有提供的模式切换、模型选择、SSE 适配、确认弹窗、Skill 市场、引用展示、会话管理与连接状态，均未改动前端，只在 Agent 侧保留接口并记录在本章。
-- 若要真正端到端可用，下一步只需新增独立适配层与对应 UI，不需要改动 Agent 服务。
+- 前端四个文件保持上游 `32ec689` 的视觉与交互，只新增引用与两个挂载点。
+- Agent 侧数据结构、匹配度、档案字段、餐次字段、输入入口与消息 DOM 已对齐。
+- 模式切换、模型选择、SSE、确认弹窗、Skill 市场、引用展示、会话管理与连接状态均已接入页面。
+- 菜品搜索、猜餐仍走本地；真实账号、好友、数据与写库依赖 C++ 服务端，Agent 接口已按第 12.3 节预留。
+- 页面在 Agent 离线时仍可完整使用本地规则，不会白屏或阻塞输入。

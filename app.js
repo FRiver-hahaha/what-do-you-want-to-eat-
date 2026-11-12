@@ -923,6 +923,7 @@ function recordMeal(text, nutritionOverride = {}) {
 }
 
 function sendPrompt(rawText) {
+  if (window.eatAgent && window.eatAgent.intercept(rawText)) return;
   const text = rawText.trim();
   if (!text) {
     elements.chatInput.focus();
@@ -1416,3 +1417,9 @@ const savedMotion = loadStored(storageKeys.motion, !window.matchMedia("(prefers-
 setMotion(savedMotion !== false);
 if (window.innerWidth <= 1040) setDetailsCollapsed(true);
 if (window.innerWidth <= 820) setSidebarCollapsed(true);
+window.eatLocal = {
+  sendPrompt,
+  recordMeal,
+  getHealthAnalysis,
+  showToast
+};
