@@ -8,13 +8,13 @@
 
 | 部分 | 状态 | 职责 |
 | --- | --- | --- |
-| 客户端前端 | 已同步上游 32ec689 | 页面与交互保持上游；新增 `agent-adapter.js` 接入 Agent，离线时回退本地规则 |
+| 客户端前端 | 已同步上游 c83068c | 页面与交互保持上游；新增 `agent-adapter.js` 接入 Agent，离线时回退本地规则 |
 | Agent 服务 | 本次新增 | 模型接入、工具、MCP、Skill、RAG、上下文与记忆 |
 | C++ 服务端 | 由其他成员实现 | epoll、主从 Reactor、MySQL、Redis、账号与好友关系 |
 
 三者边界：客户端通过 HTTP/SSE 访问 Agent 服务；Agent 服务只通过 `ServiceClient` 访问 C++ 服务端；**只有 C++ 服务端可以连接 MySQL 与 Redis**。Agent 服务不引入 MySQL/Redis 客户端，也不允许多个 Redis 实例，不使用 Redis 订阅发布。
 
-前端基线为 `origin/main 32ec689`，已将该版本的前端文件完整覆盖到本仓库，Agent 服务侧按该版本的数据结构与 DOM 做了适配。前端当前仍只运行本地规则，未调用 Agent 接口；接入契约与缺口见第 16 章。
+前端基线为 `origin/main c83068c`，已将上游前端文件完整合并到本仓库。前端已通过 `agent-adapter.js` 接入 Agent，支持 SSE、Markdown、逐字流式、图片输入与离线降级；Super-agent 架构升级见第 19 章。
 
 健康报告和猜餐结果仅用于日常饮食管理和生活方式参考，不构成医疗诊断或治疗建议。
 
@@ -34,7 +34,7 @@
 ### 3.1 三层边界
 
 ```
-客户端 UI（index.html / styles.css / features.css / app.js，基线 32ec689）
+客户端 UI（index.html / styles.css / features.css / app.js，基线 c83068c）
         │  HTTP + SSE（agent-adapter.js 已接入，离线回退本地规则）
         ▼
 Agent 服务（Python，本次实现）
@@ -58,15 +58,19 @@ C++ 服务端（epoll + 主从 Reactor）
 
 ```
 AgentApp
-  ├─ LLMGateway ── rule-fallback / deepseek-chat / qwen-plus / local-openai
+  ├─ SuperAgent ── 单 Agent 双层架构：Router / WorkerPool / EventBus / Watchdog
+  ├─ LLMGateway ── rule-fallback / deepseek-chat / deepseek-vl2 / qwen-plus / local-openai
+  ├─ Planner ── Plan-and-Solve 计划、失败重规划
+  ├─ TraceRecorder ── trace / span / token 可观测性
+  ├─ Safety ── 提示词注入检测、图片校验、输出过滤
   ├─ ToolRegistry ── 本地只读工具、写工具、本地工具、MCP 工具
   ├─ SkillsRegistry ── 内置技能 + 用户安装技能 + 权限过滤
   ├─ SkillMarket ── 发布、安装、版本、下载量、好友分享
   ├─ KnowledgeBase ── 文档切片、BM25 + 哈希向量混合检索
-  ├─ ContextManager ── 会话、消息、上下文预算
+  ├─ ContextManager ── 追加式历史、一次性压缩、前缀稳定
   ├─ MemoryStore ── 长期偏好、过敏、忌口、目标
   ├─ MCPManager ── 子进程生命周期、工具发现、故障隔离
-  └─ AgentRuntime ── 意图 → 技能 → 检索 → 工具循环 → 回答
+  └─ AgentRuntime ── Worker 内 ReAct：计划 → 流式 → 工具 → 重规划 → 回答
 ```
 
 ### 3.3 与服务端架构的对应关系
@@ -82,7 +86,7 @@ AgentApp
 
 ## 4. 已实现功能
 
-### 4.1 客户端（上游 32ec689 + Agent 适配层）
+### 4.1 客户端（上游 c83068c + Agent 适配层）
 
 #### 4.1.1 饮食记录与健康分析
 
@@ -158,17 +162,25 @@ AgentApp
 ### 4.2 Agent 服务（本次新增）
 
 - 双模式：问答模式只读，工作模式可执行本地任务与写操作。
-- 多模型注册与用户选择：4 个模型，缺 Key 或断网时自动降级到本地规则引擎。
+- 单 Agent 双层架构：常驻 Router 负责分派与全局状态，Worker 隔离执行具体任务，同一 Thread 后续事件直通原 Worker。
+- 规划与推理：Plan-and-Solve 生成执行计划，Worker 内用 ReAct 调工具；工具失败时自动重规划，不重复同一个失败调用。
+- 流式输出：OpenAI 兼容接口改为真正的 SSE 流式，token 按模型生成顺序逐字到达前端。
+- 排版：系统提示词约束“简单问题轻量、复杂问题结构化”，前端用安全 Markdown 渲染。
+- 图片输入：请求支持 `images` 数组，构造 OpenAI 多模态 `image_url` 内容；视觉模型可选 `deepseek-vl2` 或本地 VLM。
+- 上下文前缀稳定：历史只追加，超限时一次性压缩成摘要并记录 `compacted_until_id`，不每轮滑动裁剪。
+- 可观测性：每次请求生成 trace_id，记录 Router、规划、LLM、工具 span、耗时与 token；提供 `/api/traces`。
+- Watchdog：后台线程检查 Worker 是否长时间无事件，超时发出 `watchdog` 事件并标记 stalled。
+- 安全：提示词注入检测、图片数量/大小校验、输出密钥与手机号过滤、写操作人工确认。
+- 多模型注册与用户选择：5 个模型，缺 Key 或断网时自动降级到本地规则引擎。
 - 工具隔离：按模式、类别、来源三重过滤；写工具必须二次确认。
 - MCP 双端：Agent 作为 client，饮食数据服务作为 server，stdio 双向管道，JSON-RPC 2.0。
 - MCP 故障隔离：子进程崩溃不影响主服务，状态接口可查 stderr 尾部。
 - Skill 体系：6 个内置技能，支持市场发布、安装、版本管理和好友分享。
 - Skill 权限：技能只能调用自己 `allowed-tools` 范围内的工具，越权工具不注入模型上下文。
 - RAG：4 篇内置知识、22 个切片，BM25 与哈希向量混合检索，回答带引用事件。
-- 上下文：短期滑动窗口、会话级摘要字段、长期记忆抽取。
 - 记忆：自动识别过敏、忌口、偏好和目标，可查询、可删除。
 - 审计：每次工具调用写入 `tool_audit`，记录参数、结果与时间。
-- 前端预留：完整 SSE 事件协议，前端不改动也能继续使用本地规则降级。
+- 前端接入：SSE、Markdown、逐字流式、图片输入、确认弹窗、Skill 市场与离线降级。
 
 ## 5. 技术栈
 
@@ -176,7 +188,11 @@ AgentApp
 | --- | --- |
 | Agent 语言 | Python 3.10+，无第三方依赖 |
 | HTTP 服务 | `http.server.ThreadingHTTPServer` |
-| 流式输出 | Server-Sent Events，手写 `text/event-stream` |
+| 流式输出 | Server-Sent Events；OpenAI 兼容流式 chunk 逐字转发 |
+| 多模态 | OpenAI `image_url` content，支持 dataURL 与 http(s) 图片 |
+| 规划 | Plan-and-Solve + ReAct + 失败重规划 |
+| 并发 | Router / Worker、线程池、同一 Thread 订阅直通 |
+| 追踪 | SQLite `traces` / `spans`，记录模型、工具、耗时与 token |
 | 进程通信 | `subprocess.Popen` + stdin/stdout/stderr 三条独立管道 |
 | MCP 协议 | JSON-RPC 2.0，协议版本 `2024-11-05` |
 | Agent 存储 | SQLite（WAL），会话、记忆、市场、审计、RAG 索引 |
@@ -211,11 +227,15 @@ Agent 服务不需要 pip install，不引入 FastAPI、LangChain、向量数据
     │   ├── mcp_servers.json    # MCP 服务端配置
     │   └── modes.json          # 问答/工作模式权限
     ├── core/
-    │   ├── context.py          # 会话、消息、上下文预算
+    │   ├── context.py          # 追加式历史、一次性压缩、前缀稳定
     │   ├── frontend.py         # 前端数据对齐、client_context 与接入契约
     │   ├── memory.py           # 长期记忆抽取与删除
-    │   ├── prompts.py          # 系统提示词
-    │   └── runtime.py          # ReAct 工具循环与事件流
+    │   ├── planner.py          # Plan-and-Solve 计划与重规划
+    │   ├── prompts.py          # 系统提示词与排版规则
+    │   ├── runtime.py          # Worker ReAct：流式、多模态、Trace、重规划
+    │   ├── safety.py           # 注入检测、图片校验、输出过滤
+    │   ├── super_agent.py      # Router / WorkerPool / EventBus / Watchdog
+    │   └── trace.py            # trace / span 记录与查询
     ├── data/
     │   ├── db.py               # SQLite 连接与查询
     │   ├── schema.sql          # 会话、记忆、市场、审计、RAG 表
@@ -250,7 +270,7 @@ Agent 服务不需要 pip install，不引入 FastAPI、LangChain、向量数据
     ├── scripts/
     │   └── live_check.py       # 真实进程端到端验收
     └── tests/
-        └── test_smoke.py       # 25 项自测
+        └── test_smoke.py       # 31 项自测
 ```
 
 运行时会生成 `data/agent/`，包含 Agent 自有 SQLite、用户技能和知识库索引。该目录不应提交到仓库。
@@ -352,6 +372,7 @@ python -m agent.scripts.live_check --port 4173
 | --- | --- | --- | --- |
 | `rule-fallback` | 本地规则 | chat、tools | 离线兜底，断网或无 Key 时自动使用 |
 | `deepseek-chat` | OpenAI 兼容 | chat、tools、stream | 默认模型，通用问答与工具调用 |
+| `deepseek-vl2` | OpenAI 兼容 | chat、tools、stream、vision | 图片与文字组合输入，需要账号开通 |
 | `qwen-plus` | OpenAI 兼容 | chat、tools、stream | 中文健康场景 |
 | `local-openai` | OpenAI 兼容 | chat、tools、stream | Ollama / vLLM / LM Studio |
 
@@ -580,16 +601,18 @@ priority: 12
 
 | 层 | 内容 | 存储 | 策略 |
 | --- | --- | --- | --- |
-| 请求级 | 本轮工具调用与结果 | 内存 | 结果摘要化，超长截断 |
-| 会话级 | 最近 18 条 user/assistant 消息 | Agent SQLite | 滑动窗口 + 字符预算 |
+| 请求级 | 本轮工具调用与结果 | 内存 | `summary + data`，超长截断 |
+| 会话级 | 未压缩的追加消息 + 一次性摘要 | Agent SQLite | 只追加；超限压缩一次，记录 `compacted_until_id` |
 | 长期记忆 | 过敏、忌口、偏好、目标 | Agent SQLite | 规则抽取，可删除 |
 
-上下文预算：
+上下文与前缀稳定：
 
-- 系统提示词包含模式规则、档案摘要、长期记忆、技能正文、知识片段与安全边界。
-- 历史消息按最近优先加入，总字符不超过 `MAX_CONTEXT_CHARS`。
-- 工具结果先转成 `summary + data`，再按长度截断，避免原始 JSON 占满窗口。
-- 会话表保留 `summary` 字段，为后续模型摘要预留。
+- 历史消息只追加，不每轮从最新反向裁剪；超过 `MAX_CONTEXT_CHARS × 0.75` 时调用 `compact()`，把旧消息压成摘要并写入 `sessions.summary`，同时推进 `compacted_until_id`。
+- 压缩后只保留最近 6 条未压缩消息，之后继续追加，直到下一次超限再压缩。这样发给外部 API 的前缀在两次压缩之间保持稳定。
+- 系统提示词先放稳定规则（角色、模式、排版、工具、安全、单 Agent 规则），再放动态块（档案、记忆、摘要、计划、技能、知识、图片说明）。稳定规则位于前缀，便于 DeepSeek 等提供方命中前缀缓存，减少重复计费。
+- 工具结果先转成 `summary + data`，再按长度截断；避免原始 JSON 占满窗口。
+- 会话表保留 `summary`、`compacted_until_id`，用于一次性摘要与前缀稳定。
+- 持久化摘要不调用模型，使用确定性规则压缩，避免额外 token 与延迟。
 
 记忆抽取规则：
 
@@ -625,6 +648,9 @@ priority: 12
 | GET | `/health` | 健康检查与服务端连接状态 |
 | GET | `/api/agent/meta` | 模式、模型、工具、技能、MCP、RAG 汇总 |
 | GET | `/api/frontend/contract` | 前端 DOM 映射、已对齐字段、接入缺口清单 |
+| GET | `/api/super/status` | Router、Worker、线程池、Watchdog 与事件总线状态 |
+| GET | `/api/traces` | 最近 trace 列表 |
+| GET | `/api/traces/{id}` | 单次 trace 与全部 span |
 | GET | `/api/models` | 模型列表与可用性 |
 | POST | `/api/chat` | 非流式对话，返回完整事件与答案 |
 | POST | `/api/chat/stream` | SSE 流式对话 |
@@ -670,6 +696,7 @@ priority: 12
   "skill_id": "meal-planning",
   "confirmed_tools": [],
   "use_rag": null,
+  "images": [],
   "client_context": {
     "profile": {"name": "我", "height": 170, "weight": 60, "age": 28, "goal": "均衡饮食", "activity": "久坐", "waterTarget": 1800, "sleep": 7, "note": "下午容易口渴"},
     "meals": [{"type": "早餐", "time": "08:20", "text": "燕麦酸奶、蓝莓、水煮蛋", "protein": 22, "fiber": 6, "veggies": 0, "water": 300}],
@@ -680,6 +707,8 @@ priority: 12
 ```
 
 `client_context` 是前端 localStorage 的只读快照。Agent 会做字段白名单与长度校验，仅保留档案、今日餐次与今日营养；mock 模式下用它对齐页面显示，真实服务端可用时以服务端数据为准。
+
+`images` 是图片数组，支持 dataURL 与 http(s) URL，最多 4 张、单张不超过 2.5MB。Agent 会构造 OpenAI 多模态 `image_url` 内容；当前模型未声明 `vision` 能力时会发出提示，建议切换到 `deepseek-vl2` 或本地视觉模型。
 
 ### 9.2 SSE 事件协议
 
@@ -692,15 +721,20 @@ data: {"text":"今天"}
 
 | 事件 | 载荷 | 说明 |
 | --- | --- | --- |
-| `meta` | session_id、mode、model、skill、new_memories、service、client_context | 本轮开始 |
+| `meta` | session_id、trace_id、mode、model、skill、plan、images、new_memories、service、client_context | 本轮开始 |
+| `plan` | id、task_type、complexity、steps、needs_confirmation | 执行计划 |
+| `replan` | plan、failed_tool、error | 工具失败后的重规划 |
+| `worker_start` | worker_id、thread_id、created、trigger_id | Router 已分派 Worker |
+| `worker_done` | worker_id、thread_id、status | Worker 本轮结束 |
+| `watchdog` | level、worker_id、thread_id、idle_seconds | Worker 长时间无事件 |
 | `skill` | id、display_name、category | 命中技能 |
 | `citation` | id、doc_id、title、text、score | 知识库引用 |
 | `tool_call` | id、name、arguments | 即将执行工具 |
 | `tool_result` | id、name、ok、need_confirm、summary、error | 工具结果 |
-| `token` | text | 回答增量 |
-| `notice` | level、message | 模型降级等提示 |
+| `token` | text | 按模型生成顺序逐字增量 |
+| `notice` | level、message | 模型降级、图片能力、敏感信息等提示 |
 | `confirm_required` | message、mode、confirmed_tools | 等待用户确认写操作 |
-| `done` | session_id、model、degraded、finish_reason、usage、citations | 本轮结束 |
+| `done` | session_id、trace_id、model、degraded、finish_reason、usage、tokens、plan、citations | 本轮结束 |
 | `error` | code、message | 参数或执行错误 |
 
 写操作确认流程：
@@ -712,7 +746,7 @@ data: {"text":"今天"}
 5. 用户确认后，前端带 `confirmed_tools: ["record_meal"]` 重发同一请求。
 6. 工具真正执行，返回结果与回执。
 
-### 9.3 前端接入契约（预留，未改动前端）
+### 9.3 前端接入契约（已接入）
 
 前端不需要立即修改。接入时只需新增一个适配层，保留现有 `renderInference()` 作为降级：
 
@@ -907,7 +941,7 @@ CORS 已开放 `*`，允许 `Content-Type` 与 `Authorization`，支持 OPTIONS 
 
 | 表 | 内容 |
 | --- | --- |
-| `sessions` | 会话、模式、模型、技能、摘要 |
+| `sessions` | 会话、模式、模型、技能、摘要、`compacted_until_id` |
 | `messages` | user/assistant/tool 消息、工具名、调用 ID |
 | `memories` | 过敏、忌口、偏好、目标 |
 | `market_skills` | 市场技能、作者、版本、下载量 |
@@ -916,6 +950,8 @@ CORS 已开放 `*`，允许 `Content-Type` 与 `Authorization`，支持 OPTIONS 
 | `installed_skills` | 用户安装状态与启用开关 |
 | `tool_audit` | 工具调用审计 |
 | `rag_docs` / `rag_chunks` | 知识文档、切片、token、嵌入 |
+| `traces` | 每次请求的 trace、模型、token、状态 |
+| `spans` | LLM / 工具 / Router 等 span 的耗时与详情 |
 
 ### 12.3 服务端 JSON 约定
 
@@ -935,7 +971,7 @@ CORS 已开放 `*`，允许 `Content-Type` 与 `Authorization`，支持 OPTIONS 
 
 所有请求与响应均为 JSON。写入请求包含 `idempotency_key`，避免重试造成重复记录。服务端未配置时自动使用 mock，并在元信息中标记 `source: mock`。
 
-菜品与档案字段已与前端基线 `32ec689` 对齐：
+菜品与档案字段已与前端基线 `c83068c` 对齐：
 
 - 菜品：`id, name, category, description, calories, protein, fiber, veggies, water, nature, keywords, image`；Agent 额外返回 `match`（20–98）。
 - `nature` 取值 `recommend` / `indulge`，对应前端“推荐菜 / 放纵菜”。
@@ -960,7 +996,7 @@ CORS 已开放 `*`，允许 `Content-Type` 与 `Authorization`，支持 OPTIONS 
 
 ### 13.2 Agent 服务（新增）
 
-`python -m unittest agent.tests.test_smoke`，25 项全部通过：
+`python -m unittest agent.tests.test_smoke`，31 项全部通过：
 
 | 分组 | 覆盖内容 |
 | --- | --- |
@@ -972,6 +1008,12 @@ CORS 已开放 `*`，允许 `Content-Type` 与 `Authorization`，支持 OPTIONS 
 | Runtime | 推荐调用工具、记录查询、猜餐意图、工作模式菜单、RAG 引用、模式隔离、client_context 对齐 |
 | Skills | 6 个内置技能加载、猜餐/配餐意图匹配、技能工具范围 |
 | Tools | 模式隔离、读工具执行、菜品 nature 与匹配度、text 写入、写工具确认、前端契约 |
+| SuperAgent | Router / Worker 双层事件、worker_start / worker_done、状态查询 |
+| Planner | 复杂/简单任务判断、工具失败重规划 |
+| Context | 只追加 + 一次性压缩、summary 与 compacted_until_id |
+| Safety | 提示词注入检测、密钥输出过滤 |
+| Images | 图片请求进入 meta、多模态参数不崩溃 |
+| Trace | trace_id 写入、span 可查询 |
 
 HTTP 测试在进程内直接调用路由与事件生成器，不占用真实端口。原因是部分受管执行环境会限制回环 TCP 访问；真实网络链路由下面的进程验收单独覆盖。
 
@@ -983,7 +1025,30 @@ python -m agent.scripts.live_check --port 4173
 
 该脚本启动真实 `python -m agent` 子进程，通过 HTTP 访问健康检查、元信息、三类对话与好友分享校验。若当前环境的 4173 被占用或被限制，换用其他允许端口。
 
-验收输出应包含：双模式、4 个模型、MCP 运行与 6 个工具、RAG 4 文档 22 切片、16 道菜品、三种对话场景的工具调用，以及陌生人分享 403。
+验收输出应包含：双模式、5 个模型、MCP 运行与 6 个工具、RAG 4 文档 22 切片、16 道菜品、三种对话场景的工具调用，以及陌生人分享 403。
+
+本次 Super-agent 升级后的真实请求验证（2026-11-12）：
+
+```
+POST /api/chat
+message = 今天该吃什么
+model_id = deepseek-chat
+mode = qa
+
+事件序列：
+worker_start → meta → plan → skill → citation × 3
+→ token × 12 → tool_call/tool_result × 5
+→ token × 380+ → done → worker_done
+
+plan.task_type = meal_plan
+plan.complexity = complex
+done.model = deepseek-chat
+done.degraded = false
+done.tokens = 4493
+done.trace_id = tr_e166960433ec4e
+```
+
+说明：真实模型调用需要 Agent 进程能访问外网。受管沙箱会拦截出站 443，此时会自动降级到 `rule-fallback`，并在 `notice` 事件中提示。
 
 ### 13.3 建议复查项
 
@@ -1002,13 +1067,15 @@ python -m agent.scripts.live_check --port 4173
 页面已通过 `agent-adapter.js` 接入，人工验收步骤：
 
 1. 启动静态服务与 Agent 服务，访问 4173。
-2. 顶部与输入框上方应出现 Agent 工具条：模式、模型、Skill 市场、新对话、连接状态。
-3. 输入“今天该吃什么”：应出现工具调用状态、流式回答与参考来源。
-4. 切换到工作模式，输入“帮我看看实时菜单有什么”：应返回 16 道菜与匹配度。
-5. 输入“午餐吃了鸡胸肉沙拉”：应弹出确认框，确认后写入并返回回执。
-6. 打开 Skill 市场：应列出市场技能；工作模式下可安装与分享。
-7. 停止 Agent 服务后刷新：应显示“本地模式”，输入仍走本地规则，不白屏。
-8. 点击新对话：消息清空，session_id 更新。
+2. 顶部与输入框上方应出现 Agent 工具条：模式、模型、Skill 市场、新对话、图片、连接状态。
+3. 输入“今天该吃什么”：应先出现用户消息，再出现 Agent 消息；回答应逐字流式到达。
+4. 复杂问题应使用二级标题或列表；简单问候应保持 1 到 3 句轻量回答。
+5. 点击图片按钮上传一张图片，应出现预览与用户消息缩略图；发送后请求携带 `images`。
+6. 切换到工作模式，输入“帮我看看实时菜单有什么”：应返回 16 道菜与匹配度。
+7. 输入“午餐吃了鸡胸肉沙拉”：应弹出确认框，确认后写入并返回回执。
+8. 打开 Skill 市场：应列出市场技能；工作模式下可安装与分享。
+9. 停止 Agent 服务后刷新：应显示“本地模式”，输入仍走本地规则，不白屏。
+10. 点击新对话：消息清空，session_id 更新。
 
 静态服务与 Agent 服务是两个独立进程。端口被占用时替换端口，并通过 `localStorage.setItem("eat-agent-base", "...")` 指向新的 Agent 地址。
 
@@ -1115,12 +1182,12 @@ python -m agent.scripts.live_check --port 4173
 
 ### 16.1 基线说明
 
-上游四个文件 `index.html`、`styles.css`、`features.css`、`app.js` 保持 `origin/main 32ec689` 的视觉与交互，没有改动样式规则和页面结构。
+上游四个文件 `index.html`、`styles.css`、`features.css`、`app.js` 保持 `origin/main c83068c` 的视觉与交互，没有改动样式规则和页面结构。
 
 为接入 Agent，新增两个独立文件：
 
-- `agent-adapter.js`：读取 localStorage、组装 `client_context`、请求 SSE、解析事件、渲染消息、确认弹窗、模型与模式切换、Skill 市场、连接状态、失败降级。
-- `agent.css`：工具条、引用区、确认弹窗、Skill 市场与响应式样式，沿用珊瑚粉强调色、毛玻璃面板与 18px 圆角。
+- `agent-adapter.js`：读取 localStorage、组装 `client_context`、请求 SSE、解析事件、渲染消息、确认弹窗、模型与模式切换、Skill 市场、连接状态、失败降级；同时负责问答顺序、Markdown 排版、逐字流式与图片输入。
+- `agent.css`：工具条、引用区、确认弹窗、Skill 市场、图片预览与 Markdown 排版样式，沿用珊瑚粉强调色、毛玻璃面板与 18px 圆角。
 
 `index.html` 只新增两行引用：`agent.css` 与 `agent-adapter.js`。`app.js` 只新增两个挂载点：
 
@@ -1141,6 +1208,12 @@ python -m agent.scripts.live_check --port 4173
 | 输入入口 | `#chatForm` + `#chatInput` 的自由文本直接作为 `message` |
 | 消息 DOM | SSE 事件渲染到 `.message.agent-message`、`.agent-avatar`、`.message-meta`、`.message-bubble` |
 | 猜餐卡 | 本地猜餐保留；Agent 的 `meal-guess` 可作为后续增强，字段已就绪 |
+| 问答顺序 | 先渲染用户消息，再渲染 Agent 回答；修复了此前 Agent 气泡先出现的问题 |
+| Markdown 排版 | 简单问题轻量段落；复杂问题支持二级标题、列表、加粗、行内代码与引用 |
+| 逐字流式 | 后端 token 逐字到达，前端每次追加后重新渲染 Markdown |
+| 图片输入 | 工具条新增图片按钮与预览，最多 4 张；用户消息显示缩略图；请求携带 `images` |
+| 计划与重规划 | `plan` / `replan` 事件更新消息状态，不展示内部推理 |
+| Worker 状态 | `worker_start` / `worker_done` 可显示分派状态 |
 
 契约可通过 `GET /api/frontend/contract` 获取，包含 DOM 映射、事件映射、`client_context` 字段与剩余缺口清单。
 
@@ -1264,7 +1337,7 @@ window.eatLocal = { sendPrompt, recordMeal, getHealthAnalysis, showToast };
 
 ### 16.8 结论
 
-- 前端四个文件保持上游 `32ec689` 的视觉与交互，只新增引用与两个挂载点。
+- 前端四个文件保持上游 `c83068c` 的视觉与交互，只新增引用与两个挂载点。
 - Agent 侧数据结构、匹配度、档案字段、餐次字段、输入入口与消息 DOM 已对齐。
 - 模式切换、模型选择、SSE、确认弹窗、Skill 市场、引用展示、会话管理与连接状态均已接入页面。
 - 菜品搜索、猜餐仍走本地；真实账号、好友、数据与写库依赖 C++ 服务端，Agent 接口已按第 12.3 节预留。
@@ -1386,3 +1459,326 @@ window.eatLocal = { sendPrompt, recordMeal, getHealthAnalysis, showToast };
 - 底部输入框与左栏搜索框聚焦时呈现一致的柔和蓝色光晕，而不是线框。
 - 历史为空提示居中；头像加载更快。
 - 右侧消息横条悬停展开、点击跳转保持正常。
+## 19. Super-agent 架构升级（2026-11-12）
+
+本章是本次架构升级的权威说明。与前文冲突时，以本章为准。
+
+### 19.1 升级目标与结论
+
+本次把原来的单 ReAct Loop 重构为**单 Agent、双层职责**的 Super-agent 架构：
+
+- Router 层常驻，负责接收用户事件、维护全局会话、判断任务类型、分派 Worker、汇总结果。
+- Worker 层隔离执行具体任务，挂载完整工具，独立上下文，不直接对用户回复。
+- 同一 Thread（本项目中以 session_id 标识）的后续事件直通原 Worker；新 Thread 由 Router 冷启动并建立订阅。
+- Worker 内部使用 Plan-and-Solve 生成计划，再用 ReAct 调工具；工具失败时自动重规划。
+- 对外仍然是一个 Agent、一个对话入口、一套 SSE 事件，用户不需要感知 Worker 的存在。
+
+需要明确：这是**单进程、单机版的 Super-agent 实现**，不是云端分布式版本。它实现了 Router/Worker 分层、事件驱动、订阅直通、规划、Trace、Watchdog 与上下文前缀稳定，但存算分离、跨设备 daemon、A2A 与真正的异步 `start/stop` 工具仍属于架构预留。
+
+### 19.2 双层架构：Router + Worker
+
+```
+用户请求 / 环境事件
+        │
+        ▼
+   Router（常驻）
+   ├─ 读取会话与全局状态
+   ├─ Planner 生成任务计划
+   ├─ 按 thread_id 查找订阅
+   └─ 分派 Worker
+        │
+        ▼
+   WorkerPool（最多 4 并发）
+   ├─ 每个 thread 一个 WorkerState
+   ├─ Worker 之间上下文隔离
+   ├─ 同一 Worker 用锁串行处理同一 Thread
+   └─ AgentRuntime 执行 ReAct
+        │
+        ▼
+   SSE 事件回传前端
+```
+
+当前实现位置：
+
+- `agent/core/super_agent.py`：`Trigger`、`ThreadState`、`WorkerState`、`EventBus`、`Router`、`WorkerPool`、`Watchdog`、`SuperAgent`。
+- `agent/core/runtime.py`：Worker 内的 ReAct 执行器。
+- `agent/core/planner.py`：Router 任务计划与重规划。
+
+Router 不直接调用业务工具，只做分派、状态与协调；工具调用全部发生在 Worker 内。这样 Router 的上下文保持在轻量级，Worker 可以独立扩展。
+
+### 19.3 事件驱动与订阅直通
+
+事件模型：
+
+| 对象 | 说明 |
+| --- | --- |
+| `Trigger` | 一次用户请求或环境事件，包含 thread_id、user_id、source 与 payload |
+| `Thread` | 一条连续会话流，本项目用 session_id 标识 |
+| `Subscription` | Thread 与 Worker 的绑定；当前实现为一个 Thread 对应一个 Worker，后续可扩展多对多 |
+| `EventBus` | 内存事件总线，保存每个 Thread 最近的事件，供 Watchdog 与状态查询使用 |
+
+路由规则：
+
+1. 新 Thread：Router 创建 Worker，建立订阅，然后执行。
+2. 已订阅 Thread：后续 Trigger 直接复用原 Worker，状态、工具上下文不丢失。
+3. 不同 Thread：分配不同 Worker，可并发执行，互不阻塞。
+4. 同一 Thread 并发请求：由 Worker 锁串行化，避免同一会话的消息顺序混乱。
+
+SSE 仍然只转发当前请求对应 Worker 的事件；`worker_start` 与 `worker_done` 让前端能显示分派状态。
+
+### 19.4 规划与推理：Plan-and-Solve + ReAct
+
+`Planner.plan()` 先判断任务类型与复杂度：
+
+| task_type | 触发 | complexity | 计划要点 |
+| --- | --- | --- | --- |
+| `vision` | 带图片 | complex | 识别图片 → 查档案 → 估算营养 |
+| `meal_log` | 记录/写了什么 | complex | 解析 → 复述确认 → 写入 |
+| `meal_plan` | 推荐/吃什么/菜单 | complex | 档案 → 缺口 → 近期记录 → 菜品 → 回答 |
+| `review` | 周报/排名/积分 | complex | 周统计 → 好友排名 → 复盘 |
+| `meal_history` | 吃了什么/猜 | simple | 近 7 天记录 → 档案 |
+| `qa` | 其他 | simple | 直接回答，必要时 RAG |
+
+Worker 执行时：
+
+1. 计划通过 `plan` 事件暴露给前端，不展示内部思维链。
+2. ReAct 循环调用模型与工具；模型可以自主选择工具。
+3. 工具返回 `ok=false` 时，`Planner.replan()` 移除失败工具并追加“换一种方式”的系统提示，发出 `replan` 事件。
+4. 最多执行 `max_tool_steps`，达到上限后停止并给出可用信息，不无限重试。
+
+排版由系统提示词约束，不通过硬编码模板决定：
+
+- 简单问题只给 1 到 3 句，不强行分点。
+- 复杂问题才使用二级标题、列表、加粗和引用。
+- 先给结论，再给依据，最后给一个可执行动作。
+- 不展示内部计划、工具原始 JSON 或思考链。
+
+### 19.5 并发、异步与全双工边界
+
+已实现：
+
+- `WorkerPool` 用 `BoundedSemaphore(4)` 限制同时执行的 Worker 数量。
+- 每个 Worker 有独立状态、锁与最近事件时间。
+- 不同 session 的请求可并发；`ThreadingHTTPServer` 为每个请求分配线程。
+- SSE 逐事件 flush，前台对话不会被后台工具结果阻塞。
+
+未实现但保留架构位置：
+
+- `start()` / `stop()` 式异步工具：当前工具都是毫秒级，强制后台化会引入不必要的复杂度。
+- 云端无状态计算 + 持久化会话：当前用 SQLite 存会话，单机部署。
+- 端侧 daemon 与跨设备执行环境：当前 Agent 与服务端、页面在同一台机器。
+- 真正的全双工：当前 HTTP 请求仍需等待本轮 Worker 结束；同一 session 的后续请求会排队，而不是在工具执行期间插入。
+
+这些边界会在 19.15 节再次列出。
+
+### 19.6 ContextManager：只追加、一次性压缩、前缀稳定
+
+旧实现每轮取最近 18 条消息并从新到旧裁剪，前缀不断变化。新实现：
+
+1. 历史消息只追加，读取 `id > compacted_until_id` 的消息。
+2. 总字符超过 `MAX_CONTEXT_CHARS × 0.75` 时，一次性把旧消息压成摘要。
+3. 摘要写入 `sessions.summary`，`compacted_until_id` 推进到旧消息最后一条。
+4. 保留最近 6 条未压缩消息，之后继续追加。
+5. 系统提示词把稳定规则放前面，动态块（档案、记忆、摘要、计划、技能、知识、图片）放后面。
+
+这样做不是为了配置 KV Cache，而是为了让外部 API 的前缀缓存更容易命中：相同前缀的请求通常有计费折扣，且能减少重复 prompt token。压缩是确定性的，不额外调用模型，避免成本和延迟。
+
+### 19.7 流式输出与 Markdown 排版
+
+LLM 网关：
+
+- `OpenAICompatibleProvider.stream()` 请求 `stream=true`，逐行解析 `data:`，聚合 `delta.content` 与 `delta.tool_calls`。
+- `LLMGateway.stream_complete()` 统一输出 `LLMChunk`；模型不可用时降级到 `RuleProvider.stream()`，规则回答也按 2 字分片。
+- `AgentRuntime` 对最终回答逐 chunk 发出 `token` 事件；前端按顺序追加并重新渲染 Markdown。
+
+前端：
+
+- `renderMarkdown()` 先转义 HTML，再解析二级标题、列表、加粗、行内代码与引用，避免 XSS。
+- 简单回答不会出现标题；复杂回答才使用层次。
+- 每次 token 追加后更新气泡，形成逐字生成效果。
+- 问答顺序已修复：先插入用户消息，再创建 Agent 消息。
+
+### 19.8 图片与多模态
+
+请求字段：
+
+```json
+{
+  "message": "这张图里有什么",
+  "images": ["data:image/png;base64,..."]
+}
+```
+
+限制：
+
+- 最多 4 张。
+- 单张 dataURL 不超过 2.5MB。
+- 只接受 `data:image/` 与 `http(s)` URL。
+- 服务端请求体上限提升到 12MB。
+
+多模态消息：
+
+```json
+{
+  "role": "user",
+  "content": [
+    {"type": "text", "text": "这张图里有什么"},
+    {"type": "image_url", "image_url": {"url": "data:image/png;base64,..."}}
+  ]
+}
+```
+
+模型能力：
+
+- `deepseek-chat` 不声明 `vision`，图片请求会收到提示。
+- 新增 `deepseek-vl2` 配置，声明 `vision`，需要账号开通对应模型。
+- 本地 VLM 可通过 `local-openai` 配置接入。
+- 图片只用于当前轮，历史消息中只保存文本与图片数量，避免数据库膨胀。
+
+前端：
+
+- 工具条新增“图片”按钮，最多 4 张，支持预览与移除。
+- 用户消息气泡显示缩略图。
+- 发送后清空预览。
+
+### 19.9 可观测性
+
+新增 SQLite 表：
+
+| 表 | 内容 |
+| --- | --- |
+| `traces` | trace_id、thread_id、user_id、状态、模型、tokens、开始/结束时间 |
+| `spans` | span_id、trace_id、名称、类型、状态、耗时、详情 |
+
+记录点：
+
+- Router / Worker 分派。
+- 计划生成。
+- 每次 LLM 调用。
+- 每次工具调用。
+- 最终状态与 token 用量。
+
+接口：
+
+- `GET /api/traces?limit=20`
+- `GET /api/traces/{id}`
+
+`done` 事件返回 `trace_id` 与 `tokens`，前端或维护者可以按 trace 排查模型降级、工具失败与耗时。
+
+当前没有接入 LangSmith / Langfuse，原因是项目保持零第三方依赖；SQLite trace 已能覆盖单机排错与成本归因。需要外部平台时，可在 `TraceRecorder` 增加 exporter。
+
+### 19.10 Watchdog
+
+`Watchdog` 是独立后台线程：
+
+- 每 5 秒扫描一次 Worker。
+- 默认 120 秒无事件判定为 `stalled`。
+- 写入 `stalled` 列表，并通过 `EventBus` 发出 `watchdog` 事件。
+- `GET /api/super/status` 返回 watchdog 是否存活、上次扫描时间与最近异常。
+
+这对应 Super-agent 的外部 Control Loop 思想，但当前只做基础设施级超时检测，没有用模型判断任务方向是否偏离。
+
+### 19.11 安全与人工确认
+
+新增 `agent/core/safety.py`：
+
+- 提示词注入检测：识别“忽略以上”“系统提示词”“开发者模式”“绕过权限”“查询他人”等标记；高风险时发出 `notice`，权限边界不变。
+- 图片校验：数量、大小、协议白名单。
+- 输出过滤：命中 API Key 形态或手机号时替换为占位符，并发出提示。
+
+人工确认：
+
+- `record_meal`、`install_skill`、`import_skill` 仍然必须确认。
+- 未确认时 `confirm_required` 结束本轮，模型不能自问自答。
+- 当前没有转账、删除数据、发送邮件等高风险工具；若新增，必须沿用确认与审计机制。
+
+### 19.12 接口与事件变化
+
+新增 REST：
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/api/super/status` | Router、Worker、线程池、Watchdog、事件总线状态 |
+| GET | `/api/traces` | 最近 trace 列表 |
+| GET | `/api/traces/{id}` | 单次 trace 与 spans |
+
+新增请求字段：
+
+- `images`：图片数组。
+
+新增 SSE 事件：
+
+- `plan`：任务计划。
+- `replan`：失败后的重规划。
+- `worker_start`：Worker 已分派。
+- `worker_done`：Worker 本轮结束。
+- `watchdog`：Worker 超时或异常。
+
+`meta` 增加 `trace_id`、`plan`、`images`、`injection`；`done` 增加 `trace_id`、`tokens`、`plan`。
+
+### 19.13 前端最小改动
+
+没有重写前端，只做以下改动：
+
+1. `agent-adapter.js` 的 `send()`：先 `appendUser()`，再 `createAgentMessage()`，修复问答顺序。
+2. 增加 `renderMarkdown()`，token 到达时重新渲染气泡。
+3. 增加图片按钮、文件选择、预览、移除与 `images` 请求字段。
+4. 处理 `plan` / `replan` / `worker_start` / `worker_done` / `watchdog` 事件。
+5. `agent.css` 增加图片预览、用户图片与 Markdown 排版样式。
+
+`app.js` 仍只有两个挂载点：`sendPrompt()` 开头的 `intercept`，以及文件末尾的 `window.eatLocal` 导出。服务端与页面结构未改动。
+
+### 19.14 验证结果
+
+自测：
+
+```
+python -m unittest agent.tests.test_smoke
+Ran 31 tests
+OK
+```
+
+真实请求（2026-11-12）：
+
+```
+POST /api/chat
+message = 今天该吃什么
+model_id = deepseek-chat
+mode = qa
+
+worker_start → meta → plan → skill → citation × 3
+→ token × 12 → tool_call/tool_result × 5
+→ token × 380+ → done → worker_done
+
+plan.task_type = meal_plan
+plan.complexity = complex
+done.model = deepseek-chat
+done.degraded = false
+done.tokens = 4493
+done.trace_id = tr_e166960433ec4e
+```
+
+回答实际包含档案、今日缺口、菜品候选与下一步动作，说明“真实模型 + 工具 + 规划 + 流式 + Trace”链路已经跑通。
+
+### 19.15 当前边界与后续方向
+
+已实现：
+
+- 单 Agent 的 Router / Worker 双层职责。
+- Thread 级订阅直通与 Worker 隔离。
+- Plan-and-Solve、ReAct、工具失败重规划。
+- 真正流式 token、Markdown 排版、图片输入。
+- 只追加上下文与一次性压缩。
+- SQLite Trace、Watchdog、安全过滤、人工确认。
+
+未实现 / 后续：
+
+- 云端无状态计算与持久化状态分离。
+- 跨设备 daemon、BYOM、离线设备恢复。
+- 真正的异步 `start()` / `stop()` 工具与全双工交互。
+- 多 Worker 订阅同一 Thread、Worker 间直接通信、A2A。
+- 模型驱动的 Watchdog 方向判断。
+- LangSmith / Langfuse 等外部追踪平台。
+- 服务端真实账号、好友、餐次与菜单数据。
+
+下一步优先补：服务端真实数据联调、前端图片视觉模型开通、按 trace 做失败回归与成本统计。

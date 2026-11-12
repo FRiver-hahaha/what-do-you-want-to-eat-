@@ -23,6 +23,19 @@ class LLMResult:
     degraded: bool = False
 
 
+@dataclass
+class LLMChunk:
+    delta: str = ""
+    content: str = ""
+    tool_calls: list[dict[str, Any]] = field(default_factory=list)
+    usage: dict[str, Any] = field(default_factory=dict)
+    finish_reason: str = ""
+    model: str = ""
+    provider: str = ""
+    degraded: bool = False
+    done: bool = False
+
+
 class LLMError(RuntimeError):
     pass
 
@@ -85,6 +98,32 @@ class RuleProvider:
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         return self.embedder.embed(texts)
+
+    def stream(
+        self,
+        messages: list[dict[str, Any]],
+        model_cfg: dict[str, Any],
+        tools: list[dict[str, Any]] | None = None,
+    ) -> Any:
+        result = self.chat(messages, model_cfg, tools)
+        if result.tool_calls:
+            yield LLMChunk(
+                tool_calls=result.tool_calls,
+                finish_reason=result.finish_reason,
+                model=str(model_cfg.get("id") or "rule-fallback"),
+                provider=self.name,
+                done=True,
+            )
+            return
+        for index in range(0, len(result.content), 2):
+            yield LLMChunk(delta=result.content[index:index + 2])
+        yield LLMChunk(
+            content=result.content,
+            finish_reason=result.finish_reason,
+            model=str(model_cfg.get("id") or "rule-fallback"),
+            provider=self.name,
+            done=True,
+        )
 
     @staticmethod
     def _last_user_index(messages: list[dict[str, Any]]) -> int:
@@ -382,6 +421,90 @@ class OpenAICompatibleProvider:
         except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError, json.JSONDecodeError) as exc:
             raise LLMError(f"模型调用失败：{exc}") from exc
 
+    def stream(
+        self,
+        messages: list[dict[str, Any]],
+        model_cfg: dict[str, Any],
+        tools: list[dict[str, Any]] | None = None,
+    ) -> Any:
+        base_url = str(model_cfg.get("base_url", "")).rstrip("/")
+        if not base_url:
+            raise LLMError("模型缺少 base_url")
+        api_key = os.environ.get(str(model_cfg.get("api_key_env", "")), "")
+        payload: dict[str, Any] = {
+            "model": model_cfg.get("model") or model_cfg.get("id"),
+            "messages": messages,
+            "temperature": float(model_cfg.get("temperature", 0.4)),
+            "stream": True,
+        }
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = model_cfg.get("tool_choice", "auto")
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        request = urllib.request.Request(base_url + "/chat/completions", data=body, method="POST")
+        request.add_header("Content-Type", "application/json; charset=utf-8")
+        if api_key:
+            request.add_header("Authorization", f"Bearer {api_key}")
+        slots: dict[int, dict[str, Any]] = {}
+        content_parts: list[str] = []
+        usage: dict[str, Any] = {}
+        finish_reason = "stop"
+        try:
+            with urllib.request.urlopen(request, timeout=float(model_cfg.get("timeout", 90))) as response:
+                for raw_line in response:
+                    line = raw_line.decode("utf-8", errors="replace").strip()
+                    if not line or not line.startswith("data:"):
+                        continue
+                    data = line[5:].strip()
+                    if data == "[DONE]":
+                        break
+                    try:
+                        parsed = json.loads(data)
+                    except json.JSONDecodeError:
+                        continue
+                    if parsed.get("usage"):
+                        usage = parsed["usage"]
+                    choices = parsed.get("choices") or []
+                    if not choices:
+                        continue
+                    choice = choices[0]
+                    delta = choice.get("delta") or {}
+                    piece = delta.get("content") or ""
+                    if piece:
+                        content_parts.append(str(piece))
+                        yield LLMChunk(delta=str(piece))
+                    for tool_call in delta.get("tool_calls") or []:
+                        index = int(tool_call.get("index") or 0)
+                        slot = slots.setdefault(
+                            index,
+                            {"id": "", "type": "function", "function": {"name": "", "arguments": ""}},
+                        )
+                        if tool_call.get("id"):
+                            slot["id"] = str(tool_call["id"])
+                        if tool_call.get("type"):
+                            slot["type"] = str(tool_call["type"])
+                        function = tool_call.get("function") or {}
+                        if function.get("name"):
+                            slot["function"]["name"] = str(function["name"])
+                        arguments = function.get("arguments")
+                        if isinstance(arguments, str):
+                            slot["function"]["arguments"] += arguments
+                        elif arguments:
+                            slot["function"]["arguments"] += json.dumps(arguments, ensure_ascii=False)
+                    if choice.get("finish_reason"):
+                        finish_reason = str(choice["finish_reason"])
+        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+            raise LLMError(f"模型调用失败：{exc}") from exc
+        yield LLMChunk(
+            content="".join(content_parts),
+            tool_calls=[slots[index] for index in sorted(slots)],
+            usage=usage,
+            finish_reason=finish_reason,
+            model=str(payload["model"]),
+            provider=self.name,
+            done=True,
+        )
+
 
 class LLMGateway:
     def __init__(self) -> None:
@@ -407,21 +530,77 @@ class LLMGateway:
             }
         return dict(model)
 
-    def complete(self, model_id: str | None, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None) -> LLMResult:
+    def supports(self, model_id: str | None, capability: str) -> bool:
+        return capability in (self.resolve(model_id).get("caps") or [])
+
+    def stream_complete(
+        self,
+        model_id: str | None,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None,
+    ) -> Any:
         model_cfg = self.resolve(model_id)
         provider = self.providers.get(str(model_cfg.get("provider", "rule")))
         if provider is None:
             provider = self.providers["rule"]
+        emitted = False
         try:
-            result = provider.chat(messages, model_cfg, tools)
-            result.model = str(model_cfg.get("id"))
-            return result
+            for chunk in provider.stream(messages, model_cfg, tools):
+                emitted = True
+                chunk.model = str(model_cfg.get("id"))
+                chunk.provider = provider.name
+                yield chunk
+            return
         except LLMError:
-            fallback = self.providers["rule"]
-            result = fallback.chat(messages, {"id": "rule-fallback", "provider": "rule"}, tools)
-            result.degraded = True
-            result.model = "rule-fallback"
-            return result
+            if emitted:
+                yield LLMChunk(
+                    finish_reason="error",
+                    model=str(model_cfg.get("id")),
+                    provider=provider.name,
+                    degraded=True,
+                    done=True,
+                )
+                return
+        fallback = self.providers["rule"]
+        for chunk in fallback.stream(messages, {"id": "rule-fallback", "provider": "rule"}, tools):
+            chunk.degraded = True
+            chunk.model = "rule-fallback"
+            chunk.provider = fallback.name
+            yield chunk
+
+    def complete(self, model_id: str | None, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None) -> LLMResult:
+        content = ""
+        tool_calls: list[dict[str, Any]] = []
+        usage: dict[str, Any] = {}
+        finish_reason = "stop"
+        model = ""
+        provider = ""
+        degraded = False
+        for chunk in self.stream_complete(model_id, messages, tools):
+            if chunk.delta:
+                content += chunk.delta
+            if chunk.content:
+                content = chunk.content
+            if chunk.tool_calls:
+                tool_calls = chunk.tool_calls
+            if chunk.usage:
+                usage = chunk.usage
+            if chunk.finish_reason:
+                finish_reason = chunk.finish_reason
+            if chunk.model:
+                model = chunk.model
+            if chunk.provider:
+                provider = chunk.provider
+            degraded = degraded or chunk.degraded
+        return LLMResult(
+            content=content,
+            tool_calls=tool_calls,
+            usage=usage,
+            model=model,
+            provider=provider or "rule",
+            finish_reason=finish_reason,
+            degraded=degraded,
+        )
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         route = MODELS_CONFIG.get("routing", {}).get("embedding", "hash-embedding")

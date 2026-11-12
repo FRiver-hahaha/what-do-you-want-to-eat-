@@ -27,6 +27,17 @@
       "description": "通用推理与工具调用，成本较低，适合日常问答"
     },
     {
+      "id": "deepseek-vl2",
+      "name": "DeepSeek VL2 视觉",
+      "provider": "openai-compatible",
+      "model": "deepseek-vl2",
+      "base_url": "https://api.deepseek.com/v1",
+      "api_key_env": "DEEPSEEK_API_KEY",
+      "caps": ["chat", "tools", "stream", "vision"],
+      "context": 32000,
+      "description": "图片与文字组合输入；需要账号开通视觉模型，不可用时自动降级"
+    },
+    {
       "id": "qwen-plus",
       "name": "通义千问 Plus",
       "provider": "openai-compatible",
