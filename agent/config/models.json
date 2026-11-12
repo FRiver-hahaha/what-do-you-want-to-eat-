@@ -1,0 +1,51 @@
+{
+  "default": "rule-fallback",
+  "routing": {
+    "intent": "rule-fallback",
+    "chat": "rule-fallback",
+    "summary": "rule-fallback",
+    "embedding": "hash-embedding"
+  },
+  "models": [
+    {
+      "id": "rule-fallback",
+      "name": "本地规则引擎",
+      "provider": "rule",
+      "caps": ["chat", "tools"],
+      "context": 8000,
+      "description": "零网络依赖的降级模型，保证断网、无 Key 时服务仍可完整运行"
+    },
+    {
+      "id": "deepseek-chat",
+      "name": "DeepSeek Chat",
+      "provider": "openai-compatible",
+      "model": "deepseek-chat",
+      "base_url": "https://api.deepseek.com/v1",
+      "api_key_env": "DEEPSEEK_API_KEY",
+      "caps": ["chat", "tools", "stream"],
+      "context": 64000,
+      "description": "通用推理与工具调用，成本较低，适合日常问答"
+    },
+    {
+      "id": "qwen-plus",
+      "name": "通义千问 Plus",
+      "provider": "openai-compatible",
+      "model": "qwen-plus",
+      "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "api_key_env": "DASHSCOPE_API_KEY",
+      "caps": ["chat", "tools", "stream"],
+      "context": 128000,
+      "description": "中文健康饮食场景表现稳定，支持函数调用"
+    },
+    {
+      "id": "local-openai",
+      "name": "本地 OpenAI 兼容服务",
+      "provider": "openai-compatible",
+      "model": "local-model",
+      "base_url": "http://127.0.0.1:8000/v1",
+      "caps": ["chat", "tools", "stream"],
+      "context": 32000,
+      "description": "对接 Ollama / vLLM / LM Studio 等本地推理服务"
+    }
+  ]
+}

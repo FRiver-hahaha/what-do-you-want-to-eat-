@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "servers": {
+    "diet-data": {
+      "transport": "stdio",
+      "command": "{python}",
+      "args": ["-m", "agent.mcp.server", "--profile", "diet"],
+      "cwd": "{project_root}",
+      "enabled": true,
+      "timeout": 8,
+      "tools": {
+        "allow": [
+          "get_health_profile",
+          "get_recent_meals",
+          "get_nutrition_gap",
+          "get_weekly_stats",
+          "search_foods",
+          "get_friend_ranking"
+        ],
+        "deny": []
+      }
+    },
+    "nutrition-kb": {
+      "transport": "stdio",
+      "command": "{python}",
+      "args": ["-m", "agent.mcp.server", "--profile", "knowledge"],
+      "cwd": "{project_root}",
+      "enabled": false,
+      "timeout": 8,
+      "tools": {
+        "allow": ["search_knowledge"],
+        "deny": []
+      }
+    }
+  }
+}

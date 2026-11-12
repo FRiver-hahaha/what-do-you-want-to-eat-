@@ -1,0 +1,22 @@
+{
+  "qa": {
+    "id": "qa",
+    "name": "问答模式",
+    "description": "只读对话：回答吃了什么、该吃什么、营养与健康问题，可调用知识库与只读工具",
+    "tool_categories": ["read"],
+    "allow_local_tools": false,
+    "allow_skill_install": false,
+    "allow_write": false,
+    "max_tool_steps": 4
+  },
+  "work": {
+    "id": "work",
+    "name": "工作模式",
+    "description": "执行模式：读取实时菜单、按身体状态配餐、导入与管理本地 Skill，写操作需用户确认",
+    "tool_categories": ["read", "write", "local"],
+    "allow_local_tools": true,
+    "allow_skill_install": true,
+    "allow_write": true,
+    "max_tool_steps": 6
+  }
+}
