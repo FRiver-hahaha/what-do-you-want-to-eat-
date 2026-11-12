@@ -1,8 +1,8 @@
 {
-  "default": "rule-fallback",
+  "default": "deepseek-chat",
   "routing": {
-    "intent": "rule-fallback",
-    "chat": "rule-fallback",
+    "intent": "deepseek-chat",
+    "chat": "deepseek-chat",
     "summary": "rule-fallback",
     "embedding": "hash-embedding"
   },

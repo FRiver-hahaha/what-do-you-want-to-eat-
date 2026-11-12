@@ -9,6 +9,32 @@ AGENT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = AGENT_DIR.parent
 CONFIG_DIR = AGENT_DIR / "config"
 
+
+def _load_dotenv() -> None:
+    if os.environ.get("EAT_DISABLE_DOTENV") == "1":
+        return
+    path = Path(os.environ.get("EAT_ENV_FILE", str(PROJECT_ROOT / ".env")))
+    try:
+        lines = path.read_text(encoding="utf-8-sig").splitlines()
+    except OSError:
+        return
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if stripped.startswith("export "):
+            stripped = stripped[7:].strip()
+        if "=" not in stripped:
+            continue
+        key, value = stripped.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+_load_dotenv()
+
 DATA_DIR = Path(os.environ.get("EAT_AGENT_DATA_DIR", str(PROJECT_ROOT / "data" / "agent")))
 SKILLS_USER_DIR = DATA_DIR / "skills"
 RAG_DIR = DATA_DIR / "rag"
