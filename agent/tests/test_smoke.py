@@ -13,6 +13,9 @@ os.environ["EAT_AGENT_DB"] = os.path.join(TMP_DIR, "agent.db")
 os.environ["EAT_AGENT_RAG_DB"] = os.path.join(TMP_DIR, "knowledge.db")
 os.environ["EAT_MCP_DISABLE"] = "0"
 os.environ.pop("EAT_SERVER_BASE_URL", None)
+os.environ["EAT_DISABLE_DOTENV"] = "1"
+os.environ.pop("DEEPSEEK_API_KEY", None)
+os.environ.pop("DASHSCOPE_API_KEY", None)
 
 from agent.app import AgentApp, AgentError
 from agent.config import MCP_CONFIG

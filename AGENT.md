@@ -281,6 +281,13 @@ python -m agent --host 127.0.0.1 --port 8787
 
 注意：部分受管执行环境会限制可访问的本地端口。如果 8787 被限制，改用 4173 或 8080。
 
+模型配置：
+
+- 项目根 `.env` 会在启动时自动加载，真实环境变量优先于 `.env`。
+- 复制 `.env.example` 为 `.env`，填入 `DEEPSEEK_API_KEY` 后重启服务即可。
+- `.env` 已被 `.gitignore` 忽略，不会提交到仓库。
+- 当前默认模型为 `deepseek-chat`；没有可用 Key 时自动回退到 `rule-fallback`。
+
 ### 7.3 环境变量
 
 | 变量 | 默认值 | 说明 |
@@ -293,8 +300,10 @@ python -m agent --host 127.0.0.1 --port 8787
 | `EAT_SERVER_BASE_URL` | 空 | C++ 服务端地址，空则使用 mock |
 | `EAT_SERVER_TOKEN` | 空 | 访问服务端的 Bearer Token |
 | `EAT_SERVICE_TIMEOUT` | `5` | 服务端请求超时秒数 |
-| `DEEPSEEK_API_KEY` | 空 | DeepSeek 模型 Key |
-| `DASHSCOPE_API_KEY` | 空 | 通义千问 Key |
+| `EAT_ENV_FILE` | `.env` | 自定义本地环境文件路径 |
+| `EAT_DISABLE_DOTENV` | `0` | 设为 1 时禁用 `.env` 加载，测试使用 |
+| `DEEPSEEK_API_KEY` | 空 | DeepSeek Key，优先环境变量，其次 `.env` |
+| `DASHSCOPE_API_KEY` | 空 | 通义千问 Key，优先环境变量，其次 `.env` |
 | `EAT_MCP_DISABLE` | `0` | 设为 1 关闭 MCP |
 | `EAT_MCP_START_TIMEOUT` | `12` | MCP 启动超时 |
 | `EAT_MAX_TOOL_STEPS` | `6` | 工具循环上限 |
@@ -341,10 +350,12 @@ python -m agent.scripts.live_check --port 4173
 
 | 模型 ID | 提供方 | 能力 | 使用场景 |
 | --- | --- | --- | --- |
-| `rule-fallback` | 本地规则 | chat、tools | 默认模型，断网或无 Key 兜底 |
-| `deepseek-chat` | OpenAI 兼容 | chat、tools、stream | 通用问答与工具调用 |
+| `rule-fallback` | 本地规则 | chat、tools | 离线兜底，断网或无 Key 时自动使用 |
+| `deepseek-chat` | OpenAI 兼容 | chat、tools、stream | 默认模型，通用问答与工具调用 |
 | `qwen-plus` | OpenAI 兼容 | chat、tools、stream | 中文健康场景 |
 | `local-openai` | OpenAI 兼容 | chat、tools、stream | Ollama / vLLM / LM Studio |
+
+配置优先级：真实环境变量 > 项目根 `.env` > `models.json` 默认值。`deepseek-chat` 当前为默认模型；如果 `DEEPSEEK_API_KEY` 不可用，`default_model_id()` 会自动回退到 `rule-fallback`，不会导致启动失败。
 
 用户选择方式：
 
@@ -601,7 +612,7 @@ priority: 12
 - **路径边界**：RAG 入库接口不接受任意目录，只接受文本。
 - **提示词注入**：知识库与技能正文被标记为参考资料；用户消息中的“忽略以上规则”“查询他人数据”不会改变权限。
 - **隐私**：日志不打印 API Key；工具审计只记录业务参数；健康数据不进入向量库。
-- **密钥**：只从环境变量读取，不写入配置文件，不提交仓库。
+- **密钥**：只从环境变量或项目根 `.env` 读取，`.env` 已被 git 忽略；不要把 Key 写入 `models.json`、代码、文档或提交历史。
 - **医疗边界**：不提供诊断、用药或治疗建议；严重过敏、持续呕吐、呼吸困难时建议就医。
 
 ## 9. 接口说明
@@ -1010,6 +1021,7 @@ python -m agent.scripts.live_check --port 4173
 - Skill 市场的内容审核以静态校验为主；未来接入人工审核或信誉分时，保持“仅文本、不可执行”的底线。
 - RAG 只装公共知识；用户健康数据继续走结构化工具，不进入向量库。
 - 模型接入统一走 `LLMGateway`，业务代码不直接调用某个厂商 SDK。
+- 模型密钥只放环境变量或本地 `.env`，`.env.example` 只保留占位符；提交前用 `git status --ignored` 确认 `.env` 未被跟踪。
 - MCP 新服务优先使用 stdio；需要远程部署时再扩展 HTTP transport，协议层保持不变。
 - 所有写操作、分享与安装都要可审计；审计日志不记录密钥与完整健康数据。
 - 服务端联调时补齐认证、数据同步、积分防刷、菜品去重、周结算与隐私策略。

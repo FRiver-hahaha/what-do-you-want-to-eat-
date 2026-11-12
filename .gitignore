@@ -2,6 +2,8 @@ __pycache__/
 *.py[cod]
 data/agent/
 .env
+.env.*
+!.env.example
 *.log
 *.db
 *.db-wal
