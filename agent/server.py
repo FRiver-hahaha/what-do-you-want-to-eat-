@@ -134,6 +134,9 @@ class AgentHTTPRequestHandler(BaseHTTPRequestHandler):
         if path == "/api/agent/meta" and method == "GET":
             return 200, app.meta()
 
+        if path == "/api/frontend/contract" and method == "GET":
+            return 200, app.frontend_contract()
+
         if path == "/api/models" and method == "GET":
             return 200, {"models": app.models(), "default": app.meta()["default_model"]}
 

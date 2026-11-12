@@ -75,6 +75,29 @@ def main() -> int:
         status, body = request(
             args.port,
             "POST",
+            "/api/tools/call",
+            {"name": "search_foods", "user_id": "u_demo", "mode": "qa", "arguments": {"nature": "indulge", "limit": 6}},
+        )
+        foods = json.loads(body).get("data", {}).get("foods", [])
+        print(f"foods indulge={len(foods)} matches={[food.get('match') for food in foods]}")
+
+        client_context = {
+            "profile": {"name": "小满", "goal": "增加蛋白", "waterTarget": 2200},
+            "meals": [{"type": "早餐", "time": "08:00", "text": "前端同步燕麦杯", "protein": 18, "fiber": 5, "veggies": 0, "water": 300}],
+            "today": {"score": 71, "status": "继续调整", "nutrition": {"protein": 34, "fiber": 8, "veggies": 120, "water": 500}},
+        }
+        status, body = request(
+            args.port,
+            "POST",
+            "/api/chat",
+            {"user_id": "u_demo", "session_id": "live_client", "message": "今天吃了什么", "mode": "qa", "client_context": client_context},
+        )
+        payload = json.loads(body)
+        print(f"client_context -> status={status} aligned={'前端同步燕麦杯' in payload['answer']}")
+
+        status, body = request(
+            args.port,
+            "POST",
             "/api/skills/market/share",
             {"id": "nutritionist", "from_user": "u_demo", "to_users": ["u_stranger"]},
         )

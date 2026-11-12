@@ -209,7 +209,10 @@ class RuleProvider:
 
     @staticmethod
     def _data(payload: dict[str, Any]) -> Any:
-        return payload.get("data", payload)
+        if not isinstance(payload, dict):
+            return {}
+        value = payload.get("data", payload)
+        return value if isinstance(value, dict) else {}
 
     def _compose_menu(self, payloads: dict[str, Any], user_text: str) -> str:
         data = self._data(payloads["get_menu"])
@@ -219,7 +222,7 @@ class RuleProvider:
         lines = [f"实时菜单里有 {data.get('count', len(foods))} 道可选，按你的「{goal}」目标，我优先建议："]
         for index, food in enumerate(foods, start=1):
             lines.append(
-                f"{index}. {food.get('name')}：约 {food.get('kcal')} kcal，蛋白 {food.get('protein')}g，"
+                f"{index}. {food.get('name')}：约 {food.get('calories') or food.get('kcal')} kcal，蛋白 {food.get('protein')}g，"
                 f"蔬菜 {food.get('veggies')}g"
             )
         lines.append("如果告诉我这一餐想控制在多少热量，我可以再缩小范围。")
@@ -289,7 +292,7 @@ class RuleProvider:
             lines.append("今天更合适的选择：")
             for index, food in enumerate(foods[:3], start=1):
                 lines.append(
-                    f"{index}. {food.get('name')}：约 {food.get('kcal')} kcal，蛋白 {food.get('protein')}g，"
+                    f"{index}. {food.get('name')}：约 {food.get('calories') or food.get('kcal')} kcal，蛋白 {food.get('protein')}g，"
                     f"蔬菜 {food.get('veggies')}g"
                 )
         else:

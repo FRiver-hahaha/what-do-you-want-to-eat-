@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#f3f5f1">
+  <meta name="theme-color" content="#f7f8fc">
   <title>今天你吃了吗 · 饮食健康助手</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="features.css">
@@ -43,6 +43,11 @@
     <symbol id="icon-water" viewBox="0 0 24 24"><path d="M12 2s7 7.2 7 12a7 7 0 0 1-14 0c0-4.8 7-12 7-12Z"></path><path d="M9 15a3 3 0 0 0 3 3"></path></symbol>
     <symbol id="icon-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z"></path></symbol>
     <symbol id="icon-shop" viewBox="0 0 24 24"><path d="M20 12v9H4v-9"></path><path d="M2 7h20v5H2Z"></path><path d="M12 7v14"></path><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C10 2 12 7 12 7Z"></path><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C14 2 12 7 12 7Z"></path></symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></symbol>
+    <symbol id="icon-shuffle" viewBox="0 0 24 24"><path d="M16 3h5v5"></path><path d="M4 20 21 3"></path><path d="M21 16v5h-5"></path><path d="m15 15 6 6"></path><path d="m4 4 5 5"></path></symbol>
+    <symbol id="icon-camera" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"></path><circle cx="12" cy="13" r="3"></circle></symbol>
+    <symbol id="icon-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="m17 8-5-5-5 5"></path><path d="M12 3v12"></path></symbol>
+    <symbol id="icon-arrow-left" viewBox="0 0 24 24"><path d="M19 12H5"></path><path d="m12 19-7-7 7-7"></path></symbol>
   </svg>
 
   <div class="app-shell" id="appShell">
@@ -53,6 +58,14 @@
       </div>
 
       <section class="food-module" id="foodModule" aria-label="食物菜单">
+        <div class="food-search">
+          <div class="food-search-field">
+            <svg class="icon"><use href="#icon-search"></use></svg>
+            <input id="foodSearchInput" type="search" placeholder="搜索想吃的，如“米饭”" aria-label="搜索菜品">
+          </div>
+          <button class="random-button icon-button tooltip-left" id="randomPickButton" type="button" data-tooltip="随机选一道" aria-label="随机选一道菜"><svg class="icon"><use href="#icon-shuffle"></use></svg></button>
+        </div>
+        <div class="food-search-results" id="foodSearchResults" aria-live="polite"></div>
         <header class="food-module-header"><div><svg class="icon"><use href="#icon-utensils"></use></svg><span><strong>食物菜单</strong><small>左右翻看 · 拖到中央看全部</small></span></div><svg class="icon grip-icon"><use href="#icon-grip"></use></svg></header>
         <div class="sidebar-food-viewport" id="sidebarFoodViewport" tabindex="0" aria-label="食物分页，使用左右方向键翻看"><div class="sidebar-food-list" id="sidebarFoodList"></div></div>
         <footer class="food-pagination">
@@ -106,7 +119,7 @@
                     <header class="inference-heading"><div><span class="section-kicker">本地健康画像推理</span><h2>让我猜猜你今天吃了什么</h2></div><span class="report-meal-count" id="mealCount">已记录 2 餐</span></header>
                     <div class="inference-body">
                       <div class="inference-visual"><img id="guessImage" src="https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&amp;fit=crop&amp;w=600&amp;q=82" alt="猜测的食物"><span class="inference-match" id="guessMatch">82% 匹配</span></div>
-                      <div class="inference-copy"><span class="inference-period" id="guessPeriod">结合当前时段与健康档案</span><h3 id="guessName">柠檬鸡胸能量碗</h3><p class="inference-reason" id="guessReason">根据你的健康目标与近期饮食节奏做出的猜测</p><div class="inference-track"><i id="guessBar" style="width:82%"></i></div><div class="inference-evidence" id="guessEvidence"></div></div>
+                      <div class="inference-copy"><span class="inference-period" id="guessPeriod">结合当前时段与健康档案</span><h3 id="guessName">柠檬鸡胸能量碗</h3><p class="inference-reason" id="guessReason">根据你的健康目标与近期饮食节奏做出的猜测</p><div class="inference-track"><i id="guessBar" style="transform:scaleX(0.82)"></i></div><div class="inference-evidence" id="guessEvidence"></div></div>
                     </div>
                     <footer class="inference-footer"><span id="reportBasis">本地规则根据健康档案生成，不调用在线模型</span><div class="inference-actions"><button class="button primary-button" id="acceptGuess" type="button"><svg class="icon"><use href="#icon-check"></use></svg>猜对了，记录这道</button><button class="button secondary-button" id="nextGuess" type="button">再猜一次</button></div></footer>
                     <div class="inference-secondary-actions"><button id="addMealButton" type="button">告诉饭饭实际吃了什么</button><button id="viewFullReport" type="button">查看完整健康报告</button></div>
@@ -124,7 +137,7 @@
 
             <form class="composer glass-panel" id="chatForm">
               <button class="composer-tool tooltip" id="profileShortcut" type="button" data-tooltip="完善健康档案" aria-label="完善健康档案"><svg class="icon"><use href="#icon-sliders"></use></svg></button>
-              <div class="input-container"><textarea id="chatInput" rows="1" placeholder="告诉我你吃了什么，例如：一碗米饭和青菜" aria-label="记录今天吃过的食物"></textarea><span class="input-hint">Enter 记录</span></div>
+              <div class="input-container"><textarea id="chatInput" rows="1" placeholder="记一餐，例如：米饭和青菜" aria-label="记录今天吃过的食物"></textarea><span class="input-hint"><kbd class="keycap">Enter</kbd> 记录</span></div>
               <button class="send-button" type="submit" aria-label="发送"><svg class="icon"><use href="#icon-arrow-up"></use></svg></button>
               <p class="composer-note">本地分析演示 · 仅作日常饮食管理参考，不替代专业医疗建议</p>
             </form>
@@ -142,6 +155,7 @@
                 <section class="insight-card"><span class="section-kicker">综合分析</span><h3>不是单看今天，而是结合最近的节奏</h3><div class="insight-list"><article><span class="insight-marker"><svg class="icon"><use href="#icon-check"></use></svg></span><div><strong>继续保持</strong><p id="positiveInsight">早餐有蛋白质和全谷物，午餐蔬菜充足，近 7 天的蔬菜摄入也比之前更稳定。</p></div></article><article><span class="insight-marker warm"><svg class="icon"><use href="#icon-water"></use></svg></span><div><strong>今天可以调整</strong><p id="adjustmentInsight">饮水进度暂时落后，下午分两次补水即可，不需要一次性喝完。</p></div></article></div><div class="health-disclaimer">报告用于日常饮食记录和生活方式参考，不用于诊断或治疗。</div></section>
               </div>
             </div>
+            <div class="view-return"><button class="button secondary-button" data-home-return type="button"><svg class="icon"><use href="#icon-arrow-left"></use></svg>返回到主页</button></div>
           </section>
 
           <section class="view" id="view-profile" aria-label="健康档案">
@@ -156,11 +170,13 @@
               </div>
               <aside class="health-snapshot"><span class="section-kicker">当前分析依据</span><h3 id="profileHeadline">均衡饮食，久坐状态</h3><p id="profileDescription">报告会重点观察三餐规律、蔬菜水果、饮水与添加糖摄入。</p><div class="snapshot-metrics"><div><svg class="icon"><use href="#icon-user"></use></svg><span>年龄</span><strong id="snapshotAge">28 岁</strong></div><div><svg class="icon"><use href="#icon-activity"></use></svg><span>身高 / 体重</span><strong id="snapshotBody">170 cm · 60 kg</strong></div><div><svg class="icon"><use href="#icon-water"></use></svg><span>饮水目标</span><strong id="snapshotWater">1800 ml</strong></div><div><svg class="icon"><use href="#icon-moon"></use></svg><span>常态睡眠</span><strong id="snapshotSleep">7 小时</strong></div><div><svg class="icon"><use href="#icon-report"></use></svg><span>今日评分</span><strong id="snapshotScore">82</strong></div></div><button class="edit-body-button" id="editBodyInfo" type="button">编辑身高、体重与年龄</button><div class="snapshot-note"><svg class="icon"><use href="#icon-leaf"></use></svg><p>身体状态会变化，档案也可以随时调整。报告只做生活方式参考。</p></div></aside>
             </form>
+            <div class="profile-return"><button class="button secondary-button" id="profileBack" type="button"><svg class="icon"><use href="#icon-arrow-left"></use></svg>返回到主页</button></div>
           </section>
 
           <section class="view" id="view-history" aria-label="历史记录">
             <div class="section-intro row-intro"><div><span class="section-kicker">认真记录过的每一天</span><h2>历史记录</h2><p>从长期饮食节奏中，看见已经发生的变化</p></div><div class="filter-control" id="historyFilters" aria-label="历史时间筛选"><button type="button" data-filter="week" class="active">近 7 天</button><button type="button" data-filter="month">近 30 天</button><button type="button" data-filter="all">全部</button></div></div>
             <div class="history-card glass-panel"><div class="history-header"><span>日期</span><span>记录</span><span>主要饮食内容</span><span>健康评分</span></div><div id="historyList"></div></div>
+            <div class="view-return"><button class="button secondary-button" data-home-return type="button"><svg class="icon"><use href="#icon-arrow-left"></use></svg>返回到主页</button></div>
           </section>
 
           <section class="view" id="view-shop" aria-label="积分商城">
@@ -174,6 +190,7 @@
               <div class="theme-section-heading"><h3>背景装扮</h3><p>兑换后立即应用，已拥有的背景会在每周积分重置后保留</p></div>
               <div class="theme-grid" id="themeGrid"></div>
             </div>
+            <div class="view-return"><button class="button secondary-button" data-home-return type="button"><svg class="icon"><use href="#icon-arrow-left"></use></svg>返回到主页</button></div>
           </section>
 
           <section class="expanded-menu" id="expandedMenu" aria-label="展开食物菜单" aria-hidden="true">
@@ -181,13 +198,26 @@
             <div class="expanded-menu-list food-feed" id="expandedMenuList" tabindex="0" aria-label="五列食物瀑布流，滚动持续加载"></div>
             <footer><svg class="icon"><use href="#icon-utensils"></use></svg>连续滚动加载更多内容，不强制切屏</footer>
           </section>
+
+          <section class="random-picker" id="randomPicker" aria-label="随机选菜" aria-hidden="true">
+            <div class="random-picker-card">
+              <div class="random-picker-visual"><img id="randomImage" alt="随机菜品"></div>
+              <div class="random-picker-copy">
+                <span class="section-kicker" id="randomCategory">随机一道</span>
+                <h2 id="randomName"></h2>
+                <p id="randomDesc"></p>
+                <div class="random-picker-meta"><span id="randomCalories"></span><span id="randomProtein"></span><span class="random-match" id="randomMatch"></span></div>
+              </div>
+              <div class="random-picker-actions"><button class="button secondary-button" id="rerollRandom" type="button">再选一次</button><button class="button primary-button" id="confirmRandom" type="button">就它了！</button></div>
+            </div>
+          </section>
         </main>
 
         <aside class="details-panel glass-panel" id="detailsPanel" aria-label="好友健康均分排行榜">
           <button class="details-rail tooltip-left" id="detailsRailToggle" type="button" data-tooltip="展开右侧栏" aria-label="展开右侧栏"><svg class="icon"><use href="#icon-panel-right"></use></svg><span></span><svg class="icon"><use href="#icon-trophy"></use></svg></button>
           <div class="details-content">
             <section class="leaderboard-card">
-              <div class="champion-cover"><img src="https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&amp;fit=crop&amp;w=800&amp;q=82" alt="排行榜第一名的好友封面"><div class="champion-info"><span class="champion-avatar" id="championAvatar">林</span><div class="champion-copy"><strong id="championName">林小满</strong><span id="championNote">本周第 1 名 · 连续 7 天记录</span></div><strong class="champion-score"><span id="championScore">92</span><small>分</small></strong></div></div>
+              <div class="champion-cover"><img src="https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&amp;fit=crop&amp;w=800&amp;q=82" alt="排行榜第一名的好友封面"><button class="cover-edit-button tooltip-left" id="coverEditButton" type="button" data-tooltip="设置冠军封面" aria-label="设置冠军封面"><svg class="icon"><use href="#icon-camera"></use></svg></button><div class="champion-info"><span class="champion-avatar" id="championAvatar">林</span><div class="champion-copy"><strong id="championName">林小满</strong><span id="championNote">本周第 1 名 · 连续 7 天记录</span></div><strong class="champion-score"><span id="championScore">92</span><small>分</small></strong></div></div>
               <header><div><span class="section-kicker">好友排行榜</span><h3>健康均分榜</h3></div><div class="ranking-actions"><div class="ranking-tabs" id="rankingTabs"><button type="button" data-ranking="week" class="active">本周</button><button type="button" data-ranking="today">今日</button></div><button class="icon-button details-collapse-button tooltip-left" id="detailsCollapseButton" type="button" data-tooltip="收起右侧栏" aria-label="收起右侧栏"><svg class="icon"><use href="#icon-panel-right"></use></svg></button></div></header>
               <p class="ranking-basis">按本周每日健康分数的平均值排名</p>
               <div class="leaderboard-list" id="leaderboardList"></div>
@@ -219,6 +249,16 @@
       <p class="personal-note">BMI 仅作为身体信息记录，不用于诊断，也不会直接决定饮食评分</p>
       <div class="personal-actions"><button class="button secondary-button" id="cancelPersonal" type="button">取消</button><button class="button primary-button" type="submit"><svg class="icon"><use href="#icon-check"></use></svg>保存个人信息</button></div>
     </form>
+  </dialog>
+
+  <dialog class="settings-dialog cover-dialog" id="coverDialog" aria-labelledby="coverDialogTitle">
+    <header><div><span class="section-kicker">冠军展示</span><h2 id="coverDialogTitle">设置冠军封面</h2></div><button class="icon-button" id="closeCoverDialog" type="button" aria-label="关闭封面设置"><svg class="icon"><use href="#icon-x"></use></svg></button></header>
+    <div class="dialog-content">
+      <div class="cover-preview" id="coverPreviewWrap"><img id="coverPreview" alt="冠军封面预览"><span class="cover-preview-empty">将成为冠军时自动展示</span></div>
+      <label class="cover-upload"><svg class="icon"><use href="#icon-upload"></use></svg><span>选择本地图片</span><input id="coverFile" type="file" accept="image/*"></label>
+      <p class="cover-note">封面仅保存在当前浏览器，会在你成为排行榜第一名时自动展示。</p>
+    </div>
+    <footer><button class="button secondary-button" id="coverReset" type="button">恢复默认</button><div class="cover-dialog-actions"><button class="button secondary-button" id="coverCancel" type="button">取消</button><button class="button primary-button" id="coverSave" type="button"><svg class="icon"><use href="#icon-check"></use></svg>保存封面</button></div></footer>
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><svg class="icon"><use href="#icon-check"></use></svg><span></span></div>

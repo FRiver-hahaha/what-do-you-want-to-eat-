@@ -7,6 +7,7 @@ from typing import Any, Iterator
 
 from agent.config import MAX_TOOL_STEPS, MODES_CONFIG
 from agent.core.context import ContextManager
+from agent.core.frontend import build_client_block, merge_profile, sanitize_client_context
 from agent.core.memory import MemoryStore
 from agent.core.prompts import build_system_prompt
 from agent.data.db import execute, now_iso
@@ -60,6 +61,7 @@ class AgentRuntime:
         skill_id = str(request.get("skill_id") or "")
         confirmed_tools = set(request.get("confirmed_tools") or [])
         use_rag = request.get("use_rag")
+        client_context = sanitize_client_context(request.get("client_context"))
 
         if not message:
             yield AgentEvent("error", {"code": "empty_message", "message": "消息不能为空"})
@@ -70,6 +72,9 @@ class AgentRuntime:
         new_memories = self.memory.extract(user_id, message)
         skill = self.skills.resolve_for_request(skill_id, message, mode, user_id)
         profile = self.service.get_profile(user_id)
+        allow_local_context = self.service.mode == "mock"
+        if allow_local_context:
+            profile = merge_profile(profile, client_context.get("profile"))
 
         sources = self._retrieve(message, skill, mode, use_rag)
         knowledge_block = self._knowledge_block(sources)
@@ -83,6 +88,7 @@ class AgentRuntime:
             skill_prompt=self.skills.prompt_for(skill, mode) if skill else "",
             knowledge_block=knowledge_block,
             tool_names=tool_names,
+            client_block=build_client_block(client_context, allow_local_context),
         )
 
         yield AgentEvent(
@@ -95,6 +101,7 @@ class AgentRuntime:
                 "skill": skill.to_dict() if skill else None,
                 "new_memories": new_memories,
                 "service": self.service.status(),
+                "client_context": bool(client_context),
             },
         )
         if skill:
@@ -165,6 +172,7 @@ class AgentRuntime:
                     gateway=self.gateway,
                     skills=self.skills,
                     registry=self.registry,
+                    client_context=client_context if allow_local_context else {},
                 )
                 tool_result = self.registry.call(name, arguments, ctx)
                 yield AgentEvent(

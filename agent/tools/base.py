@@ -16,6 +16,7 @@ class ToolContext:
     gateway: Any = None
     skills: Any = None
     registry: Any = None
+    client_context: dict[str, Any] = field(default_factory=dict)
     emit: Callable[[str, dict[str, Any]], None] | None = None
 
 
@@ -39,9 +40,26 @@ class ToolResult:
         }
         text = json.dumps(payload, ensure_ascii=False, default=str)
         if len(text) > max_chars:
-            payload["data"] = f"[结果过长，已截断，原始长度 {len(text)}]"
+            payload["data"] = self._trim_data(self.data)
+            payload["truncated"] = True
             text = json.dumps(payload, ensure_ascii=False, default=str)
         return text
+
+    @classmethod
+    def _trim_data(cls, data: Any, list_limit: int = 6) -> Any:
+        if isinstance(data, dict):
+            trimmed: dict[str, Any] = {}
+            for key, value in data.items():
+                if isinstance(value, list):
+                    trimmed[key] = value[:list_limit]
+                elif isinstance(value, dict):
+                    trimmed[key] = cls._trim_data(value, list_limit)
+                else:
+                    trimmed[key] = value
+            return trimmed
+        if isinstance(data, list):
+            return data[:list_limit]
+        return data
 
 
 @dataclass

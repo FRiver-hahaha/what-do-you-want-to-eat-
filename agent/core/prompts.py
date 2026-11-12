@@ -66,8 +66,11 @@ def build_system_prompt(
     skill_prompt: str = "",
     knowledge_block: str = "",
     tool_names: list[str] | None = None,
+    client_block: str = "",
 ) -> str:
     parts = [BASE_RULES, MODE_RULES.get(mode, MODE_RULES["qa"]), _profile_block(profile)]
+    if client_block:
+        parts.append(client_block)
     if memory_block:
         parts.append(memory_block)
     if tool_names:

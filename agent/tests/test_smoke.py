@@ -160,7 +160,7 @@ class TestMCP(unittest.TestCase):
         response = app.mcp.call("diet-data", "get_health_profile", {"user_id": "u_demo"})
         self.assertTrue(response["ok"], response.get("error"))
         text = response["result"]["content"][0]["text"]
-        self.assertIn("阿岑", text)
+        self.assertIn("170cm", text)
 
         names = [tool["name"] for tool in app.registry.public_list("qa")]
         self.assertIn("mcp_diet_data_get_health_profile", names)
@@ -215,6 +215,33 @@ class TestRuntime(unittest.TestCase):
         self.assertIn("get_recent_meals", names)
         self.assertIn("get_nutrition_gap", names)
         self.assertIn("我猜", answer)
+
+    def test_client_context_alignment(self) -> None:
+        client_context = {
+            "profile": {"name": "小满", "goal": "增加蛋白", "waterTarget": 2200, "sleep": 6.5},
+            "meals": [{"type": "早餐", "time": "08:10", "text": "测试燕麦杯", "protein": 18, "fiber": 5, "veggies": 0, "water": 300}],
+            "today": {"score": 71, "status": "继续调整", "nutrition": {"protein": 34, "fiber": 8, "veggies": 120, "water": 500}},
+        }
+        events, answer = self._run("今天吃了什么", client_context=client_context)
+        self.assertIn("测试燕麦杯", answer)
+        meta = next(event.data for event in events if event.type == "meta")
+        self.assertTrue(meta["client_context"])
+
+    def test_client_context_affects_tools(self) -> None:
+        app = get_app()
+        ctx = ToolContext(
+            user_id="u_demo",
+            session_id="s_client",
+            mode="qa",
+            service=app.service,
+            skills=app.skills,
+            registry=app.registry,
+            client_context={"profile": {"goal": "增加蛋白", "waterTarget": 2200}},
+        )
+        result = app.registry.call("get_health_profile", {}, ctx)
+        self.assertTrue(result.ok)
+        self.assertEqual(result.data["goal"], "增加蛋白")
+        self.assertEqual(result.data["water_target"], 2200)
 
     def test_work_mode_menu(self) -> None:
         events, answer = self._run("帮我看看实时菜单有什么", mode="work")
@@ -298,13 +325,28 @@ class TestTools(unittest.TestCase):
         read = registry.call("get_health_profile", {}, qa_ctx)
         self.assertTrue(read.ok)
 
+        foods = registry.call("search_foods", {"nature": "indulge", "limit": 6}, qa_ctx)
+        self.assertTrue(foods.ok)
+        self.assertTrue(foods.data["foods"])
+        self.assertTrue(all(item["nature"] == "indulge" for item in foods.data["foods"]))
+        self.assertTrue(all(20 <= item["match"] <= 98 for item in foods.data["foods"]))
+
         work_ctx = ToolContext(user_id="u_demo", session_id="s_test", mode="work", service=app.service, skills=app.skills, registry=registry)
         confirm = registry.call("record_meal", {"type": "午餐", "items": ["测试鸡胸肉沙拉"]}, work_ctx)
         self.assertTrue(confirm.need_confirm)
         work_ctx.confirmed = True
-        written = registry.call("record_meal", {"type": "午餐", "items": ["测试鸡胸肉沙拉"]}, work_ctx)
+        written = registry.call("record_meal", {"type": "午餐", "text": "测试鸡胸肉沙拉"}, work_ctx)
         self.assertTrue(written.ok, written.error)
         registry.shutdown()
+
+    def test_frontend_contract(self) -> None:
+        app = get_app()
+        contract = app.frontend_contract()
+        self.assertIn("chatForm", str(contract["dom"]))
+        gap_ids = {item["id"] for item in contract["gaps"]}
+        self.assertIn("mode_switch", gap_ids)
+        self.assertIn("sse_adapter", gap_ids)
+        self.assertIn("confirm_dialog", gap_ids)
 
 
 class TestMemory(unittest.TestCase):

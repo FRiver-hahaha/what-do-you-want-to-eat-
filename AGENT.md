@@ -8,11 +8,13 @@
 
 | 部分 | 状态 | 职责 |
 | --- | --- | --- |
-| 客户端前端 | 已实现，保持原样 | 页面、交互、本地规则降级 |
+| 客户端前端 | 已同步上游 32ec689 | 页面、交互、本地规则降级；未新增 Agent 网络调用 |
 | Agent 服务 | 本次新增 | 模型接入、工具、MCP、Skill、RAG、上下文与记忆 |
 | C++ 服务端 | 由其他成员实现 | epoll、主从 Reactor、MySQL、Redis、账号与好友关系 |
 
 三者边界：客户端通过 HTTP/SSE 访问 Agent 服务；Agent 服务只通过 `ServiceClient` 访问 C++ 服务端；**只有 C++ 服务端可以连接 MySQL 与 Redis**。Agent 服务不引入 MySQL/Redis 客户端，也不允许多个 Redis 实例，不使用 Redis 订阅发布。
+
+前端基线为 `origin/main 32ec689`，已将该版本的前端文件完整覆盖到本仓库，Agent 服务侧按该版本的数据结构与 DOM 做了适配。前端当前仍只运行本地规则，未调用 Agent 接口；接入契约与缺口见第 16 章。
 
 健康报告和猜餐结果仅用于日常饮食管理和生活方式参考，不构成医疗诊断或治疗建议。
 
@@ -32,8 +34,8 @@
 ### 3.1 三层边界
 
 ```
-客户端 UI（index.html / styles.css / features.css / app.js）
-        │  HTTP + SSE（预留，前端暂未改动）
+客户端 UI（index.html / styles.css / features.css / app.js，基线 32ec689）
+        │  HTTP + SSE（接口已预留，前端尚未接入）
         ▼
 Agent 服务（Python，本次实现）
   ├─ 接入层：HTTP 路由、SSE、CORS、请求限长
@@ -80,7 +82,7 @@ AgentApp
 
 ## 4. 已实现功能
 
-### 4.1 客户端（原有，未改动）
+### 4.1 客户端（已同步上游 32ec689，未改动）
 
 #### 4.1.1 饮食记录与健康分析
 
@@ -98,12 +100,16 @@ AgentApp
 
 #### 4.1.3 食物菜单
 
-- 左侧每页展示 2 道食物，共 3 页。
-- 支持按钮、圆点、方向键和左右滑动翻页。
+- 食物库共 16 道，左侧每页展示 2 道，共 8 页。
+- 支持上一页、下一页、页码圆点、左右方向键和左右滑动翻页。
 - 普通点击食物卡片即可加入今日记录。
-- 整个食物模块可以拖入中央，拖动时显示背景虚化和放置区域。
+- 菜单顶部新增模糊搜索栏与随机选菜按钮；搜索结果分“推荐菜 / 放纵菜”，按匹配度排序，点击即可记录。
+- 随机选菜在中央全屏展示一道菜，支持“再选一次”和“就它了！”；真实随机且包含放纵菜。
+- 整个食物模块可以拖入中央，拖动过程中显示背景虚化和放置区域。
 - 中央使用 5 列错落瀑布流，每列独立纵向延伸，图片高度不一。
+- 中央展开后搜索会同步渲染搜索结果；清空搜索恢复原瀑布流，搜索态暂停无限加载。
 - 滚动接近底部时循环追加本地演示食物，不强制切屏，不使用滚动吸附。
+- 当前无限加载使用本地数据循环生成，不代表服务端持续返回新菜品。
 
 #### 4.1.4 每周积分制度
 
@@ -139,13 +145,15 @@ AgentApp
 
 #### 4.1.7 布局与视觉
 
-- 左侧：品牌、食物分页菜单、今日饮食记录。
+- 左侧：品牌、搜索栏、食物分页菜单、今日饮食记录。
 - 中央：猜餐对话、健康报告、健康档案、历史记录和积分商城。
-- 右侧：冠军封面和健康均分排行榜。
-- 左右侧栏均支持渐进收起和展开。
+- 右侧：冠军封面、封面设置入口和健康均分排行榜。
+- 左右侧栏均支持渐进收起和展开；左侧收起后只保留刀叉图标与下半部分毛玻璃空区。
 - 顶部导航使用图标和 Tooltip。
-- 使用半透明白色面板、12px 玻璃模糊、20px 主卡片圆角、克制的阴影、流体极光和星座网格。
-- 食物图片是主要色彩来源，导航和控件保持低饱和中性色。
+- 视觉基调：浅冷底 `#f7f8fc`，三块冷暖柔光色块（`blur(120px)`），半透明白色毛玻璃面板 `blur(20px) saturate(1.3)`，18px 主卡片圆角，18px 图标。
+- 强调色：填充为珊瑚粉 `#ff6f91`，文字/图标/线条为玫红 `#e75480`。
+- 食物图片是主要色彩来源，导航和控件保持克制中性色。
+- 更完整的视觉与交互规则见第 15 章。
 
 ### 4.2 Agent 服务（本次新增）
 
@@ -202,6 +210,7 @@ Agent 服务不需要 pip install，不引入 FastAPI、LangChain、向量数据
     │   └── modes.json          # 问答/工作模式权限
     ├── core/
     │   ├── context.py          # 会话、消息、上下文预算
+    │   ├── frontend.py         # 前端数据对齐、client_context 与接入契约
     │   ├── memory.py           # 长期记忆抽取与删除
     │   ├── prompts.py          # 系统提示词
     │   └── runtime.py          # ReAct 工具循环与事件流
@@ -239,7 +248,7 @@ Agent 服务不需要 pip install，不引入 FastAPI、LangChain、向量数据
     ├── scripts/
     │   └── live_check.py       # 真实进程端到端验收
     └── tests/
-        └── test_smoke.py       # 22 项自测
+        └── test_smoke.py       # 25 项自测
 ```
 
 运行时会生成 `data/agent/`，包含 Agent 自有 SQLite、用户技能和知识库索引。该目录不应提交到仓库。
@@ -602,6 +611,7 @@ priority: 12
 | GET | `/` | 服务说明 |
 | GET | `/health` | 健康检查与服务端连接状态 |
 | GET | `/api/agent/meta` | 模式、模型、工具、技能、MCP、RAG 汇总 |
+| GET | `/api/frontend/contract` | 前端 DOM 映射、已对齐字段、接入缺口清单 |
 | GET | `/api/models` | 模型列表与可用性 |
 | POST | `/api/chat` | 非流式对话，返回完整事件与答案 |
 | POST | `/api/chat/stream` | SSE 流式对话 |
@@ -638,9 +648,16 @@ priority: 12
   "skill_id": "meal-planning",
   "confirmed_tools": [],
   "use_rag": null,
+  "client_context": {
+    "profile": {"name": "我", "height": 170, "weight": 60, "age": 28, "goal": "均衡饮食", "activity": "久坐", "waterTarget": 1800, "sleep": 7, "note": "下午容易口渴"},
+    "meals": [{"type": "早餐", "time": "08:20", "text": "燕麦酸奶、蓝莓、水煮蛋", "protein": 22, "fiber": 6, "veggies": 0, "water": 300}],
+    "today": {"score": 82, "status": "整体均衡", "nutrition": {"protein": 60, "fiber": 15, "veggies": 320, "water": 950}}
+  },
   "stream": false
 }
 ```
+
+`client_context` 是前端 localStorage 的只读快照。Agent 会做字段白名单与长度校验，仅保留档案、今日餐次与今日营养；mock 模式下用它对齐页面显示，真实服务端可用时以服务端数据为准。
 
 ### 9.2 SSE 事件协议
 
@@ -653,7 +670,7 @@ data: {"text":"今天"}
 
 | 事件 | 载荷 | 说明 |
 | --- | --- | --- |
-| `meta` | session_id、mode、model、skill、new_memories、service | 本轮开始 |
+| `meta` | session_id、mode、model、skill、new_memories、service、client_context | 本轮开始 |
 | `skill` | id、display_name、category | 命中技能 |
 | `citation` | id、doc_id、title、text、score | 知识库引用 |
 | `tool_call` | id、name、arguments | 即将执行工具 |
@@ -856,6 +873,7 @@ CORS 已开放 `*`，允许 `Content-Type` 与 `Authorization`，支持 OPTIONS 
 | `eat-health-history-v2` | 历史饮食与健康分 |
 | `eat-health-points-v1` | 周积分、签到、互动、健康奖励、消费和背景所有权 |
 | `eat-agent-motion` | 背景动效开关 |
+| `eat-champion-cover-v1` | 本地保存的冠军封面图片（压缩后的 dataURL） |
 
 档案字段：`name, height, weight, age, goal, activity, waterTarget, sleep, note`。
 
@@ -895,6 +913,15 @@ CORS 已开放 `*`，允许 `Content-Type` 与 `Authorization`，支持 OPTIONS 
 
 所有请求与响应均为 JSON。写入请求包含 `idempotency_key`，避免重试造成重复记录。服务端未配置时自动使用 mock，并在元信息中标记 `source: mock`。
 
+菜品与档案字段已与前端基线 `32ec689` 对齐：
+
+- 菜品：`id, name, category, description, calories, protein, fiber, veggies, water, nature, keywords, image`；Agent 额外返回 `match`（20–98）。
+- `nature` 取值 `recommend` / `indulge`，对应前端“推荐菜 / 放纵菜”。
+- 档案：`name, height, weight, age, goal, activity, waterTarget, sleep, note`；Agent 内部同时兼容 `water_target` 别名。
+- 餐次：`type, time, text, protein, fiber, veggies, water, penalty`。
+- 健康目标：`均衡饮食`、`控制体重`、`增加蛋白`、`减少添加糖`；活动量：`久坐`、`适中`、`较高`。
+- 匹配度算法与 `app.js getFoodMatch` 同源：基础 54，按缺口加权，热量档位，放纵 −14，目标修正，区间 20–98。
+
 ## 13. 验证与验收
 
 ### 13.1 客户端（原有）
@@ -911,18 +938,18 @@ CORS 已开放 `*`，允许 `Content-Type` 与 `Authorization`，支持 OPTIONS 
 
 ### 13.2 Agent 服务（新增）
 
-`python -m unittest agent.tests.test_smoke`，22 项全部通过：
+`python -m unittest agent.tests.test_smoke`，25 项全部通过：
 
 | 分组 | 覆盖内容 |
 | --- | --- |
-| HTTP | 进程内路由验证健康检查、元信息、非流式对话、SSE 事件序列、越权工具、问答模式禁止导入技能 |
+| HTTP | 进程内路由验证健康检查、元信息、前端契约、非流式对话、SSE 事件序列、越权工具、问答模式禁止导入技能 |
 | MCP | 子进程启动、协议版本、工具列表、真实工具调用、工具别名注册 |
 | Market | 发布、列表、安装、好友分享成功、陌生人分享拒绝 |
 | Memory | 过敏/忌口/目标抽取、查询、删除 |
 | RAG | 中文检索命中蛋白质文档、文本入库、统计 |
-| Runtime | 推荐调用工具、记录查询、猜餐意图、工作模式菜单、RAG 引用、模式隔离 |
+| Runtime | 推荐调用工具、记录查询、猜餐意图、工作模式菜单、RAG 引用、模式隔离、client_context 对齐 |
 | Skills | 6 个内置技能加载、猜餐/配餐意图匹配、技能工具范围 |
-| Tools | 模式隔离、读工具执行、写工具确认、确认后写入 |
+| Tools | 模式隔离、读工具执行、菜品 nature 与匹配度、text 写入、写工具确认、前端契约 |
 
 HTTP 测试在进程内直接调用路由与事件生成器，不占用真实端口。原因是部分受管执行环境会限制回环 TCP 访问；真实网络链路由下面的进程验收单独覆盖。
 
@@ -934,7 +961,7 @@ python -m agent.scripts.live_check --port 4173
 
 该脚本启动真实 `python -m agent` 子进程，通过 HTTP 访问健康检查、元信息、三类对话与好友分享校验。若当前环境的 4173 被占用或被限制，换用其他允许端口。
 
-验收输出应包含：双模式、4 个模型、MCP 运行与 6 个工具、RAG 4 文档 22 切片、三种对话场景的工具调用，以及陌生人分享 403。
+验收输出应包含：双模式、4 个模型、MCP 运行与 6 个工具、RAG 4 文档 22 切片、16 道菜品、三种对话场景的工具调用，以及陌生人分享 403。
 
 ### 13.3 建议复查项
 
@@ -962,3 +989,239 @@ python -m agent.scripts.live_check --port 4173
 - 服务端联调时补齐认证、数据同步、积分防刷、菜品去重、周结算与隐私策略。
 - 健康内容始终作为生活方式参考，不提供医疗诊断或治疗结论。
 - 不在仓库中提交密钥、账号令牌、个人真实健康数据或运行时数据库。
+## 15. 前端迭代汇总（上游 32ec689）
+
+本章记录上游 `origin/main 32ec689` 完成的前端视觉、交互与工程变更。前端文件已完整拉取到本仓库，第 4.1 节与本章同时生效；与前文冲突时，以本章为准。
+
+### 15.1 视觉体系（最终态）
+
+- 页面底色 `#f7f8fc`；主文字 `#1f2639`，次要 `#6b7280`，辅助 `#8a93a5`。
+- 背景：三块大尺寸柔光色块，冷色为蓝 `#6c8cff` → 青 → 浅紫，暖色为浅粉 `#ffd6e0` → 浅橙 `#ffe8d6`，第三块为青紫补位；`filter: blur(120px)`、`opacity: 0.42`；星座 Canvas 已隐藏。
+- 卡片：`rgba(255,255,255,0.55)` + `backdrop-filter: blur(20px) saturate(1.3)` + `1px rgba(255,255,255,0.4)` + 18px 圆角 + `0 8px 32px rgba(31,38,57,0.08)`。
+- 字体：系统 SF Pro / PingFang SC；标题与强调 `font-weight: 600`；正文行高 1.55。
+- 阴影：主阴影 `0 10px 40px rgba(31,38,57,0.09)`，小阴影 `0 6px 20px rgba(31,38,57,0.07)`。
+- 间距 20px；圆角层级 18/12/10/8；图标统一 18px、1.5 描边；单一缓动 `cubic-bezier(0.22,1,0.36,1)`。
+- 输入框 focus 使用主题蓝 `#6c8cff`。
+
+### 15.2 强调色（最终态）
+
+| 变量或用途 | 色值 |
+| --- | --- |
+| `--accent`（填充：按钮底、进度条、开关、分页点、range） | `#ff6f91` 珊瑚粉 |
+| `--accent-ink`（文字/图标/线条：导航选中、评分、趋势线、状态） | `#e75480` 玫红 |
+| `--accent-hover` | `#f0527a` |
+| `--accent-soft`（选中背景） | `#ffe8ee` |
+| 「猜对了，记录这道」按钮 | 浅粉 `#ffb6c1` 底 + 玫红字，hover `#ffa8b8` |
+| 右侧冠军封面遮罩 | `rgba(66,18,38,0.62)` |
+| 好友头像底 / 当前用户头像 | `rgba(255,111,145,0.08)` / `rgba(255,111,145,0.14)` |
+
+配色曾依次试过蓝紫、青绿、玫瑰粉、玫红、浅粉、珊瑚粉，最终采用上表方案。
+
+### 15.3 左侧菜单：搜索与随机
+
+- 食物库从 6 道扩充到 16 道，新增米饭、炒饭、炸鸡、甜点、奶茶等，并为每道补充 `keywords` 与 `nature`（`recommend` / `indulge`）。
+- 菜单顶部新增搜索栏与随机按钮；输入内容后按名称、类别、描述、关键词模糊匹配。
+- 搜索结果分「推荐菜 / 放纵菜」两组，组内按匹配度排序；点击任意结果即可记录。
+- 匹配度由 `getFoodMatch(food)` 结合当日营养缺口、热量、健康目标和放纵标记计算，仅作本地演示。
+- 随机按钮按真实随机抽取全部菜品（含放纵菜），并记录最近 6 次，避免短期重复。
+- 随机选菜以覆盖层占满中央主区，展示大图、分类、营养与匹配度，底部提供「再选一次」和「就它了！」；「就它了！」记录该菜并返回打开随机前的页面。
+- 食物模块拖入中央展开后，左栏搜索会同步把结果渲染到中央瀑布流；清空搜索恢复原瀑布流，搜索态暂停无限加载。
+
+### 15.4 匹配度显示（唯一来源）
+
+- 唯一基准：左侧搜索推荐卡片的匹配度组件。
+- 彩条：浅橙 `#ffb877`，`conic-gradient` 顶部起顺时针，宽度 3px，围绕整张卡片外沿（含图片与文字区），`z-index: 3` 压在图片之上，`overflow: hidden` 不裁切。
+- 颜色：左侧、中央、随机统一为 `#6c8cff`，只保留一个公开色值，不再各写一套。
+- 字重：中央与随机为 `600`；左侧保持常规字重。
+- 中央卡片匹配度位于介绍区底部，使用灰色底条 `rgba(31,38,57,0.06)`，通过 `.masonry-card .search-result-match` 覆盖为静态布局，不再浮于右下。
+- 卡路里、蛋白等数据行与匹配文字同步放大，`font-weight: 600`。
+
+### 15.5 新增功能与交互
+
+- 左侧今日记录区最高 46%，超出后在记录区内部滚动，不再向上挤压食物菜单。
+- 右侧冠军封面右上角新增相机按钮，打开设置弹窗：预览、选择本地图片、保存、恢复默认。
+- 封面以 canvas 压缩到 640px、JPEG 0.82 后存入 `localStorage`；当排行榜第一名为「你」时自动使用，否则保持默认图。
+- 健康档案底部新增「返回到主页」；健康报告、历史记录、积分商城底部同样新增该按钮，统一回到「今天吃了什么」。
+- 左侧栏收起后只保留顶部刀叉图标，下半部分显示为透明毛玻璃空区。
+- 首页第一条消息与猜餐卡间距增至 32px；消息气泡、猜餐卡底部、排行榜底部、设置弹窗底部与左右栏内部卡片统一毛玻璃。
+
+### 15.6 工程与协作要点
+
+- 项目仍为无框架、无构建、无后端的纯前端实现。
+- 该环境不支持 heredoc 内联脚本，批量替换颜色或样式时需先写临时脚本执行，再删除脚本，并用 grep 校验旧值无残留。
+- 修改后至少校验：CSS 花括号平衡、`node --check app.js`、目标元素实际命中的选择器与优先级。
+- 样式改动若追加新规则未覆盖既有 `position`、`color` 等属性，可能视觉无效；应使用更具体选择器覆盖。
+- 本轮新增主要函数：`getFoodMatch`、`searchFoods`、`renderFoodSearch`、`renderMasonryResults`、`pickRandomFood`、`openRandomPicker`、`confirmRandom`、`openCoverDialog`、`saveCover`、`resetCover`、`applyChampionCover`。
+
+### 15.7 本轮提示词
+
+```
+把背景改成浅色底 #f7f8fc，铺 2-3 个大尺寸冷暖柔光色块，大半径高斯模糊。
+卡片使用 rgba(255,255,255,0.55)、backdrop-filter: blur(20px) saturate(1.3)、1px 白色边框、18px 圆角和轻阴影。
+
+在左侧菜单顶部增加模糊搜索，搜索“米饭”时按健康状态显示推荐菜和放纵菜，并在每道菜底部显示匹配度。
+搜索框右侧增加随机按钮，点击后在中央全屏随机展示一道菜，底部提供“再选一次”和“就它了！”。
+
+统一“匹配 XX%”文字颜色，以左侧推荐卡片为唯一标准；彩条围绕整张卡片外沿完整可见，匹配文字加粗。
+
+用 frontend-design 的 Apple Minimalist 方向优化排版层级、留白、阴影与动效，保留现有配色与玻璃质感。
+```
+
+### 15.8 验收与提交
+
+- 验收重点：左侧记录区内部滚动、搜索「米饭」分组与匹配度、随机去重与「就它了」记录、冠军封面上传与本地保存、各页「返回到主页」、匹配度彩条完整环绕、珊瑚粉底 + 玫红字配色。
+- 本地验收前先运行 `python -m http.server 4173 --bind 127.0.0.1`，并强制刷新页面。
+- 上游提交：`32ec689 style: refine typography, glass surfaces, match badges and accent theme`。
+
+## 16. 前端适配契约与接入缺口
+
+### 16.1 基线说明
+
+本次已执行 `git checkout origin/main -- index.html styles.css features.css app.js`，前端四个文件与上游 `32ec689` 完全一致，未做任何手工修改。Agent 服务按该版本的数据结构与 DOM 做适配。
+
+前端当前没有任何 `fetch`、`EventSource` 或 `/api/` 调用，`sendPrompt()` 仍是本地规则：先 `appendUserMessage`，720ms 后 `recordMeal` 或生成本地分析。因此 Agent 服务不会被前端自动触发，需要后续新增独立适配层。
+
+### 16.2 Agent 侧已对齐的内容
+
+| 项 | 对齐方式 |
+| --- | --- |
+| 菜品数量与字段 | mock 与工具返回 16 道菜，字段与 `app.js foods` 一致：`id, name, category, description, calories, protein, fiber, veggies, water, nature, keywords, image` |
+| 推荐 / 放纵分组 | `search_foods` 支持 `nature` 参数，`recommend` / `indulge` 与前端分组同名 |
+| 匹配度 | Agent 返回 `match`，算法与 `getFoodMatch` 同源，区间 20–98 |
+| 档案字段 | 兼容前端 `waterTarget`、数字 `sleep`，同时保留服务端 `water_target` 别名 |
+| 餐次字段 | 支持前端 `text` 原文写入，`record_meal` 不再强制要求 `items` |
+| 今日营养 | 前端 `today.nutrition` 可直接作为缺口计算输入，蔬菜目标对齐为 500g |
+| 健康目标 | 使用前端取值：均衡饮食、控制体重、增加蛋白、减少添加糖 |
+| 输入入口 | `#chatForm` + `#chatInput` 的自由文本可直接作为 `message` |
+| 消息 DOM | SSE 事件可映射到现有 `.message.agent-message`、`.agent-avatar`、`.message-meta`、`.message-bubble` |
+| 猜餐卡 | Agent 的 `meal-guess` 结果可映射到 `#guessName`、`#guessReason`、`#guessMatch`、`#guessBar` |
+
+契约可通过 `GET /api/frontend/contract` 获取，包含 DOM 映射、事件映射、`client_context` 字段与缺口清单。
+
+### 16.3 client_context 契约
+
+前端接入时，把 localStorage 的页面状态作为只读快照随对话上传：
+
+```json
+{
+  "profile": {"name": "我", "height": 170, "weight": 60, "age": 28, "goal": "均衡饮食", "activity": "久坐", "waterTarget": 1800, "sleep": 7, "note": "下午容易口渴"},
+  "meals": [{"type": "早餐", "time": "08:20", "text": "燕麦酸奶、蓝莓、水煮蛋", "protein": 22, "fiber": 6, "veggies": 0, "water": 300}],
+  "today": {"score": 82, "status": "整体均衡", "nutrition": {"protein": 60, "fiber": 15, "veggies": 320, "water": 950}}
+}
+```
+
+约束：
+
+- 只做白名单字段与长度校验，单次不超过 8KB。
+- mock 模式下用于对齐页面显示；`EAT_SERVER_BASE_URL` 配置后，工具数据以服务端为准，前端快照只作为上下文参考。
+- 不包含令牌、密码或与饮食无关的个人信息。
+
+### 16.4 DOM 映射
+
+| 用途 | 选择器 |
+| --- | --- |
+| 输入表单 / 输入框 | `#chatForm` / `#chatInput` |
+| 对话容器 | `#conversation` |
+| Agent 消息 | `.message.agent-message` |
+| Agent 头像 | `.agent-avatar` |
+| 消息元信息 | `.message-meta` |
+| 消息气泡 | `.message-bubble` |
+| 输入中占位 | `#typingMessage` |
+| 猜餐名称 / 理由 / 匹配度 / 进度 | `#guessName` / `#guessReason` / `#guessMatch` / `#guessBar` |
+| 猜餐接受 / 再猜 | `#acceptGuess` / `#nextGuess` |
+| 菜品搜索 / 结果 | `#foodSearchInput` / `#foodSearchResults` |
+| 左侧食物 / 中央瀑布流 | `#sidebarFoodList` / `#expandedMenuList` |
+| 随机选菜层 | `#randomPicker` |
+| 档案表单 | `#profileForm`、`[data-option-group]`、`#waterRange`、`#sleepRange` |
+| 报告 / 历史 | `#reportSummary` / `#scoreValue` / `#mealTimeline` / `#historyList` |
+| 排行榜 | `#leaderboardList` / `#championName` |
+
+### 16.5 SSE 事件到界面
+
+| 事件 | 界面动作 |
+| --- | --- |
+| `meta` | 记录 session_id、模式、模型与 client_context 是否生效，不直接渲染 |
+| `skill` | 在 `.message-meta` 显示当前技能名 |
+| `citation` | 在回答下方追加可展开来源 |
+| `tool_call` | 在 `.message-meta` 显示“正在查询健康档案 / 实时菜单” |
+| `tool_result` | 更新工具状态；`need_confirm=true` 时打开确认框 |
+| `token` | 向当前 `.message-bubble` 追加文本 |
+| `notice` | 用 toast 或元信息提示模型降级、数据源为 mock |
+| `confirm_required` | 打开确认弹窗，用户确认后带 `confirmed_tools` 重发 |
+| `done` | 结束输入中状态，恢复发送按钮 |
+| `error` | 显示错误，并回退现有本地规则 `renderInference()` |
+
+### 16.6 前端尚未提供的接口与界面
+
+以下能力 Agent 侧已就绪，但前端没有对应入口。按要求没有修改现有前端文件，接入时需要新增 UI 或独立适配层：
+
+| 缺口 | 前端现状 | Agent 已就绪接口 | 接入建议 |
+| --- | --- | --- | --- |
+| 问答 / 工作模式切换 | 没有模式概念 | `POST /api/chat/stream` 的 `mode` 字段 | 在 `#chatForm` 附近增加切换；默认问答，写操作前提示切到工作模式 |
+| 模型选择 | 没有模型下拉 | `GET /api/models`、请求体 `model_id` | 放入设置弹窗，显示 `available`，不可用时提示降级 |
+| SSE 流式适配层 | 没有 fetch / EventSource | `POST /api/chat/stream` | 新增独立 `agent-adapter.js`，由页面旁边加载，不改 `app.js` 主流程 |
+| 写操作确认弹窗 | 本地 `recordMeal` 直接写入 | `confirm_required` + `confirmed_tools` | 复用现有 `dialog` 样式，确认后重发请求 |
+| Skill 市场与安装 | 没有入口 | `GET /api/skills/market`、`POST /api/skills/market/install`、`share` | 新增市场视图或弹窗；工作模式下才显示安装与导入 |
+| 知识引用展示 | 没有来源区域 | `citation` 事件 | 在回答气泡下方增加可折叠来源列表 |
+| 会话列表与清空 | 没有会话概念 | `GET /api/sessions/{id}/messages`、`DELETE /api/sessions/{id}` | 新增会话记录入口，默认使用单会话 |
+| Agent 连接状态 | `.agent-state` 固定显示“健康分析已就绪” | `GET /api/agent/meta`、`GET /api/mcp/status` | 改为显示 mock / service、MCP 在线状态与当前模型 |
+| 菜品搜索走后端 | 搜索与随机完全本地 | `search_foods`（支持 `nature`、`match`、忌口过滤） | 可保留本地逻辑；接入后把结果替换为 Agent 返回，字段已对齐 |
+| 猜餐走后端 | 本地规则生成 | `meal-guess` Skill + 工具 | 保留本地 `renderInference()` 作为降级，命中 Agent 时用事件更新猜餐卡 |
+
+### 16.7 独立适配层示例
+
+不修改 `app.js`，新增一个独立文件并在页面末尾加载即可：
+
+```javascript
+const storageKeys = {
+  profile: "eat-health-profile-v2",
+  meals: "eat-health-meals-v2"
+};
+
+function readClientContext() {
+  const read = (key, fallback) => {
+    try {
+      return JSON.parse(localStorage.getItem(key)) || fallback;
+    } catch {
+      return fallback;
+    }
+  };
+  return {
+    profile: read(storageKeys.profile, {}),
+    meals: read(storageKeys.meals, []),
+    today: window.getHealthAnalysis ? window.getHealthAnalysis() : {}
+  };
+}
+
+async function askAgent(message, options = {}) {
+  const response = await fetch("http://127.0.0.1:8787/api/chat/stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      user_id: "u_demo",
+      session_id: options.sessionId || "web_demo",
+      message,
+      mode: options.mode || "qa",
+      model_id: options.modelId,
+      confirmed_tools: options.confirmedTools || [],
+      client_context: readClientContext()
+    })
+  });
+  if (!response.ok) throw new Error(`agent ${response.status}`);
+  return response.body;
+}
+```
+
+说明：
+
+- `getHealthAnalysis()` 是页面内全局函数，适配层可直接读取，不需要改 `app.js`。
+- 流式解析按 SSE 的 `event:` 与 `data:` 分帧，逐条更新 `.message-bubble`。
+- Agent 不可用时捕获异常，回退现有 `renderInference()` 与本地 `recordMeal`。
+- 当前前端没有导出任何模块，适配层通过 `window` 访问现有函数，避免改动页面结构。
+
+### 16.8 结论
+
+- 前端四个文件已完全同步上游，视觉与交互保持最新。
+- Agent 侧的数据结构、匹配度、档案字段、餐次字段、猜餐与输入入口已适配。
+- 前端没有提供的模式切换、模型选择、SSE 适配、确认弹窗、Skill 市场、引用展示、会话管理与连接状态，均未改动前端，只在 Agent 侧保留接口并记录在本章。
+- 若要真正端到端可用，下一步只需新增独立适配层与对应 UI，不需要改动 Agent 服务。

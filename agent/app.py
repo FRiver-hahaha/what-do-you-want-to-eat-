@@ -75,6 +75,11 @@ class AgentApp:
             "mcp": self.mcp.status(),
             "service": self.service.status(),
             "rag": self.knowledge.stats(),
+            "frontend": {
+                "baseline": "origin/main 32ec689",
+                "contract": "/api/frontend/contract",
+                "client_context": True,
+            },
             "streaming": {
                 "transport": "sse",
                 "endpoint": "/api/chat/stream",
@@ -121,6 +126,11 @@ class AgentApp:
 
     def models(self) -> list[dict[str, Any]]:
         return self.gateway.list_models()
+
+    def frontend_contract(self) -> dict[str, Any]:
+        from agent.core.frontend import contract
+
+        return contract()
 
     def session_messages(self, session_id: str) -> dict[str, Any]:
         session = self.context.session(session_id)

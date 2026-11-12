@@ -3,7 +3,8 @@ const storageKeys = {
   meals: "eat-health-meals-v2",
   history: "eat-health-history-v2",
   points: "eat-health-points-v1",
-  motion: "eat-agent-motion"
+  motion: "eat-agent-motion",
+  cover: "eat-champion-cover-v1"
 };
 
 const defaultProfile = {
@@ -24,12 +25,22 @@ const defaultMeals = [
 ];
 
 const foods = [
-  { id: "lemon-chicken", name: "柠檬鸡胸能量碗", category: "高蛋白 · 清爽", description: "烤鸡胸、牛油果、藜麦与时令蔬菜", calories: 460, protein: 38, fiber: 9, veggies: 320, water: 250, image: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=82" },
-  { id: "tomato-beef", name: "番茄牛腩盖饭", category: "热乎 · 饱腹", description: "番茄牛腩、杂粮米饭与焯拌时蔬", calories: 620, protein: 32, fiber: 7, veggies: 180, water: 180, image: "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=600&q=82" },
-  { id: "mushroom-soup", name: "菌菇鸡汤面", category: "清淡 · 汤食", description: "清鸡汤、三种菌菇、细面与小青菜", calories: 430, protein: 24, fiber: 6, veggies: 160, water: 450, image: "https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=600&q=82" },
-  { id: "shrimp-pasta", name: "蒜香虾仁意面", category: "高蛋白 · 换口味", description: "虾仁、樱桃番茄与全麦意面", calories: 560, protein: 35, fiber: 8, veggies: 140, water: 160, image: "https://images.unsplash.com/photo-1563379926898-05f4575a45d8?auto=format&fit=crop&w=600&q=82" },
-  { id: "vegetable-rice", name: "时蔬豆腐拌饭", category: "植物蛋白 · 多蔬菜", description: "香煎豆腐、烤南瓜、西兰花与杂粮饭", calories: 410, protein: 22, fiber: 12, veggies: 360, water: 180, image: "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=600&q=82" },
-  { id: "pepper-chicken", name: "藤椒鸡丝拌面", category: "微辣 · 快手", description: "嫩鸡丝、黄瓜丝与荞麦面", calories: 520, protein: 30, fiber: 7, veggies: 140, water: 180, image: "https://images.unsplash.com/photo-1473093295043-cdd812d0e601?auto=format&fit=crop&w=600&q=82" }
+  { id: "lemon-chicken", name: "柠檬鸡胸能量碗", category: "高蛋白 · 清爽", description: "烤鸡胸、牛油果、藜麦与时令蔬菜", calories: 460, protein: 38, fiber: 9, veggies: 320, water: 250, nature: "recommend", keywords: "鸡胸 沙拉 碗 轻食 蛋白", image: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=82" },
+  { id: "tomato-beef", name: "番茄牛腩盖饭", category: "热乎 · 饱腹", description: "番茄牛腩、杂粮米饭与焯拌时蔬", calories: 620, protein: 32, fiber: 7, veggies: 180, water: 180, nature: "recommend", keywords: "米饭 饭 牛肉 牛腩 盖饭 番茄", image: "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=600&q=82" },
+  { id: "mushroom-soup", name: "菌菇鸡汤面", category: "清淡 · 汤食", description: "清鸡汤、三种菌菇、细面与小青菜", calories: 430, protein: 24, fiber: 6, veggies: 160, water: 450, nature: "recommend", keywords: "面 汤 菌菇 鸡汤 清淡", image: "https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=600&q=82" },
+  { id: "shrimp-pasta", name: "蒜香虾仁意面", category: "高蛋白 · 换口味", description: "虾仁、樱桃番茄与全麦意面", calories: 560, protein: 35, fiber: 8, veggies: 140, water: 160, nature: "recommend", keywords: "面 意面 虾 海鲜 番茄", image: "https://images.unsplash.com/photo-1563379926898-05f4575a45d8?auto=format&fit=crop&w=600&q=82" },
+  { id: "vegetable-rice", name: "时蔬豆腐拌饭", category: "植物蛋白 · 多蔬菜", description: "香煎豆腐、烤南瓜、西兰花与杂粮饭", calories: 410, protein: 22, fiber: 12, veggies: 360, water: 180, nature: "recommend", keywords: "米饭 饭 豆腐 素食 拌饭 蔬菜", image: "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=600&q=82" },
+  { id: "pepper-chicken", name: "藤椒鸡丝拌面", category: "微辣 · 快手", description: "嫩鸡丝、黄瓜丝与荞麦面", calories: 520, protein: 30, fiber: 7, veggies: 140, water: 180, nature: "recommend", keywords: "面 鸡丝 辣 荞麦 凉面", image: "https://images.unsplash.com/photo-1473093295043-cdd812d0e601?auto=format&fit=crop&w=600&q=82" },
+  { id: "tomato-egg-rice", name: "番茄鸡蛋盖饭", category: "家常 · 顺口", description: "番茄炒蛋、杂粮米饭与小份青菜", calories: 480, protein: 18, fiber: 5, veggies: 160, water: 150, nature: "recommend", keywords: "米饭 饭 番茄 鸡蛋 盖饭 家常", image: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=82" },
+  { id: "salmon-quinoa", name: "三文鱼藜麦碗", category: "高蛋白 · 优质脂肪", description: "烤三文鱼、藜麦、牛油果与羽衣甘蓝", calories: 520, protein: 34, fiber: 8, veggies: 240, water: 200, nature: "recommend", keywords: "三文鱼 鱼 藜麦 沙拉 轻食", image: "https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=600&q=82" },
+  { id: "steamed-fish-rice", name: "清蒸鲈鱼配米饭", category: "清淡 · 蒸食", description: "清蒸鲈鱼、杂粮米饭与白灼菜心", calories: 470, protein: 33, fiber: 4, veggies: 200, water: 200, nature: "recommend", keywords: "米饭 饭 鱼 清蒸 少油", image: "https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=600&q=82" },
+  { id: "chicken-salad", name: "鸡胸蔬菜沙拉", category: "低脂 · 高纤维", description: "煎鸡胸、混合生菜、番茄与油醋汁", calories: 380, protein: 32, fiber: 10, veggies: 300, water: 220, nature: "recommend", keywords: "沙拉 蔬菜 鸡胸 轻食 减脂", image: "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=600&q=82" },
+  { id: "yangzhou-fried-rice", name: "扬州炒饭", category: "热乎 · 放纵", description: "火腿、虾仁、鸡蛋与香米炒饭", calories: 680, protein: 20, fiber: 3, veggies: 90, water: 100, nature: "indulge", keywords: "米饭 饭 炒饭 火腿 虾仁", image: "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=600&q=82" },
+  { id: "beef-fried-rice", name: "牛肉炒饭", category: "热乎 · 放纵", description: "黑椒牛肉、香米与葱花", calories: 720, protein: 26, fiber: 2, veggies: 60, water: 100, nature: "indulge", keywords: "米饭 饭 炒饭 牛肉 黑椒", image: "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=600&q=82" },
+  { id: "fried-chicken-burger", name: "炸鸡汉堡", category: "快餐 · 放纵", description: "脆皮炸鸡、芝士与汉堡面包", calories: 780, protein: 30, fiber: 2, veggies: 40, water: 80, nature: "indulge", keywords: "炸鸡 汉堡 快餐 薯条", image: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=600&q=82" },
+  { id: "cheese-cake", name: "芝士蛋糕", category: "甜点 · 放纵", description: "浓郁芝士、饼干底与莓果", calories: 420, protein: 8, fiber: 1, veggies: 0, water: 40, nature: "indulge", keywords: "甜点 蛋糕 芝士 甜品", image: "https://images.unsplash.com/photo-1551024506-0bccd828d307?auto=format&fit=crop&w=600&q=82" },
+  { id: "bubble-tea", name: "珍珠奶茶", category: "饮品 · 放纵", description: "红茶、奶盖与黑糖珍珠", calories: 460, protein: 4, fiber: 0, veggies: 0, water: 100, nature: "indulge", keywords: "奶茶 饮料 甜 珍珠 黑糖", image: "https://images.unsplash.com/photo-1544145945-f90425340c7e?auto=format&fit=crop&w=600&q=82" },
+  { id: "malatang", name: "麻辣烫", category: "热辣 · 放纵", description: "自选蔬菜、丸子与麻辣汤底", calories: 640, protein: 24, fiber: 6, veggies: 260, water: 300, nature: "indulge", keywords: "麻辣烫 辣 火锅 丸子 汤", image: "https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=600&q=82" }
 ];
 
 const seedHistory = [
@@ -103,6 +114,13 @@ let toastTimer;
 let replyTimer;
 let menuDrag = null;
 let suppressMenuClick = false;
+let activeView = "today";
+let previousView = "today";
+let championCoverSrc = (loadStored(storageKeys.cover, { src: "" }) || {}).src || "";
+let coverDraftSrc = "";
+let randomFoodId = "";
+let randomReturnView = "today";
+let searchTimer;
 
 const elements = {
   appShell: document.getElementById("appShell"),
@@ -327,7 +345,7 @@ function renderInference() {
   document.getElementById("guessImage").src = food.image;
   document.getElementById("guessImage").alt = `猜测你吃了${food.name}`;
   document.getElementById("guessMatch").textContent = `${match}% 匹配`;
-  document.getElementById("guessBar").style.width = `${match}%`;
+  document.getElementById("guessBar").style.transform = `scaleX(${match / 100})`;
   document.getElementById("guessReason").textContent = `你的目标是「${profile.goal}」，日常${profile.activity}、睡眠 ${profile.sleep} 小时；结合近 7 天健康均分 ${average} 和当前${analysis.ratios.water < 0.8 ? "饮水不足" : "饮水节奏"}，我猜你更可能选择了这道${food.category}的食物。`;
   document.getElementById("guessEvidence").innerHTML = [profile.goal, profile.activity, `${profile.age} 岁`, `近 7 天均分 ${average}`].map(text => `<span>${text}</span>`).join("");
   elements.reportBasis.textContent = "本地规则推理：健康档案 + 近 7 天记录 + 当前营养进度，不调用在线模型";
@@ -389,7 +407,7 @@ function renderReport() {
     water: `${nutrition.water} / ${targets.water} ml`
   };
   const labels = { protein: "蛋白质", fiber: "膳食纤维", veggies: "蔬菜", water: "饮水" };
-  document.getElementById("detailNutritionList").innerHTML = `<div class="detail-nutrition-list">${Object.keys(labels).map(key => `<div class="detail-nutrition-row"><span>${labels[key]}</span><div class="nutrition-track"><i style="width:${Math.round(ratios[key] * 100)}%"></i></div><strong>${values[key]}</strong></div>`).join("")}</div>`;
+  document.getElementById("detailNutritionList").innerHTML = `<div class="detail-nutrition-list">${Object.keys(labels).map(key => `<div class="detail-nutrition-row"><span>${labels[key]}</span><div class="nutrition-track"><i style="transform:scaleX(${Math.round(ratios[key] * 100) / 100})"></i></div><strong>${values[key]}</strong></div>`).join("")}</div>`;
   const tags = [ratios.veggies >= 0.6 ? "蔬菜摄入良好" : "蔬菜待补充", ratios.protein >= 1 ? "蛋白质已达标" : "蛋白质进行中", ratios.water < 0.8 ? "饮水待补充" : "饮水节奏良好"];
   document.getElementById("reportTags").innerHTML = tags.map(tag => `<span>${tag}</span>`).join("");
   renderTrend(score);
@@ -439,6 +457,7 @@ function renderLeaderboard(currentScore = getHealthAnalysis().score) {
   const rank = data.findIndex(item => item.current) + 1;
   document.getElementById("rankingSummary").textContent = activeRanking === "week" ? `本周健康均分 ${weeklyAverage} · 当前第 ${rank} 名 · 周奖励预计 +${getWeeklyBonus()}` : `今日健康分 ${currentScore} · 当前第 ${rank} 名`;
   if (document.getElementById("view-shop").classList.contains("active")) renderShop();
+  applyChampionCover(champion);
 }
 
 function updateTodayHistory(score) {
@@ -481,7 +500,7 @@ function renderSidebarFoodPage(direction = 0) {
     void list.offsetWidth;
     list.classList.add(direction > 0 ? "page-forward" : "page-back");
   }
-  document.getElementById("foodPageLabel").textContent = `${String(foodPage + 1).padStart(2, "0")} / ${String(pageCount).padStart(2, "0")}`;
+  document.getElementById("foodPageLabel").textContent = `${foodPage + 1} / ${pageCount}`;
   document.getElementById("foodPageDots").innerHTML = Array.from({ length: pageCount }, (_, index) => `<button type="button" data-food-page="${index}" class="${index === foodPage ? "active" : ""}" aria-label="第 ${index + 1} 页"></button>`).join("");
 }
 
@@ -493,6 +512,7 @@ function changeFoodPage(direction) {
 
 let masonryCycle = 0;
 let masonryLoading = false;
+let masonrySearchMode = false;
 
 function appendMasonryCycle() {
   const columns = [...elements.expandedMenuList.querySelectorAll(".masonry-column")];
@@ -501,11 +521,13 @@ function appendMasonryCycle() {
   foods.forEach((food, index) => {
     const columnIndex = (index + masonryCycle * 2) % columns.length;
     const imageHeight = imageHeights[(index + masonryCycle + columnIndex) % imageHeights.length];
+    const match = getFoodMatch(food);
     const card = document.createElement("button");
     card.type = "button";
     card.className = "masonry-card";
     card.dataset.foodId = food.id;
-    card.innerHTML = `<span class="masonry-image-wrap"><img src="${food.image}" alt="${food.name}" style="height:${imageHeight}px" loading="lazy"><span class="masonry-add">${icon("plus")}</span></span><span class="masonry-copy"><small>${food.category}</small><strong>${food.name}</strong><span><span>${food.calories} 千卡</span><span>${food.protein} g 蛋白</span></span></span>`;
+    card.style.setProperty("--match", match);
+    card.innerHTML = `<span class="masonry-image-wrap"><img src="${food.image}" alt="${food.name}" style="height:${imageHeight}px" loading="lazy"><span class="masonry-add">${icon("plus")}</span></span><span class="masonry-copy"><small>${food.category}</small><strong>${food.name}</strong><span><span>${food.calories} 千卡</span><span>${food.protein} g 蛋白</span></span><span class="search-result-match">匹配 ${match}%</span></span>`;
     columns[columnIndex].appendChild(card);
   });
   masonryCycle += 1;
@@ -515,6 +537,7 @@ function updateFoodFeedProgress() {
   const list = elements.expandedMenuList;
   const cards = list.querySelectorAll(".masonry-card");
   document.getElementById("foodFeedProgress").textContent = `${cards.length} 张卡片`;
+  if (masonrySearchMode) return;
   const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 420;
   if (elements.expandedMenu.classList.contains("open") && nearBottom && !masonryLoading) {
     masonryLoading = true;
@@ -525,6 +548,7 @@ function updateFoodFeedProgress() {
 }
 
 function renderMasonryFeed() {
+  masonrySearchMode = false;
   masonryCycle = 0;
   masonryLoading = false;
   elements.expandedMenuList.innerHTML = Array.from({ length: 5 }, (_, index) => `<div class="masonry-column" data-column="${index + 1}"></div>`).join("");
@@ -532,19 +556,240 @@ function renderMasonryFeed() {
   updateFoodFeedProgress();
 }
 
+function renderMasonryResults(list, query) {
+  masonrySearchMode = true;
+  masonryLoading = false;
+  if (!list.length) {
+    elements.expandedMenuList.innerHTML = `<div class="masonry-empty">没有找到「${escapeHtml(query)}」，换个词试试</div>`;
+    document.getElementById("foodFeedProgress").textContent = "0 张卡片";
+    return;
+  }
+  elements.expandedMenuList.innerHTML = Array.from({ length: 5 }, (_, index) => `<div class="masonry-column" data-column="${index + 1}"></div>`).join("");
+  const columns = [...elements.expandedMenuList.querySelectorAll(".masonry-column")];
+  const imageHeights = [150, 190, 160, 210, 170];
+  list.forEach((item, index) => {
+    const food = item.food;
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "masonry-card";
+    card.dataset.foodId = food.id;
+    card.style.setProperty("--match", item.match);
+    card.innerHTML = `<span class="masonry-image-wrap"><img src="${food.image}" alt="${escapeHtml(food.name)}" style="height:${imageHeights[index % imageHeights.length]}px" loading="lazy"><span class="masonry-add">${icon("plus")}</span></span><span class="masonry-copy"><small>${escapeHtml(food.category)}</small><strong>${escapeHtml(food.name)}</strong><span><span>${food.calories} 千卡</span><span>蛋白 ${food.protein} g</span></span><span class="search-result-match">匹配 ${item.match}%</span></span>`;
+    columns[index % columns.length].appendChild(card);
+  });
+  document.getElementById("foodFeedProgress").textContent = `${list.length} 张卡片`;
+}
+
 function renderFoodMenus() {
   renderSidebarFoodPage();
   renderMasonryFeed();
 }
 
-function recordFood(foodId) {
+const defaultChampionCover = "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=800&q=82";
+
+function getFoodMatch(food) {
+  const analysis = getHealthAnalysis();
+  const vegGap = Math.max(0, 1 - analysis.ratios.veggies);
+  const proteinGap = Math.max(0, 1 - analysis.ratios.protein);
+  const fiberGap = Math.max(0, 1 - analysis.ratios.fiber);
+  let score = 54;
+  score += vegGap * Math.min(food.veggies / 500, 1) * 24;
+  score += proteinGap * Math.min(food.protein / 90, 1) * 16;
+  score += fiberGap * Math.min(food.fiber / 25, 1) * 10;
+  score += food.calories <= 480 ? 8 : food.calories <= 580 ? 3 : -6;
+  if (food.nature === "indulge") score -= 14;
+  if (profile.goal === "增加蛋白" && food.protein >= 30) score += 6;
+  if (profile.goal === "控制体重" && food.calories > 520) score -= 6;
+  if (profile.goal === "减少添加糖" && food.nature === "indulge") score -= 5;
+  if (profile.goal === "均衡饮食" && food.veggies >= 250) score += 4;
+  return Math.max(20, Math.min(98, Math.round(score)));
+}
+
+function searchFoods(query) {
+  const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!tokens.length) return [];
+  return foods
+    .map(food => {
+      const hay = `${food.name} ${food.category} ${food.description} ${food.keywords || ""}`.toLowerCase();
+      const hit = tokens.filter(token => hay.includes(token)).length;
+      return { food, hit, match: getFoodMatch(food) };
+    })
+    .filter(item => item.hit > 0)
+    .sort((a, b) => b.hit - a.hit || b.match - a.match);
+}
+
+function renderFoodSearch(query) {
+  const box = document.getElementById("foodSearchResults");
+  if (!box) return;
+  const q = query.trim();
+  if (!q) {
+    box.classList.remove("open");
+    box.innerHTML = "";
+    if (elements.expandedMenu.classList.contains("open") && masonrySearchMode) renderMasonryFeed();
+    return;
+  }
+  const list = searchFoods(q);
+  if (elements.expandedMenu.classList.contains("open")) renderMasonryResults(list, q);
+  if (!list.length) {
+    box.classList.add("open");
+    box.innerHTML = `<p class="food-search-empty">没有找到「${escapeHtml(q)}」，换个词试试</p>`;
+    return;
+  }
+  const groupNames = { recommend: "推荐菜", indulge: "放纵菜" };
+  box.innerHTML = ["recommend", "indulge"].map(nature => {
+    const items = list.filter(item => item.food.nature === nature);
+    if (!items.length) return "";
+    return `<div class="food-search-group"><h4>${groupNames[nature]}</h4>${items.map(item => `<button class="search-result" type="button" data-food-id="${item.food.id}" style="--match:${item.match}"><img src="${item.food.image}" alt="${escapeHtml(item.food.name)}" loading="lazy"><span class="search-result-copy"><small>${escapeHtml(item.food.category)}</small><strong>${escapeHtml(item.food.name)}</strong><span>${item.food.calories} 千卡 · 蛋白 ${item.food.protein} g</span></span><span class="search-result-match">匹配 ${item.match}%</span></button>`).join("")}</div>`;
+  }).join("");
+  box.classList.add("open");
+}
+
+function clearFoodSearch() {
+  const input = document.getElementById("foodSearchInput");
+  if (input) input.value = "";
+  renderFoodSearch("");
+}
+
+let randomHistory = [];
+
+function pickRandomFood(excludeId) {
+  const pool = excludeId ? foods.filter(food => food.id !== excludeId) : foods.slice();
+  if (!pool.length) return foods[0];
+  const fresh = pool.filter(food => !randomHistory.includes(food.id));
+  const candidates = fresh.length ? fresh : pool;
+  const food = candidates[Math.floor(Math.random() * candidates.length)];
+  randomHistory.push(food.id);
+  if (randomHistory.length > 6) randomHistory.shift();
+  return food;
+}
+
+function renderRandomPicker(food) {
+  randomFoodId = food.id;
+  const match = getFoodMatch(food);
+  document.querySelector(".random-picker-card").style.setProperty("--match", match);
+  document.getElementById("randomImage").src = food.image;
+  document.getElementById("randomImage").alt = food.name;
+  document.getElementById("randomCategory").textContent = `随机一道 · ${food.category}`;
+  document.getElementById("randomName").textContent = food.name;
+  document.getElementById("randomDesc").textContent = food.description;
+  document.getElementById("randomCalories").textContent = `${food.calories} 千卡`;
+  document.getElementById("randomProtein").textContent = `蛋白 ${food.protein} g`;
+  document.getElementById("randomMatch").textContent = `匹配 ${match}%`;
+}
+
+function openRandomPicker(excludeId) {
+  randomReturnView = activeView;
+  const food = pickRandomFood(excludeId);
+  renderRandomPicker(food);
+  const picker = document.getElementById("randomPicker");
+  picker.classList.add("open");
+  picker.setAttribute("aria-hidden", "false");
+}
+
+function closeRandomPicker() {
+  const picker = document.getElementById("randomPicker");
+  picker.classList.remove("open");
+  picker.setAttribute("aria-hidden", "true");
+}
+
+function rerollRandom() {
+  openRandomPicker(randomFoodId);
+}
+
+function confirmRandom() {
+  const id = randomFoodId;
+  const returnView = randomReturnView;
+  closeRandomPicker();
+  if (!id) return;
+  recordFood(id, { stay: true });
+  switchView(returnView);
+}
+
+function applyChampionCover(champion) {
+  const coverImg = document.querySelector(".champion-cover img");
+  if (!coverImg || !champion) return;
+  if (champion.current && championCoverSrc) {
+    coverImg.src = championCoverSrc;
+    coverImg.alt = "你的冠军封面";
+  } else {
+    coverImg.src = defaultChampionCover;
+    coverImg.alt = "排行榜第一名的好友封面";
+  }
+}
+
+function readCoverFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const image = new Image();
+      image.onload = () => {
+        const scale = Math.min(1, 640 / Math.max(image.width, image.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(image.width * scale);
+        canvas.height = Math.round(image.height * scale);
+        canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
+      };
+      image.onerror = reject;
+      image.src = reader.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function syncCoverPreview(src) {
+  const wrap = document.getElementById("coverPreviewWrap");
+  const preview = document.getElementById("coverPreview");
+  if (src) {
+    preview.src = src;
+    preview.style.display = "block";
+    wrap.classList.add("has-image");
+  } else {
+    preview.removeAttribute("src");
+    preview.style.display = "none";
+    wrap.classList.remove("has-image");
+  }
+}
+
+function openCoverDialog() {
+  coverDraftSrc = championCoverSrc;
+  syncCoverPreview(coverDraftSrc);
+  document.getElementById("coverFile").value = "";
+  document.getElementById("coverDialog").showModal();
+}
+
+function saveCover() {
+  if (!coverDraftSrc) {
+    showToast("请先选择一张封面图片");
+    return;
+  }
+  championCoverSrc = coverDraftSrc;
+  saveStored(storageKeys.cover, { src: championCoverSrc });
+  renderLeaderboard();
+  document.getElementById("coverDialog").close();
+  showToast("冠军封面已保存");
+}
+
+function resetCover() {
+  coverDraftSrc = "";
+  championCoverSrc = "";
+  syncCoverPreview("");
+  try { localStorage.removeItem(storageKeys.cover); } catch {}
+  renderLeaderboard();
+  showToast("已恢复默认冠军封面");
+}
+
+function recordFood(foodId, options = {}) {
   const food = foods.find(item => item.id === foodId);
   if (!food) return;
   const meal = recordMeal(food.name, { protein: food.protein, fiber: food.fiber, veggies: food.veggies, water: food.water, penalty: 0 });
-  switchView("today");
-  appendUserMessage(`吃了${food.name}`);
-  appendAgentReply(`已从食物菜单加入${meal.type}记录。${getHealthAnalysis().adjustment}`);
-  elements.conversation.scrollTo({ top: elements.conversation.scrollHeight, behavior: "smooth" });
+  if (!options.stay) {
+    switchView("today");
+    appendUserMessage(`吃了${food.name}`);
+    appendAgentReply(`已从食物菜单加入${meal.type}记录。${getHealthAnalysis().adjustment}`);
+    elements.conversation.scrollTo({ top: elements.conversation.scrollHeight, behavior: "smooth" });
+  }
   showToast(`已记录「${food.name}」，健康报告已更新`);
 }
 
@@ -587,6 +832,7 @@ function savePersonalInfo(event) {
 
 function switchView(view) {
   if (!viewTitles[view]) return;
+  if (view === "profile" && activeView !== "profile") previousView = activeView;
   closeExpandedMenu();
 
   document.querySelectorAll(".view").forEach(section => section.classList.toggle("active", section.id === `view-${view}`));
@@ -601,6 +847,7 @@ function switchView(view) {
   if (view === "profile") syncProfileForm();
   if (view === "report") renderReport();
   if (view === "shop") renderShop();
+  activeView = view;
 }
 
 function appendUserMessage(text) {
@@ -733,7 +980,9 @@ function setDetailsCollapsed(collapsed) {
 }
 
 function openExpandedMenu() {
-  renderMasonryFeed();
+  const query = document.getElementById("foodSearchInput").value.trim();
+  if (query) renderMasonryResults(searchFoods(query), query);
+  else renderMasonryFeed();
   elements.expandedMenuList.scrollTop = 0;
   elements.expandedMenu.classList.remove("open");
   void elements.expandedMenu.offsetWidth;
@@ -1033,7 +1282,7 @@ elements.userInfoDialog.addEventListener("click", event => {
 });
 
 elements.foodModule.addEventListener("pointerdown", event => {
-  if (event.button !== 0 || event.target.closest(".food-pagination")) return;
+  if (event.button !== 0 || event.target.closest(".food-pagination") || event.target.closest(".food-search")) return;
   menuDrag = { startX: event.clientX, startY: event.clientY, ghost: null, swipe: false, startedOnFood: Boolean(event.target.closest("#sidebarFoodViewport")) };
 });
 
@@ -1102,6 +1351,36 @@ document.getElementById("healthForm").addEventListener("submit", event => {
   const now = new Date();
   document.getElementById("profileSaved").textContent = `上次保存：今天 ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
   showToast("健康档案已保存，报告已同步更新");
+});
+
+document.getElementById("profileBack").addEventListener("click", () => switchView("today"));
+document.querySelectorAll("[data-home-return]").forEach(button => button.addEventListener("click", () => switchView("today")));
+document.getElementById("foodSearchInput").addEventListener("input", event => {
+  clearTimeout(searchTimer);
+  const query = event.target.value;
+  searchTimer = setTimeout(() => renderFoodSearch(query), 150);
+});
+document.getElementById("foodSearchResults").addEventListener("click", event => {
+  const button = event.target.closest("[data-food-id]");
+  if (!button) return;
+  recordFood(button.dataset.foodId);
+  clearFoodSearch();
+});
+document.getElementById("randomPickButton").addEventListener("click", () => openRandomPicker());
+document.getElementById("rerollRandom").addEventListener("click", rerollRandom);
+document.getElementById("confirmRandom").addEventListener("click", confirmRandom);
+document.getElementById("coverEditButton").addEventListener("click", openCoverDialog);
+document.getElementById("closeCoverDialog").addEventListener("click", () => document.getElementById("coverDialog").close());
+document.getElementById("coverCancel").addEventListener("click", () => document.getElementById("coverDialog").close());
+document.getElementById("coverReset").addEventListener("click", resetCover);
+document.getElementById("coverSave").addEventListener("click", saveCover);
+document.getElementById("coverFile").addEventListener("change", event => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  readCoverFile(file).then(src => {
+    coverDraftSrc = src;
+    syncCoverPreview(src);
+  }).catch(() => showToast("图片读取失败，请换一张试试"));
 });
 
 document.getElementById("settingsButton").addEventListener("click", () => elements.settingsDialog.showModal());

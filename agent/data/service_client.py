@@ -19,45 +19,57 @@ def _today() -> str:
 
 MOCK_PROFILE = {
     "user_id": "u_demo",
-    "name": "阿岑",
-    "height": 168,
-    "weight": 62,
-    "age": 26,
+    "name": "我",
+    "height": 170,
+    "weight": 60,
+    "age": 28,
     "gender": "女",
-    "goal": "减脂",
-    "activity": "中等",
+    "goal": "均衡饮食",
+    "activity": "久坐",
     "water_target": 1800,
+    "waterTarget": 1800,
     "sleep": "7小时",
+    "sleep_hours": 7,
     "allergies": ["花生"],
     "dislikes": ["香菜"],
     "diet_style": "普通饮食",
-    "bmi": 21.97,
-    "note": "久坐办公，每周三次力量训练",
+    "bmi": 20.76,
+    "note": "下午容易口渴，晚餐不宜过饱",
 }
 
-MOCK_RECENT_MEALS = [
-    {"date": "2026-11-11", "type": "早餐", "items": ["燕麦", "鸡蛋", "牛奶"], "protein": 22, "fiber": 5, "veggies": 0, "water": 300},
-    {"date": "2026-11-11", "type": "午餐", "items": ["鸡胸肉沙拉", "糙米饭"], "protein": 35, "fiber": 7, "veggies": 120, "water": 400},
-    {"date": "2026-11-11", "type": "晚餐", "items": ["西兰花", "豆腐", "糙米饭"], "protein": 24, "fiber": 6, "veggies": 150, "water": 300},
-    {"date": "2026-11-10", "type": "早餐", "items": ["全麦面包", "豆浆"], "protein": 15, "fiber": 4, "veggies": 0, "water": 250},
-    {"date": "2026-11-10", "type": "午餐", "items": ["牛肉面"], "protein": 26, "fiber": 3, "veggies": 40, "water": 200},
-    {"date": "2026-11-10", "type": "晚餐", "items": ["清蒸鱼", "青菜", "米饭"], "protein": 30, "fiber": 5, "veggies": 130, "water": 300},
-    {"date": "2026-11-09", "type": "早餐", "items": ["包子", "豆浆"], "protein": 12, "fiber": 2, "veggies": 0, "water": 200},
-    {"date": "2026-11-09", "type": "午餐", "items": ["番茄牛腩", "米饭"], "protein": 28, "fiber": 4, "veggies": 80, "water": 300},
-    {"date": "2026-11-09", "type": "晚餐", "items": ["蔬菜汤", "鸡胸肉"], "protein": 30, "fiber": 6, "veggies": 160, "water": 250},
+MOCK_TODAY_MEALS = [
+    {"type": "早餐", "time": "08:20", "text": "燕麦酸奶、蓝莓、水煮蛋", "items": ["燕麦酸奶", "蓝莓", "水煮蛋"], "protein": 22, "fiber": 6, "veggies": 0, "water": 300, "penalty": 0},
+    {"type": "午餐", "time": "12:18", "text": "柠檬鸡胸能量碗、无糖茶", "items": ["柠檬鸡胸能量碗", "无糖茶"], "protein": 38, "fiber": 9, "veggies": 320, "water": 650, "penalty": 0},
+]
+
+MOCK_PAST_MEALS = [
+    {"offset": 1, "type": "早餐", "items": ["全麦面包", "豆浆"], "protein": 15, "fiber": 4, "veggies": 0, "water": 250},
+    {"offset": 1, "type": "午餐", "items": ["牛肉面"], "protein": 26, "fiber": 3, "veggies": 40, "water": 200},
+    {"offset": 1, "type": "晚餐", "items": ["清蒸鱼", "青菜", "米饭"], "protein": 30, "fiber": 5, "veggies": 130, "water": 300},
+    {"offset": 2, "type": "早餐", "items": ["包子", "豆浆"], "protein": 12, "fiber": 2, "veggies": 0, "water": 200},
+    {"offset": 2, "type": "午餐", "items": ["番茄牛腩", "米饭"], "protein": 28, "fiber": 4, "veggies": 80, "water": 300},
+    {"offset": 2, "type": "晚餐", "items": ["蔬菜汤", "鸡胸肉"], "protein": 30, "fiber": 6, "veggies": 160, "water": 250},
+    {"offset": 3, "type": "午餐", "items": ["鸡胸蔬菜沙拉", "糙米饭"], "protein": 33, "fiber": 8, "veggies": 280, "water": 300},
+    {"offset": 3, "type": "晚餐", "items": ["菌菇鸡汤面"], "protein": 24, "fiber": 6, "veggies": 160, "water": 450},
 ]
 
 MOCK_FOODS = [
-    {"id": "f001", "name": "香煎鸡胸肉藜麦碗", "kcal": 420, "protein": 38, "fiber": 9, "veggies": 180, "tags": ["高蛋白", "减脂", "低GI"], "meal_types": ["午餐", "晚餐"], "price": 28, "available": True},
-    {"id": "f002", "name": "三文鱼牛油果沙拉", "kcal": 460, "protein": 32, "fiber": 11, "veggies": 220, "tags": ["高蛋白", "优质脂肪", "减脂"], "meal_types": ["午餐", "晚餐"], "price": 36, "available": True},
-    {"id": "f003", "name": "菌菇豆腐煲配糙米饭", "kcal": 390, "protein": 22, "fiber": 10, "veggies": 200, "tags": ["素食", "高纤维", "温和"], "meal_types": ["午餐", "晚餐"], "price": 24, "available": True},
-    {"id": "f004", "name": "燕麦鸡蛋早餐盘", "kcal": 330, "protein": 21, "fiber": 8, "veggies": 60, "tags": ["早餐", "高纤维", "饱腹"], "meal_types": ["早餐"], "price": 18, "available": True},
-    {"id": "f005", "name": "希腊酸奶坚果杯", "kcal": 260, "protein": 18, "fiber": 5, "veggies": 0, "tags": ["加餐", "高蛋白", "含坚果"], "meal_types": ["加餐"], "price": 15, "available": True},
-    {"id": "f006", "name": "番茄牛肉荞麦面", "kcal": 480, "protein": 30, "fiber": 7, "veggies": 120, "tags": ["暖胃", "高蛋白"], "meal_types": ["午餐", "晚餐"], "price": 26, "available": True},
-    {"id": "f007", "name": "清蒸鲈鱼时蔬套餐", "kcal": 410, "protein": 34, "fiber": 8, "veggies": 240, "tags": ["高蛋白", "低油", "减脂"], "meal_types": ["午餐", "晚餐"], "price": 32, "available": True},
-    {"id": "f008", "name": "南瓜小米粥配鸡蛋", "kcal": 290, "protein": 14, "fiber": 6, "veggies": 40, "tags": ["早餐", "养胃"], "meal_types": ["早餐"], "price": 16, "available": True},
-    {"id": "f009", "name": "虾仁西兰花糙米碗", "kcal": 400, "protein": 33, "fiber": 9, "veggies": 210, "tags": ["高蛋白", "减脂", "高纤维"], "meal_types": ["午餐", "晚餐"], "price": 30, "available": True},
-    {"id": "f010", "name": "低脂鸡肉卷饼", "kcal": 380, "protein": 27, "fiber": 6, "veggies": 100, "tags": ["便携", "减脂"], "meal_types": ["早餐", "午餐"], "price": 22, "available": False},
+    {"id": "lemon-chicken", "name": "柠檬鸡胸能量碗", "category": "高蛋白 · 清爽", "description": "烤鸡胸、牛油果、藜麦与时令蔬菜", "calories": 460, "protein": 38, "fiber": 9, "veggies": 320, "water": 250, "nature": "recommend", "keywords": "鸡胸 沙拉 碗 轻食 蛋白", "meal_types": ["午餐", "晚餐"], "price": 30, "available": True, "image": "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=82"},
+    {"id": "tomato-beef", "name": "番茄牛腩盖饭", "category": "热乎 · 饱腹", "description": "番茄牛腩、杂粮米饭与焯拌时蔬", "calories": 620, "protein": 32, "fiber": 7, "veggies": 180, "water": 180, "nature": "recommend", "keywords": "米饭 饭 牛肉 牛腩 盖饭 番茄", "meal_types": ["午餐", "晚餐"], "price": 28, "available": True, "image": "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=600&q=82"},
+    {"id": "mushroom-soup", "name": "菌菇鸡汤面", "category": "清淡 · 汤食", "description": "清鸡汤、三种菌菇、细面与小青菜", "calories": 430, "protein": 24, "fiber": 6, "veggies": 160, "water": 450, "nature": "recommend", "keywords": "面 汤 菌菇 鸡汤 清淡", "meal_types": ["早餐", "午餐", "晚餐"], "price": 24, "available": True, "image": "https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=600&q=82"},
+    {"id": "shrimp-pasta", "name": "蒜香虾仁意面", "category": "高蛋白 · 换口味", "description": "虾仁、樱桃番茄与全麦意面", "calories": 560, "protein": 35, "fiber": 8, "veggies": 140, "water": 160, "nature": "recommend", "keywords": "面 意面 虾 海鲜 番茄", "meal_types": ["午餐", "晚餐"], "price": 36, "available": True, "image": "https://images.unsplash.com/photo-1563379926898-05f4575a45d8?auto=format&fit=crop&w=600&q=82"},
+    {"id": "vegetable-rice", "name": "时蔬豆腐拌饭", "category": "植物蛋白 · 多蔬菜", "description": "香煎豆腐、烤南瓜、西兰花与杂粮饭", "calories": 410, "protein": 22, "fiber": 12, "veggies": 360, "water": 180, "nature": "recommend", "keywords": "米饭 饭 豆腐 素食 拌饭 蔬菜", "meal_types": ["午餐", "晚餐"], "price": 25, "available": True, "image": "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=600&q=82"},
+    {"id": "pepper-chicken", "name": "藤椒鸡丝拌面", "category": "微辣 · 快手", "description": "嫩鸡丝、黄瓜丝与荞麦面", "calories": 520, "protein": 30, "fiber": 7, "veggies": 140, "water": 180, "nature": "recommend", "keywords": "面 鸡丝 辣 荞麦 凉面", "meal_types": ["午餐", "晚餐"], "price": 26, "available": True, "image": "https://images.unsplash.com/photo-1473093295043-cdd812d0e601?auto=format&fit=crop&w=600&q=82"},
+    {"id": "tomato-egg-rice", "name": "番茄鸡蛋盖饭", "category": "家常 · 顺口", "description": "番茄炒蛋、杂粮米饭与小份青菜", "calories": 480, "protein": 18, "fiber": 5, "veggies": 160, "water": 150, "nature": "recommend", "keywords": "米饭 饭 番茄 鸡蛋 盖饭 家常", "meal_types": ["早餐", "午餐", "晚餐"], "price": 20, "available": True, "image": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=82"},
+    {"id": "salmon-quinoa", "name": "三文鱼藜麦碗", "category": "高蛋白 · 优质脂肪", "description": "烤三文鱼、藜麦、牛油果与羽衣甘蓝", "calories": 520, "protein": 34, "fiber": 8, "veggies": 240, "water": 200, "nature": "recommend", "keywords": "三文鱼 鱼 藜麦 沙拉 轻食", "meal_types": ["午餐", "晚餐"], "price": 42, "available": True, "image": "https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=600&q=82"},
+    {"id": "steamed-fish-rice", "name": "清蒸鲈鱼配米饭", "category": "清淡 · 蒸食", "description": "清蒸鲈鱼、杂粮米饭与白灼菜心", "calories": 470, "protein": 33, "fiber": 4, "veggies": 200, "water": 200, "nature": "recommend", "keywords": "米饭 饭 鱼 清蒸 少油", "meal_types": ["午餐", "晚餐"], "price": 34, "available": True, "image": "https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=600&q=82"},
+    {"id": "chicken-salad", "name": "鸡胸蔬菜沙拉", "category": "低脂 · 高纤维", "description": "煎鸡胸、混合生菜、番茄与油醋汁", "calories": 380, "protein": 32, "fiber": 10, "veggies": 300, "water": 220, "nature": "recommend", "keywords": "沙拉 蔬菜 鸡胸 轻食 减脂", "meal_types": ["早餐", "午餐", "晚餐"], "price": 28, "available": True, "image": "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=600&q=82"},
+    {"id": "yangzhou-fried-rice", "name": "扬州炒饭", "category": "热乎 · 放纵", "description": "火腿、虾仁、鸡蛋与香米炒饭", "calories": 680, "protein": 20, "fiber": 3, "veggies": 90, "water": 100, "nature": "indulge", "keywords": "米饭 饭 炒饭 火腿 虾仁", "meal_types": ["午餐", "晚餐"], "price": 22, "available": True, "image": "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=600&q=82"},
+    {"id": "beef-fried-rice", "name": "牛肉炒饭", "category": "热乎 · 放纵", "description": "黑椒牛肉、香米与葱花", "calories": 720, "protein": 26, "fiber": 2, "veggies": 60, "water": 100, "nature": "indulge", "keywords": "米饭 饭 炒饭 牛肉 黑椒", "meal_types": ["午餐", "晚餐"], "price": 26, "available": True, "image": "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=600&q=82"},
+    {"id": "fried-chicken-burger", "name": "炸鸡汉堡", "category": "快餐 · 放纵", "description": "脆皮炸鸡、芝士与汉堡面包", "calories": 780, "protein": 30, "fiber": 2, "veggies": 40, "water": 80, "nature": "indulge", "keywords": "炸鸡 汉堡 快餐 薯条", "meal_types": ["午餐", "晚餐"], "price": 32, "available": True, "image": "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=600&q=82"},
+    {"id": "cheese-cake", "name": "芝士蛋糕", "category": "甜点 · 放纵", "description": "浓郁芝士、饼干底与莓果", "calories": 420, "protein": 8, "fiber": 1, "veggies": 0, "water": 40, "nature": "indulge", "keywords": "甜点 蛋糕 芝士 甜品", "meal_types": ["加餐"], "price": 18, "available": True, "image": "https://images.unsplash.com/photo-1551024506-0bccd828d307?auto=format&fit=crop&w=600&q=82"},
+    {"id": "bubble-tea", "name": "珍珠奶茶", "category": "饮品 · 放纵", "description": "红茶、奶盖与黑糖珍珠", "calories": 460, "protein": 4, "fiber": 0, "veggies": 0, "water": 100, "nature": "indulge", "keywords": "奶茶 饮料 甜 珍珠 黑糖", "meal_types": ["加餐"], "price": 16, "available": True, "image": "https://images.unsplash.com/photo-1544145945-f90425340c7e?auto=format&fit=crop&w=600&q=82"},
+    {"id": "malatang", "name": "麻辣烫", "category": "热辣 · 放纵", "description": "自选蔬菜、丸子与麻辣汤底", "calories": 640, "protein": 24, "fiber": 6, "veggies": 260, "water": 300, "nature": "indulge", "keywords": "麻辣烫 辣 火锅 丸子 汤", "meal_types": ["午餐", "晚餐"], "price": 30, "available": True, "image": "https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=600&q=82"},
 ]
 
 MOCK_FRIENDS = [
@@ -68,10 +80,24 @@ MOCK_FRIENDS = [
 
 MOCK_RANKING = [
     {"rank": 1, "user_id": "u_lin", "name": "林一", "score": 88.6},
-    {"rank": 2, "user_id": "u_demo", "name": "阿岑", "score": 82.4},
+    {"rank": 2, "user_id": "u_demo", "name": "我", "score": 82.4},
     {"rank": 3, "user_id": "u_zhou", "name": "周舟", "score": 79.1},
     {"rank": 4, "user_id": "u_he", "name": "何苗", "score": 76.8},
 ]
+
+
+def _build_mock_meals() -> list[dict[str, Any]]:
+    meals: list[dict[str, Any]] = []
+    for meal in MOCK_TODAY_MEALS:
+        item = copy.deepcopy(meal)
+        item["date"] = _today()
+        meals.append(item)
+    for meal in MOCK_PAST_MEALS:
+        item = copy.deepcopy(meal)
+        offset = int(item.pop("offset"))
+        item["date"] = (date.today() - timedelta(days=offset)).isoformat()
+        meals.append(item)
+    return meals
 
 
 class ServiceClient:
@@ -79,7 +105,7 @@ class ServiceClient:
         self.base_url = (base_url if base_url is not None else SERVER_BASE_URL).rstrip("/")
         self.token = token if token is not None else SERVER_TOKEN
         self.last_error = ""
-        self._mock_meals = copy.deepcopy(MOCK_RECENT_MEALS)
+        self._mock_meals = _build_mock_meals()
 
     @property
     def mode(self) -> str:
@@ -120,7 +146,7 @@ class ServiceClient:
         remote = self._request("GET", f"/api/v1/users/{user_id}/meals?days={days}")
         if remote:
             return remote
-        cutoff = (datetime.now(timezone.utc).date() - timedelta(days=days - 1)).isoformat()
+        cutoff = (date.today() - timedelta(days=days - 1)).isoformat()
         meals = [item for item in self._mock_meals if item["date"] >= cutoff]
         return {"user_id": user_id, "days": days, "meals": meals, "count": len(meals), "source": "mock"}
 
@@ -129,12 +155,17 @@ class ServiceClient:
         remote = self._request("GET", f"/api/v1/users/{user_id}/nutrition-gap?date={target}")
         if remote:
             return remote
+        profile = self.get_profile(user_id)
+        water_target = int(profile.get("water_target") or profile.get("waterTarget") or 1800)
+        targets = {"protein": 90, "fiber": 25, "veggies": 500, "water": water_target}
+        intake = {"protein": 60, "fiber": 15, "veggies": 320, "water": 950}
+        gap = {key: max(0, targets[key] - intake[key]) for key in targets}
         return {
             "user_id": user_id,
             "date": target,
-            "targets": {"protein": 90, "fiber": 25, "veggies": 400, "water": 1800},
-            "intake": {"protein": 41, "fiber": 12, "veggies": 130, "water": 700},
-            "gap": {"protein": 49, "fiber": 13, "veggies": 270, "water": 1100},
+            "targets": targets,
+            "intake": intake,
+            "gap": gap,
             "source": "mock",
         }
 
@@ -160,34 +191,40 @@ class ServiceClient:
         tags: list[str] | None = None,
         meal_type: str = "",
         limit: int = 5,
+        nature: str = "",
     ) -> dict[str, Any]:
         remote = self._request(
             "GET",
-            f"/api/v1/foods/search?q={urllib.parse.quote(query)}&meal_type={urllib.parse.quote(meal_type)}&limit={limit}",
+            f"/api/v1/foods/search?q={urllib.parse.quote(query)}&meal_type={urllib.parse.quote(meal_type)}&limit={limit}&nature={urllib.parse.quote(nature)}",
         )
         if remote:
             return remote
         profile = self.get_profile(user_id)
         allergies = set(profile.get("allergies") or [])
         dislikes = set(profile.get("dislikes") or [])
-        results = []
+        tokens = [token for token in query.lower().split() if token]
+        scored = []
         for food in MOCK_FOODS:
             if not food["available"]:
                 continue
             if meal_type and meal_type not in food["meal_types"]:
                 continue
-            if tags and not set(tags).intersection(food["tags"]):
+            if nature and food["nature"] != nature:
                 continue
-            if allergies and any(item in food["name"] for item in allergies):
+            if tags and not set(tags).intersection(food["keywords"].split()):
                 continue
-            if dislikes and any(item in food["name"] for item in dislikes):
+            haystack = f"{food['name']} {food['category']} {food['description']} {food['keywords']}".lower()
+            hit = len([token for token in tokens if token in haystack])
+            if tokens and hit == 0:
                 continue
-            if query and query not in food["name"] and not any(query in tag for tag in food["tags"]):
+            if allergies and any(item in haystack for item in allergies):
                 continue
-            results.append(copy.deepcopy(food))
-            if len(results) >= limit:
-                break
-        return {"user_id": user_id, "foods": results, "count": len(results), "source": "mock"}
+            if dislikes and any(item in haystack for item in dislikes):
+                continue
+            scored.append((hit, copy.deepcopy(food)))
+        scored.sort(key=lambda item: item[0], reverse=True)
+        foods = [food for _, food in scored[:limit]]
+        return {"user_id": user_id, "foods": foods, "count": len(foods), "source": "mock"}
 
     def get_menu(self, user_id: str, meal_type: str = "") -> dict[str, Any]:
         remote = self._request("GET", f"/api/v1/menu?meal_type={urllib.parse.quote(meal_type)}")
@@ -219,6 +256,7 @@ class ServiceClient:
         meal = {
             "date": payload.get("date") or _today(),
             "type": payload.get("type", "加餐"),
+            "text": payload.get("text") or "、".join(payload.get("items", [])),
             "items": payload.get("items", []),
             "protein": payload.get("protein", 0),
             "fiber": payload.get("fiber", 0),
