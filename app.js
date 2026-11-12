@@ -783,7 +783,7 @@ function resetCover() {
 function recordFood(foodId, options = {}) {
   const food = foods.find(item => item.id === foodId);
   if (!food) return;
-  const meal = recordMeal(food.name, { protein: food.protein, fiber: food.fiber, veggies: food.veggies, water: food.water, penalty: 0 });
+  const meal = recordMeal(food.name, { protein: food.protein, fiber: food.fiber, veggies: food.veggies, water: food.water, penalty: 0 }, options.type || "");
   if (!options.stay) {
     switchView("today");
     appendUserMessage(`吃了${food.name}`);
@@ -891,6 +891,14 @@ function appendAgentReply(text) {
   elements.conversation.insertBefore(article, document.getElementById("quickPrompts"));
 }
 
+function appendPhotoMessage(src) {
+  const article = document.createElement("article");
+  article.className = "message user-message";
+  article.innerHTML = `<div class="message-bubble photo-bubble"><img src="${src}" alt="上传的饭菜照片"></div>`;
+  elements.conversation.insertBefore(article, document.getElementById("quickPrompts"));
+  elements.conversation.scrollTo({ top: elements.conversation.scrollHeight, behavior: "smooth" });
+}
+
 function analyzeMealText(text) {
   const result = { protein: 8, fiber: 2, veggies: 80, water: 200, penalty: 0 };
   if (/鸡|蛋|鱼|虾|牛|豆腐|豆浆|牛奶|酸奶/.test(text)) result.protein += 16;
@@ -909,8 +917,8 @@ function determineMealType(text) {
   return mealOrder.find(type => !meals.some(meal => meal.type === type)) || "加餐";
 }
 
-function recordMeal(text, nutritionOverride = {}) {
-  const type = determineMealType(text);
+function recordMeal(text, nutritionOverride = {}, forcedType = "") {
+  const type = forcedType || determineMealType(text);
   const now = new Date();
   const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
   const meal = { type, time, text, ...analyzeMealText(text), ...nutritionOverride };
@@ -1191,7 +1199,18 @@ function stopConstellation() {
 }
 
 document.querySelectorAll("[data-view]").forEach(button => button.addEventListener("click", () => switchView(button.dataset.view)));
-document.querySelectorAll("[data-prompt]").forEach(button => button.addEventListener("click", () => sendPrompt(button.dataset.prompt)));
+document.querySelectorAll("[data-prompt]").forEach(button => button.addEventListener("click", () => {
+  const label = button.textContent.trim();
+  if (label.startsWith("记录")) {
+    const period = label.replace("记录", "").trim();
+    elements.chatInput.value = `${period}为：`;
+    elements.chatInput.focus();
+    elements.chatInput.setSelectionRange(elements.chatInput.value.length, elements.chatInput.value.length);
+    elements.chatInput.dispatchEvent(new Event("input", { bubbles: true }));
+    return;
+  }
+  sendPrompt(button.dataset.prompt);
+}));
 document.querySelectorAll("[data-option-group]").forEach(group => {
   group.addEventListener("click", event => {
     const button = event.target.closest("button[data-value]");
@@ -1199,6 +1218,17 @@ document.querySelectorAll("[data-option-group]").forEach(group => {
     draftProfile[group.dataset.optionGroup] = button.dataset.value;
     group.querySelectorAll("button").forEach(option => option.classList.toggle("selected", option === button));
   });
+});
+
+document.getElementById("photoButton").addEventListener("click", () => document.getElementById("photoInput").click());
+document.getElementById("photoInput").addEventListener("change", event => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  readCoverFile(file).then(src => {
+    appendPhotoMessage(src);
+    showToast("照片已上传，视觉识别将在接入视觉模型后启用");
+  }).catch(() => showToast("图片读取失败，请换一张试试"));
+  event.target.value = "";
 });
 
 document.getElementById("chatForm").addEventListener("submit", event => {
@@ -1236,7 +1266,20 @@ document.getElementById("nextGuess").addEventListener("click", () => {
   guessIndex += 1;
   renderInference();
 });
-document.getElementById("acceptGuess").addEventListener("click", () => recordFood(currentGuessFoodId));
+const mealTypePicker = document.getElementById("mealTypePicker");
+document.getElementById("acceptGuess").addEventListener("click", event => {
+  event.stopPropagation();
+  if (mealTypePicker) mealTypePicker.hidden = !mealTypePicker.hidden;
+});
+mealTypePicker?.addEventListener("click", event => {
+  const button = event.target.closest("[data-meal-type]");
+  if (!button) return;
+  mealTypePicker.hidden = true;
+  recordFood(currentGuessFoodId, { type: button.dataset.mealType });
+});
+document.addEventListener("click", event => {
+  if (mealTypePicker && !event.target.closest(".inference-actions")) mealTypePicker.hidden = true;
+});
 elements.sidebarToggle.addEventListener("click", () => setSidebarCollapsed(!elements.appShell.classList.contains("left-collapsed")));
 elements.detailsCollapseButton.addEventListener("click", () => setDetailsCollapsed(!elements.workspace.classList.contains("right-collapsed")));
 document.getElementById("detailsRailToggle").addEventListener("click", () => setDetailsCollapsed(false));

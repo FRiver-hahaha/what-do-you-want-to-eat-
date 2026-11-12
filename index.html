@@ -95,12 +95,13 @@
           <button class="nav-item tooltip active" type="button" data-view="today" data-tooltip="今日饮食" aria-label="今日饮食" aria-current="page"><svg class="icon"><use href="#icon-message"></use></svg></button>
           <button class="nav-item tooltip" type="button" data-view="report" data-tooltip="健康报告" aria-label="健康报告"><svg class="icon"><use href="#icon-report"></use></svg></button>
           <button class="nav-item tooltip" type="button" data-view="profile" data-tooltip="健康档案" aria-label="健康档案"><svg class="icon"><use href="#icon-user"></use></svg></button>
-          <button class="nav-item tooltip" type="button" data-view="history" data-tooltip="历史记录" aria-label="历史记录"><svg class="icon"><use href="#icon-history"></use></svg></button>
+
           <button class="nav-item tooltip" type="button" data-view="shop" data-tooltip="积分商城" aria-label="积分商城"><svg class="icon"><use href="#icon-shop"></use></svg></button>
         </nav>
 
         <div class="top-actions">
           <div class="agent-state"><span class="status-dot"></span>健康分析已就绪</div>
+          <button class="icon-button tooltip" id="agentHistoryEntry" type="button" data-tooltip="历史对话" aria-label="历史对话"><svg class="icon"><use href="#icon-history"></use></svg></button>
           <button class="icon-button tooltip" id="settingsButton" type="button" data-tooltip="客户端设置" aria-label="客户端设置"><svg class="icon"><use href="#icon-settings"></use></svg></button>
           <button class="user-avatar-button tooltip" id="userAvatarButton" type="button" data-tooltip="个人信息与设置" aria-label="设置个人信息"><span id="avatarInitial">我</span></button>
         </div>
@@ -122,7 +123,7 @@
                       <div class="inference-visual"><img id="guessImage" src="https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&amp;fit=crop&amp;w=600&amp;q=82" alt="猜测的食物"><span class="inference-match" id="guessMatch">82% 匹配</span></div>
                       <div class="inference-copy"><span class="inference-period" id="guessPeriod">结合当前时段与健康档案</span><h3 id="guessName">柠檬鸡胸能量碗</h3><p class="inference-reason" id="guessReason">根据你的健康目标与近期饮食节奏做出的猜测</p><div class="inference-track"><i id="guessBar" style="transform:scaleX(0.82)"></i></div><div class="inference-evidence" id="guessEvidence"></div></div>
                     </div>
-                    <footer class="inference-footer"><span id="reportBasis">本地规则根据健康档案生成，不调用在线模型</span><div class="inference-actions"><button class="button primary-button" id="acceptGuess" type="button"><svg class="icon"><use href="#icon-check"></use></svg>猜对了，记录这道</button><button class="button secondary-button" id="nextGuess" type="button">再猜一次</button></div></footer>
+                    <footer class="inference-footer"><span id="reportBasis">本地规则根据健康档案生成，不调用在线模型</span><div class="inference-actions"><button class="button primary-button" id="acceptGuess" type="button"><svg class="icon"><use href="#icon-check"></use></svg>猜对啦，记录这道菜为</button><div class="meal-type-picker" id="mealTypePicker" hidden><button type="button" data-meal-type="早餐">早餐</button><button type="button" data-meal-type="午餐">午餐</button><button type="button" data-meal-type="下午茶">下午茶</button><button type="button" data-meal-type="晚餐">晚餐</button></div><button class="button secondary-button" id="nextGuess" type="button">再猜一次</button></div></footer>
                     <div class="inference-secondary-actions"><button id="addMealButton" type="button">告诉饭饭实际吃了什么</button><button id="viewFullReport" type="button">查看完整健康报告</button></div>
                   </article>
                 </div>
@@ -137,8 +138,10 @@
             </div>
 
             <form class="composer glass-panel" id="chatForm">
-              <button class="composer-tool tooltip" id="profileShortcut" type="button" data-tooltip="完善健康档案" aria-label="完善健康档案"><svg class="icon"><use href="#icon-sliders"></use></svg></button>
+              <button class="composer-tool model-switch tooltip" id="profileShortcut" type="button" data-tooltip="切换模型" aria-label="切换模型"><svg class="icon"><use href="#icon-sliders"></use></svg><span id="profileModelLabel">模型</span></button>
               <div class="input-container"><textarea id="chatInput" rows="1" placeholder="记一餐，例如：米饭和青菜" aria-label="记录今天吃过的食物"></textarea><span class="input-hint"><kbd class="keycap">Enter</kbd> 记录</span></div>
+              <button class="composer-tool photo-button tooltip" id="photoButton" type="button" data-tooltip="拍照上传饭菜" aria-label="拍照上传饭菜"><svg class="icon"><use href="#icon-camera"></use></svg></button>
+              <input id="photoInput" type="file" accept="image/*" capture="environment" hidden>
               <button class="send-button" type="submit" aria-label="发送"><svg class="icon"><use href="#icon-arrow-up"></use></svg></button>
               <p class="composer-note">本地分析演示 · 仅作日常饮食管理参考，不替代专业医疗建议</p>
             </form>

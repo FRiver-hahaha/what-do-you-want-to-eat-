@@ -41,7 +41,7 @@
 .inference-track i { display: block; height: 100%; border-radius: inherit; background: var(--accent); transition: width 300ms var(--ease); }
 .inference-evidence { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
 .inference-evidence span { padding: 4px 7px; border-radius: 6px; background: rgba(39, 49, 45, 0.04); color: var(--text-muted); font-size: 10px; }
-.inference-footer { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-top: 20px; padding-top: 20px; box-shadow: 0 -1px 0 rgba(56, 70, 62, 0.06); }
+.inference-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 8px; padding-top: 8px; box-shadow: 0 -1px 0 rgba(56, 70, 62, 0.06); }
 .inference-footer > span { max-width: 360px; color: var(--text-muted); font-size: 11px; line-height: 18px; }
 .inference-actions { display: flex; gap: 8px; }
 .inference-secondary-actions { display: flex; gap: 12px; margin-top: 12px; }
@@ -395,3 +395,19 @@ body[data-theme="sky"] .aurora-peach { background: radial-gradient(ellipse, rgba
 /* Guess card: light pink fill, rose text */
 #acceptGuess { background: #ffb6c1; color: var(--accent-ink); }
 #acceptGuess:hover { background: #ffa8b8; }
+/* Guess card fine-tune */
+@media (min-width: 661px) { .inference-footer { align-items: center; } }
+.inference-footer > span { font-size: 13px; }
+#nextGuess { background: rgba(31, 38, 57, 0.06); }
+.inference-secondary-actions button { font-size: 13px; font-weight: 600; color: var(--accent-ink); }
+/* Composer photo upload */
+.photo-button { flex: 0 0 36px; }
+.photo-bubble { padding: 6px; }
+.photo-bubble img { display: block; max-width: 220px; max-height: 220px; border-radius: 12px; object-fit: cover; }
+
+/* Guess meal type picker */
+.inference-actions { position: relative; }
+.meal-type-picker { position: absolute; right: 0; bottom: calc(100% + 8px); z-index: 20; display: flex; flex-direction: column; gap: 4px; min-width: 120px; padding: 6px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.4); background: rgba(255, 255, 255, 0.86); -webkit-backdrop-filter: blur(18px) saturate(1.2); backdrop-filter: blur(18px) saturate(1.2); box-shadow: 0 10px 30px rgba(31, 38, 57, 0.12); }
+.meal-type-picker[hidden] { display: none; }
+.meal-type-picker button { padding: 8px 12px; border: 0; border-radius: 8px; background: transparent; color: var(--text); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.meal-type-picker button:hover { background: var(--accent-soft); color: var(--accent-ink); }

@@ -99,7 +99,6 @@
         <button type="button" data-mode="qa">问答</button>
         <button type="button" data-mode="work">工作</button>
       </div>
-      <label class="agent-model"><span>模型</span><select id="agentModelSelect" aria-label="选择模型"></select></label>
       <button type="button" class="agent-chip" id="agentSkillButton">Skill 市场</button>
       <button type="button" class="agent-chip" id="agentNewSession">新对话</button>
       <span class="agent-conn"><i></i><span id="agentConnText">连接中</span></span>
@@ -116,11 +115,6 @@
     });
     $("#agentSkillButton", toolbar)?.addEventListener("click", openMarket);
     $("#agentNewSession", toolbar)?.addEventListener("click", startNewSession);
-    const select = $("#agentModelSelect", toolbar);
-    select?.addEventListener("change", () => {
-      state.modelId = select.value;
-      localStorage.setItem(STORE.model, state.modelId);
-    });
   }
 
   function mountDialogs() {
@@ -162,19 +156,14 @@
     try {
       const data = await api("/api/models");
       state.models = data.models || [];
-      const select = $("#agentModelSelect");
-      if (!select) return;
-      select.innerHTML = state.models.map(model => {
-        const suffix = model.available ? "" : "（未配置 Key）";
-        return `<option value="${escapeHtml(model.id)}" ${model.available ? "" : "disabled"}>${escapeHtml(model.name)}${suffix}</option>`;
-      }).join("");
       const saved = state.models.find(model => model.id === state.modelId && model.available);
       const preferred = saved || state.models.find(model => model.id === data.default) || state.models.find(model => model.available);
       if (preferred) {
         state.modelId = preferred.id;
-        select.value = preferred.id;
         localStorage.setItem(STORE.model, state.modelId);
       }
+      updateModelLabel();
+      renderModelMenu();
     } catch {
       toast("模型列表获取失败");
     }
@@ -309,6 +298,7 @@
     const citations = [];
     let userArticle = null;
     if (options.appendUser !== false) userArticle = appendUser(text);
+    recordHistory("user", text);
 
     try {
       const response = await fetch(`${BASE}/api/chat/stream`, {
@@ -370,6 +360,7 @@
       if (!paragraph.textContent.trim()) {
         paragraph.textContent = "我这轮没有取到足够的信息。你可以告诉我具体餐次，我再查一次。";
       }
+      recordHistory("agent", paragraph.textContent);
       renderCitations(article, citations);
       article.classList.remove("typing-message");
     } catch (error) {
@@ -385,11 +376,259 @@
     }
   }
 
+  const HISTORY_KEY = "eat-agent-history";
+
+  function currentModelName() {
+    const model = state.models.find(item => item.id === state.modelId);
+    return model ? model.name : "模型";
+  }
+
+  function updateModelLabel() {
+    const label = document.getElementById("profileModelLabel");
+    if (label) label.textContent = currentModelName();
+  }
+
+  function ensureModelMenu() {
+    let menu = document.getElementById("agentModelMenu");
+    if (menu) return menu;
+    menu = document.createElement("div");
+    menu.id = "agentModelMenu";
+    menu.className = "agent-model-menu";
+    menu.innerHTML = `<div class="agent-model-menu-head">选择模型</div><div id="agentModelList"></div>`;
+    document.body.append(menu);
+    document.addEventListener("click", event => {
+      if (menu.contains(event.target) || event.target.closest("#profileShortcut")) return;
+      menu.classList.remove("open");
+    });
+    return menu;
+  }
+
+  function renderModelMenu() {
+    const menu = ensureModelMenu();
+    const list = menu.querySelector("#agentModelList");
+    if (!list) return;
+    list.innerHTML = state.models.length
+      ? state.models.map(model => `<button type="button" class="agent-model-option ${model.id === state.modelId ? "active" : ""}" data-model-id="${escapeHtml(model.id)}" ${model.available ? "" : "disabled"}>${escapeHtml(model.name)}${model.available ? "" : "（未配置 Key）"}</button>`).join("")
+      : `<p class="agent-muted">暂无可用模型</p>`;
+    list.querySelectorAll("[data-model-id]").forEach(button => {
+      button.addEventListener("click", () => {
+        if (button.disabled) return;
+        state.modelId = button.dataset.modelId;
+        localStorage.setItem(STORE.model, state.modelId);
+        updateModelLabel();
+        renderModelMenu();
+        menu.classList.remove("open");
+        toast(`已切换模型：${button.textContent}`);
+      });
+    });
+  }
+
+  function openModelMenu() {
+    const menu = ensureModelMenu();
+    renderModelMenu();
+    const button = document.getElementById("profileShortcut");
+    if (!button) return;
+    const rect = button.getBoundingClientRect();
+    menu.style.left = `${Math.max(12, rect.left)}px`;
+    menu.style.bottom = `${window.innerHeight - rect.top + 8}px`;
+    menu.classList.add("open");
+  }
+
+  function formatHistoryTime(timestamp) {
+    const date = new Date(timestamp);
+    const pad = value => String(value).padStart(2, "0");
+    return `${date.getMonth() + 1}/${date.getDate()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
+  function loadHistorySessions() {
+    const list = readStored(HISTORY_KEY, []);
+    return Array.isArray(list) ? list : [];
+  }
+
+  function saveHistorySessions(list) {
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(list.slice(0, 60)));
+    } catch {}
+  }
+
+  function recordHistory(role, text) {
+    const value = String(text || "").trim();
+    if (!value) return;
+    const list = loadHistorySessions();
+    let session = list.find(item => item.id === state.sessionId);
+    if (!session) {
+      session = { id: state.sessionId, title: role === "user" ? value.slice(0, 24) : "新对话", time: Date.now(), messages: [] };
+      list.unshift(session);
+    }
+    session.messages.push({ role, text: value.slice(0, 4000), time: Date.now() });
+    if (role === "user" && (!session.title || session.title === "新对话")) session.title = value.slice(0, 24);
+    session.time = Date.now();
+    saveHistorySessions(list);
+    renderHistoryList(document.getElementById("agentHistorySearch")?.value || "");
+  }
+
+  function closeHistoryPanel() {
+    const panel = document.getElementById("agentHistoryPanel");
+    if (panel) panel.classList.remove("open");
+    const entry = document.getElementById("agentHistoryEntry");
+    if (entry) entry.style.display = "";
+  }
+
+  function ensureHistoryPanel() {
+    let panel = document.getElementById("agentHistoryPanel");
+    if (panel) return panel;
+    panel = document.createElement("aside");
+    panel.id = "agentHistoryPanel";
+    panel.className = "agent-history";
+    panel.innerHTML = `
+      <header class="agent-history-head"><div class="agent-history-head-left"><button class="icon-button" id="agentHistoryCollapse" type="button" aria-label="缩回历史对话"><svg class="icon"><use href="#icon-chevron-right"></use></svg></button><div><span class="section-kicker">对话历史</span><h2>历史对话</h2></div></div><button class="icon-button" id="agentHistoryClose" type="button" aria-label="关闭历史对话"><svg class="icon"><use href="#icon-x"></use></svg></button></header>
+      <div class="agent-history-search"><svg class="icon"><use href="#icon-search"></use></svg><input id="agentHistorySearch" type="search" placeholder="搜索历史对话" aria-label="搜索历史对话"></div>
+      <div class="agent-history-list" id="agentHistoryList"></div>
+    `;
+    document.body.append(panel);
+    panel.querySelector("#agentHistoryCollapse").addEventListener("click", closeHistoryPanel);
+    panel.querySelector("#agentHistoryClose").addEventListener("click", closeHistoryPanel);
+    panel.querySelector("#agentHistorySearch").addEventListener("input", event => renderHistoryList(event.target.value));
+    return panel;
+  }
+
+  function renderHistoryList(query = "") {
+    const listNode = document.getElementById("agentHistoryList");
+    if (!listNode) return;
+    const keyword = String(query || "").trim().toLowerCase();
+    const items = loadHistorySessions()
+      .filter(session => {
+        if (!keyword) return true;
+        const haystack = [session.title, ...(session.messages || []).map(message => message.text)].join(" ").toLowerCase();
+        return haystack.includes(keyword);
+      })
+      .sort((a, b) => b.time - a.time);
+    if (!items.length) {
+      listNode.innerHTML = `<p class="agent-muted">${keyword ? "没有匹配的历史对话" : "还没有历史对话"}</p>`;
+      return;
+    }
+    listNode.innerHTML = items.map(session => `<button type="button" class="agent-history-item ${session.id === state.sessionId ? "active" : ""}" data-session-id="${escapeHtml(session.id)}"><strong>${escapeHtml(session.title || "未命名对话")}</strong><time>${formatHistoryTime(session.time)}</time></button>`).join("");
+    listNode.querySelectorAll("[data-session-id]").forEach(button => {
+      button.addEventListener("click", () => openHistorySession(button.dataset.sessionId));
+    });
+  }
+
+  function openHistorySession(id) {
+    const session = loadHistorySessions().find(item => item.id === id);
+    if (!session) return;
+    state.sessionId = session.id;
+    localStorage.setItem(STORE.session, state.sessionId);
+    const conversation = document.getElementById("conversation");
+    if (conversation) {
+      conversation.querySelectorAll(".message").forEach(node => node.remove());
+      const anchor = document.getElementById("quickPrompts");
+      session.messages.forEach(message => {
+        const article = document.createElement("article");
+        if (message.role === "user") {
+          article.className = "message user-message";
+          article.innerHTML = `<div class="message-bubble"><p>${escapeHtml(message.text)}</p></div>`;
+        } else {
+          article.className = "message agent-message";
+          article.innerHTML = `<div class="agent-avatar"><svg class="icon"><use href="#icon-utensils"></use></svg></div><div class="message-content"><div class="message-meta"><strong>饭饭</strong><span>历史回复</span></div><div class="message-bubble"><p>${escapeHtml(message.text)}</p></div></div>`;
+        }
+        conversation.insertBefore(article, anchor || null);
+      });
+      conversation.scrollTo({ top: conversation.scrollHeight });
+    }
+    closeHistoryPanel();
+    toast(`已切换到：${session.title || "历史对话"}`);
+  }
+
+  function toggleHistoryPanel() {
+    const panel = ensureHistoryPanel();
+    const entry = document.getElementById("agentHistoryEntry");
+    if (panel.classList.contains("open")) {
+      closeHistoryPanel();
+      return;
+    }
+    renderHistoryList(document.getElementById("agentHistorySearch")?.value || "");
+    panel.classList.add("open");
+    if (entry) entry.style.display = "none";
+  }
+
+  function archiveCurrentSession() {
+    const conversation = document.getElementById("conversation");
+    if (!conversation) return;
+    const nodes = [...conversation.querySelectorAll(".message")].slice(1);
+    const entries = nodes.map(node => {
+      const bubble = node.querySelector(".message-bubble");
+      const text = bubble ? bubble.textContent.trim() : "";
+      return { role: node.classList.contains("user-message") ? "user" : "agent", text, time: Date.now() };
+    }).filter(entry => entry.text && !/正在|连接 Agent/.test(entry.text));
+    if (!entries.length) return;
+    const list = loadHistorySessions();
+    let session = list.find(item => item.id === state.sessionId);
+    if (!session) {
+      session = { id: state.sessionId, title: entries[0].text.slice(0, 24), time: Date.now(), messages: [] };
+      list.unshift(session);
+    }
+    entries.forEach(entry => {
+      if (!session.messages.some(item => item.role === entry.role && item.text === entry.text)) session.messages.push(entry);
+    });
+    session.time = Date.now();
+    saveHistorySessions(list);
+  }
+
   function startNewSession() {
+    archiveCurrentSession();
     state.sessionId = `web_${Date.now().toString(36)}`;
     localStorage.setItem(STORE.session, state.sessionId);
-    document.querySelectorAll("#conversation .message").forEach(node => node.remove());
+    const conversation = document.getElementById("conversation");
+    if (conversation) [...conversation.querySelectorAll(".message")].slice(1).forEach(node => node.remove());
+    renderHistoryList(document.getElementById("agentHistorySearch")?.value || "");
     toast("已开始新对话");
+  }
+
+  function ensureMessageRails() {
+    let rails = document.getElementById("messageRails");
+    if (rails) return rails;
+    rails = document.createElement("div");
+    rails.id = "messageRails";
+    rails.className = "message-rails";
+    const host = document.getElementById("view-today") || document.getElementById("mainContent") || document.body;
+    host.append(rails);
+    return rails;
+  }
+
+  function renderMessageRails() {
+    const rails = ensureMessageRails();
+    const users = [...document.querySelectorAll("#conversation .user-message")];
+    rails.innerHTML = users.map((node, index) => {
+      const text = node.querySelector(".message-bubble")?.textContent?.trim() || "";
+      return `<button type="button" class="message-rail" data-rail-index="${index}"><span>${escapeHtml(text.slice(0, 80))}</span></button>`;
+    }).join("");
+    rails.querySelectorAll("[data-rail-index]").forEach(button => {
+      button.addEventListener("click", () => {
+
+        users[Number(button.dataset.railIndex)]?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    });
+    applyAgentAvatar();
+  }
+
+  function observeMessages() {
+    const conversation = document.getElementById("conversation");
+    if (!conversation || conversation.dataset.railsObserved) return;
+    conversation.dataset.railsObserved = "1";
+    new MutationObserver(() => renderMessageRails()).observe(conversation, { childList: true });
+  }
+
+  function applyAgentAvatar() {
+    let src = "";
+    try {
+      const saved = JSON.parse(localStorage.getItem("eat-agent-avatar") || "null");
+      src = saved?.src || "";
+    } catch {}
+    if (!src) src = "assets/agent-avatar.png";
+    document.querySelectorAll(".agent-avatar").forEach(node => {
+      node.classList.add("has-photo");
+      node.style.backgroundImage = `url("${src}")`;
+    });
   }
 
   async function openMarket() {
@@ -481,6 +720,23 @@
     fallback: false,
     state
   };
+
+  document.getElementById("profileShortcut")?.addEventListener("click", event => {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const menu = document.getElementById("agentModelMenu");
+    if (menu?.classList.contains("open")) menu.classList.remove("open");
+    else openModelMenu();
+  }, true);
+
+  document.getElementById("agentHistoryEntry")?.addEventListener("click", event => {
+    event.preventDefault();
+    toggleHistoryPanel();
+  });
+
+  renderMessageRails();
+  observeMessages();
+  applyAgentAvatar();
 
   mountToolbar();
   mountDialogs();
