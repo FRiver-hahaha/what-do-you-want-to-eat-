@@ -4,7 +4,7 @@
   --surface-strong: rgba(255, 255, 255, 0.62);
   --text: #1f2639;
   --text-secondary: #6b7280;
-  --text-muted: #8a93a5;
+  --text-muted: #7f8797;
   --accent: #ff6f91;
   --accent-ink: #e75480;
   --accent-hover: #f0527a;
@@ -240,7 +240,7 @@ svg { display: block; }
 .leaderboard-card > footer .icon { width: 16px; height: 16px; }
 
 .section-intro { flex: 0 0 auto; padding: 8px 8px 24px; }
-.section-intro h2 { margin-top: 4px; font-size: 28px; line-height: 36px; letter-spacing: -0.02em; }
+.section-intro h2 { margin-top: 4px; font-size: 24px; line-height: 32px; letter-spacing: -0.015em; }
 .section-intro p { margin-top: 4px; color: var(--text-secondary); font-size: 13px; }
 .row-intro { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
 .report-scroll { min-height: 0; padding: 0 8px 8px; overflow-y: auto; }
