@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import json
 import uuid
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Any, Iterator
 
 from agent.config import MAX_TOOL_STEPS, MODES_CONFIG
-from agent.core.context import ContextManager
+from agent.core.context import ContextManager, estimate_tokens
 from agent.core.frontend import build_client_block, merge_profile, sanitize_client_context
 from agent.core.memory import MemoryStore
 from agent.core.planner import Planner
@@ -30,6 +31,27 @@ class AgentEvent:
 
 RAG_HINTS = ("营养", "蛋白", "纤维", "蔬菜", "热量", "减脂", "增肌", "怎么吃", "能不能吃", "健康", "搭配", "外卖")
 RAG_SKILL_CATEGORIES = {"nutrition", "health", "planning", "guess"}
+ALWAYS_CONFIRM_TOOLS = {"record_meal"}
+MODEL_REQUEST_TOKEN_LIMIT = 60000
+
+IMAGE_REFERENCE_HINTS = (
+    "这张图",
+    "这图",
+    "这张照片",
+    "这个图",
+    "图片里",
+    "图中",
+    "上图",
+    "刚才那",
+    "上一张",
+    "刚发的图",
+    "那张图",
+    "这张图片",
+)
+
+def _mentions_image(message: str) -> bool:
+    return any(hint in message for hint in IMAGE_REFERENCE_HINTS)
+
 
 
 def _user_content(message: str, images: list[str]) -> Any:
@@ -65,6 +87,8 @@ class AgentRuntime:
         self.knowledge = knowledge or KnowledgeBase()
         self.planner = planner or Planner()
         self.tracer = tracer or TRACER
+        self._image_cache: OrderedDict[str, list[str]] = OrderedDict()
+        self._image_cache_limit = 50
 
     def handle(self, request: dict[str, Any]) -> Iterator[AgentEvent]:
         user_id = str(request.get("user_id") or "u_demo")
@@ -75,10 +99,26 @@ class AgentRuntime:
             mode = "qa"
         model_id = str(request.get("model_id") or "")
         skill_id = str(request.get("skill_id") or "")
+        skill_ids = [str(item) for item in (request.get("skill_ids") or []) if str(item).strip()]
+        tone_id = str(request.get("tone") or "normal")
+        access_level = str(request.get("access_level") or "manual")
+        if access_level not in ("manual", "full"):
+            access_level = "manual"
         confirmed_tools = set(request.get("confirmed_tools") or [])
         use_rag = request.get("use_rag")
         client_context = sanitize_client_context(request.get("client_context"))
         images, image_error = sanitize_images(request.get("images"))
+        image_source = "upload" if images else ""
+        cache_key = f"{user_id}:{session_id}"
+        cached_images = self._image_cache.get(cache_key) or []
+        if not images and cached_images and (request.get("use_cached_image") or _mentions_image(message)):
+            images = list(cached_images)
+            image_source = "cache"
+        if images:
+            self._image_cache[cache_key] = list(images)
+            self._image_cache.move_to_end(cache_key)
+            while len(self._image_cache) > self._image_cache_limit:
+                self._image_cache.popitem(last=False)
         injection = detect_injection(message)
 
         if not message and not images:
@@ -91,8 +131,12 @@ class AgentRuntime:
         tokens = 0
         try:
             self.context.ensure_session(session_id, user_id, mode, model_id, skill_id)
-            summary = self.context.session_summary(session_id)
             history = self.context.history_messages(session_id)
+            history_tokens = sum(estimate_tokens(str(row.get("content") or "")) for row in history)
+            if history_tokens > MODEL_REQUEST_TOKEN_LIMIT * 0.8:
+                self.context.compact_all(session_id)
+                history = self.context.history_messages(session_id)
+            summary = self.context.session_summary(session_id)
             self.context.append(
                 session_id,
                 user_id,
@@ -101,7 +145,9 @@ class AgentRuntime:
                 meta={"images": len(images), "injection_risk": injection["risk"]},
             )
             new_memories = self.memory.extract(user_id, message)
-            skill = self.skills.resolve_for_request(skill_id, message, mode, user_id)
+            skills = self.skills.resolve_experts(skill_ids, skill_id, message, mode, user_id)
+            skill = skills[0] if skills else None
+            tone_skill = self.skills.resolve_tone(tone_id)
             profile = self.service.get_profile(user_id)
             allow_local_context = self.service.mode == "mock"
             if allow_local_context:
@@ -110,20 +156,20 @@ class AgentRuntime:
             plan = self.planner.plan(display_message, mode, bool(images), profile)
             sources = self._retrieve(message or display_message, skill, mode, use_rag)
             knowledge_block = self._knowledge_block(sources)
-            tool_names = sorted(self.skills.allowed_tool_names(skill, mode)) if skill else [
-                spec.name for spec in self.registry.specs_for_mode(mode)
-            ]
+            tool_names = sorted(self.skills.allowed_tool_names_many(skills, mode))
             system_prompt = build_system_prompt(
                 mode=mode,
                 profile=profile,
                 memory_block=self.memory.prompt_block(user_id),
-                skill_prompt=self.skills.prompt_for(skill, mode) if skill else "",
+                skill_prompt=self.skills.combo_prompt_for(skills, mode),
+                tone_prompt=self.skills.tone_prompt_for(tone_skill),
                 knowledge_block=knowledge_block,
                 tool_names=tool_names,
                 client_block=build_client_block(client_context, allow_local_context),
                 plan_block=plan.to_prompt(),
                 summary_block=summary,
                 has_images=bool(images),
+                access_level=access_level,
             )
 
             yield AgentEvent(
@@ -135,8 +181,16 @@ class AgentRuntime:
                     "mode_name": MODES_CONFIG.get(mode, {}).get("name", mode),
                     "model": model_id or "auto",
                     "skill": skill.to_dict() if skill else None,
+                    "skills": [item.to_dict() for item in skills],
+                    "tone": {
+                        "id": tone_id,
+                        "skill": tone_skill.name if tone_skill else "",
+                        "name": tone_skill.display_name if tone_skill else "",
+                    },
+                    "access_level": access_level,
                     "plan": plan.to_dict(),
                     "images": len(images),
+                    "image_source": image_source,
                     "new_memories": new_memories,
                     "service": self.service.status(),
                     "client_context": bool(client_context),
@@ -156,15 +210,15 @@ class AgentRuntime:
                     {"level": "warning", "message": "检测到试图改变规则的指令，已按安全边界处理"},
                 )
             yield AgentEvent("plan", plan.to_dict())
-            if skill:
-                yield AgentEvent("skill", {"id": skill.name, "display_name": skill.display_name, "category": skill.category})
+            for item in skills:
+                yield AgentEvent("skill", {"id": item.name, "display_name": item.display_name, "category": item.category})
             for source in sources:
                 yield AgentEvent("citation", source)
 
             messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
             messages.extend(history)
             messages.append({"role": "user", "content": _user_content(message, images)})
-            tools = self.skills.tools_for_skill(skill, mode)
+            tools = self.skills.tools_for_skills(skills, mode)
             max_steps = int(MODES_CONFIG.get(mode, {}).get("max_tool_steps", MAX_TOOL_STEPS))
 
             usage: dict[str, Any] = {}
@@ -255,7 +309,8 @@ class AgentRuntime:
                         user_id=user_id,
                         session_id=session_id,
                         mode=mode,
-                        confirmed=name in confirmed_tools,
+                        confirmed=name in confirmed_tools
+                        or (access_level == "full" and name not in ALWAYS_CONFIRM_TOOLS),
                         service=self.service,
                         gateway=self.gateway,
                         skills=self.skills,
@@ -274,6 +329,11 @@ class AgentRuntime:
                             "need_confirm": tool_result.need_confirm,
                             "summary": tool_result.summary,
                             "error": tool_result.error,
+                            **(
+                                {"data": {"profile": (tool_result.data or {}).get("profile", {})}}
+                                if name == "update_health_profile" and tool_result.ok
+                                else {}
+                            ),
                         },
                     )
 

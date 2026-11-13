@@ -59,7 +59,7 @@ C++ 服务端（epoll + 主从 Reactor）
 ```
 AgentApp
   ├─ SuperAgent ── 单 Agent 双层架构：Router / WorkerPool / EventBus / Watchdog
-  ├─ LLMGateway ── rule-fallback / deepseek-chat / deepseek-vl2 / qwen-plus / local-openai
+  ├─ LLMGateway ── rule-fallback / deepseek-flash（饭饭，文字与图片统一入口）
   ├─ Planner ── Plan-and-Solve 计划、失败重规划
   ├─ TraceRecorder ── trace / span / token 可观测性
   ├─ Safety ── 提示词注入检测、图片校验、输出过滤
@@ -166,7 +166,7 @@ AgentApp
 - 规划与推理：Plan-and-Solve 生成执行计划，Worker 内用 ReAct 调工具；工具失败时自动重规划，不重复同一个失败调用。
 - 流式输出：OpenAI 兼容接口改为真正的 SSE 流式，token 按模型生成顺序逐字到达前端。
 - 排版：系统提示词约束“简单问题轻量、复杂问题结构化”，前端用安全 Markdown 渲染。
-- 图片输入：请求支持 `images` 数组，构造 OpenAI 多模态 `image_url` 内容；视觉模型可选 `deepseek-vl2` 或本地 VLM。
+- 图片输入：请求支持 `images` 数组，构造 OpenAI 多模态 `image_url` 内容；当前唯一模型 `deepseek-flash` 原生支持视觉，图文可混合输入。
 - 上下文前缀稳定：历史只追加，超限时一次性压缩成摘要并记录 `compacted_until_id`，不每轮滑动裁剪。
 - 可观测性：每次请求生成 trace_id，记录 Router、规划、LLM、工具 span、耗时与 token；提供 `/api/traces`。
 - Watchdog：后台线程检查 Worker 是否长时间无事件，超时发出 `watchdog` 事件并标记 stalled。
@@ -306,7 +306,7 @@ python -m agent --host 127.0.0.1 --port 8787
 - 项目根 `.env` 会在启动时自动加载，真实环境变量优先于 `.env`。
 - 复制 `.env.example` 为 `.env`，填入 `DEEPSEEK_API_KEY` 后重启服务即可。
 - `.env` 已被 `.gitignore` 忽略，不会提交到仓库。
-- 当前默认模型为 `deepseek-chat`；没有可用 Key 时自动回退到 `rule-fallback`。
+- 当前默认模型为 `deepseek-flash`（显示名「饭饭」，原生支持文字与图片）；没有可用 Key 时自动回退到 `rule-fallback`。
 
 ### 7.3 环境变量
 
@@ -324,6 +324,8 @@ python -m agent --host 127.0.0.1 --port 8787
 | `EAT_DISABLE_DOTENV` | `0` | 设为 1 时禁用 `.env` 加载，测试使用 |
 | `DEEPSEEK_API_KEY` | 空 | DeepSeek Key，优先环境变量，其次 `.env` |
 | `DASHSCOPE_API_KEY` | 空 | 通义千问 Key，优先环境变量，其次 `.env` |
+| `EAT_LLM_PROXY` | 空 | 显式指定模型请求代理，如 `http://127.0.0.1:7897`；空则直连 |
+| `EAT_LLM_USE_SYSTEM_PROXY` | `0` | 设为 1 时复用系统代理；默认直连，避免系统代理端口被拦截 |
 | `EAT_MCP_DISABLE` | `0` | 设为 1 关闭 MCP |
 | `EAT_MCP_START_TIMEOUT` | `12` | MCP 启动超时 |
 | `EAT_MAX_TOOL_STEPS` | `6` | 工具循环上限 |
@@ -352,9 +354,19 @@ python -m agent.scripts.live_check --port 4173
 | 知识库检索与引用 | 允许 | 允许 |
 | 实时菜单 `get_menu` | 禁止 | 允许 |
 | 写入饮食 `record_meal` | 禁止 | 允许，需确认 |
+| 更新健康档案 `update_health_profile` | 禁止 | 允许，需确认 |
 | 导入 `SKILL.md`、安装市场技能 | 禁止 | 允许，需确认 |
 | 启用/停用本地技能 | 禁止 | 允许 |
 | 最大工具步数 | 4 | 6 |
+
+工作模式支持两级访问权限，客户端在切到工作模式或再次点击「工作」时弹出底部抽屉选择：
+
+| `access_level` | 行为 |
+| --- | --- |
+| `manual`（默认） | 所有写操作都需要用户确认 |
+| `full` | 除 `record_meal` 外，写操作直接执行；记录早、中、晚饭始终需要确认 |
+
+签到没有对应工具，Agent 不能自动签到；系统提示词明确禁止自动上报三餐。`record_meal` 在 `ALWAYS_CONFIRM_TOOLS` 中，即使 `full` 也返回 `confirm_required`。
 
 权限在三处同时生效：
 
@@ -368,15 +380,16 @@ python -m agent.scripts.live_check --port 4173
 
 `agent/config/models.json` 注册模型，`LLMGateway` 负责解析、调用与降级。
 
-| 模型 ID | 提供方 | 能力 | 使用场景 |
-| --- | --- | --- | --- |
-| `rule-fallback` | 本地规则 | chat、tools | 离线兜底，断网或无 Key 时自动使用 |
-| `deepseek-chat` | OpenAI 兼容 | chat、tools、stream | 默认模型，通用问答与工具调用 |
-| `deepseek-vl2` | OpenAI 兼容 | chat、tools、stream、vision | 图片与文字组合输入，需要账号开通 |
-| `qwen-plus` | OpenAI 兼容 | chat、tools、stream | 中文健康场景 |
-| `local-openai` | OpenAI 兼容 | chat、tools、stream | Ollama / vLLM / LM Studio |
+| 模型 ID | 显示名 | 提供方 | 真实模型 | 能力 | 使用场景 |
+| --- | --- | --- | --- | --- | --- |
+| `deepseek-flash` | 饭饭 | OpenAI 兼容 | `deepseek-flash` | chat、tools、stream、vision | 唯一对外模型，文字与图片统一入口 |
+| `rule-fallback` | 本地规则引擎 | 本地规则 | - | chat、tools | 离线兜底，`hidden: true`，不出现在用户可选列表 |
 
-配置优先级：真实环境变量 > 项目根 `.env` > `models.json` 默认值。`deepseek-chat` 当前为默认模型；如果 `DEEPSEEK_API_KEY` 不可用，`default_model_id()` 会自动回退到 `rule-fallback`，不会导致启动失败。
+`/api/models` 只返回一个用户可选模型（`hidden` 的 `rule-fallback` 会被 `available_models()` 过滤）。前端下拉显示「饭饭」，副标题展示真实模型名 `deepseek-flash`；请求直接使用 `model=deepseek-flash`。
+
+该 API 的可用模型名以 `GET /v1/models` 为准，当前为 `deepseek-flash` 与 `deepseek-v4-pro`；`deepseek-v4.1-*` 会被服务端拒绝。两个模型里 `deepseek-flash` 已验证支持图片输入，因此作为唯一入口。
+
+配置优先级：真实环境变量 > 项目根 `.env` > `models.json` 默认值。`deepseek-flash` 当前为默认模型；如果 `DEEPSEEK_API_KEY` 不可用，`default_model_id()` 会自动回退到 `rule-fallback`，不会导致启动失败。
 
 用户选择方式：
 
@@ -384,6 +397,10 @@ python -m agent.scripts.live_check --port 4173
 - 对话请求携带 `model_id`。
 - 所选模型缺少 Key 或调用失败时，自动切换到 `rule-fallback`，并发出 `notice` 事件，前端可提示“已切换本地规则引擎”。
 - 模型路由预留 `routing.intent`、`routing.chat`、`routing.summary`、`routing.embedding`，可把小模型用于意图识别与摘要。
+
+模型请求默认**直连**，不读取系统代理（`urllib` 在 Windows 会默认读取注册表代理，容易被受管沙箱拦截）。需要代理时显式设置 `EAT_LLM_PROXY`，或设 `EAT_LLM_USE_SYSTEM_PROXY=1` 复用系统代理。
+
+诊断入口：`GET /api/agent/meta` 的 `llm` 字段返回 `proxy_mode`（`direct` / `custom` / `system`）、`proxy_env` 与 `last_error`（最近一次真实调用失败原因）。调用失败时服务端 stderr 同时输出 `[agent-llm] 模型请求失败：...`，不会再静默降级。
 
 规则模型不是占位符：它能完成意图识别、工具规划、结果汇总和降级回答，保证无网络时整条链路可验证。
 
@@ -401,6 +418,7 @@ python -m agent.scripts.live_check --port 4173
 | `get_friend_ranking` | read | 两种 | 好友健康均分排行榜 |
 | `get_menu` | local | work | 实时可售菜单 |
 | `record_meal` | write | work | 写入饮食记录，需确认 |
+| `update_health_profile` | write | work | 更新称呼、性别、身高、体重、年龄、目标、活动量、饮水、睡眠、饮食风格、过敏与忌口、备注，需确认 |
 | `list_skills` | read | 两种 | 列出可用技能 |
 | `enable_skill` | local | work | 启用或停用本地技能 |
 | `install_skill` | local | work | 安装市场技能，需确认 |
@@ -538,6 +556,24 @@ priority: 12
 | Agent 页面设计师 `page-designer` | design | 模块布局、信息层级、视觉细节建议 | 状态、技能列表、导入技能 |
 | 猜餐专家 `meal-guess` | guess | 结合时段、记录、缺口与上下文推测 | 记录、档案、缺口 |
 | 配餐专家 `meal-planning` | planning | 按实时菜单与缺口安排下一餐 | 档案、缺口、记录、菜品、菜单 |
+| 医学专家 `medical-expert` | health | 体检指标相关的饮食方向，不做诊断 | 档案、记录、缺口、知识库、菜品 |
+| 健身专家 `fitness-expert` | fitness | 训练日蛋白、碳水与加餐时机 | 档案、记录、缺口、菜单、菜品 |
+
+#### 语气人格 Skill（category: tone）
+
+内置三个系统语气技能，只控制表达风格，不占用 `allowed-tools`，也不参与主技能的关键词匹配：
+
+| tone | Skill | 名称 | 表达规则 |
+| --- | --- | --- | --- |
+| `normal`（默认） | `tone-normal` | 标准语气 | 先结论后依据，1–2 条依据 + 一个动作，中性陈述 |
+| `gentle` | `tone-gentle` | 温和陪伴 | 先共情后建议，不用命令式，≤120 字、最多 3 句 |
+| `efficient` | `tone-efficient` | 效率优先 | 结论先行，不铺垫不客套，≤60 字、最多 2 句 |
+
+- 客户端设置切换后存 `localStorage["eat-agent-tone"]`，请求携带 `tone` 字段。
+- `SkillsRegistry.resolve_tone()` 解析别名；`match()` 排除 `category=tone`，避免语气技能抢占配餐或营养技能。
+- Runtime 在 system prompt 中以 `<tone>` 段落注入，默认 `normal`。
+- `GET /api/agent/meta` 返回 `tones` 与 `default_tone`，供客户端渲染设置项。
+- 这是提示词层的人格控制，不是模型权重微调；切换即时生效，不需要重启服务。
 
 加载与匹配：
 
@@ -546,6 +582,13 @@ priority: 12
 - 未指定时按 `triggers` 命中数、标签、名称与类别打分，同分按 `priority` 排序。
 - 命中的技能正文注入系统提示词，并限制可用工具。
 - 技能正文用 `<skill>` 包裹，明确它是参考资料而不是系统指令。
+
+专家组合：
+
+- 请求携带 `skill_ids` 时可组合多个专家；`resolve_experts()` 按顺序去重，过滤语气技能与未启用技能。
+- 多个专家的正文依次注入 `<skill>`，工具权限取各自 `allowed-tools` 与模式工具集的并集；任一专家未限制工具时按全部可用处理。
+- 未传 `skill_ids` 时回退到单个 `skill_id`，再回退到关键词自动匹配。
+- 前端多选后把选择存为 JSON 数组，并在输入框上方显示可移除的专家 chip；请求同时携带 `skill_ids` 与首个 `skill_id`。
 
 ### 8.6 Skill 市场与好友分享
 
@@ -560,6 +603,12 @@ priority: 12
 - 好友校验：从服务端 `get_friends` 获取好友列表，非好友或分享给自己会返回 403。
 - 分享码：每次分享生成独立短码，记录在 `skill_shares`。
 - 收到的分享：`GET /api/skills/market/shared?user_id=`。
+- 搜索与分类：`GET /api/skills/market?search=&category=`，按名称、作者、描述与标签匹配。
+- 已安装：`GET /api/skills/market/installed?user_id=`，返回用户技能目录中的技能。
+- 卸载：`DELETE /api/skills/{id}`，需要工作模式；内置技能禁止卸载，路径必须位于用户技能目录内。
+- 删除市场条目：`DELETE /api/skills/market/{id}`，仅作者本人可删，社区精选不可删。
+- 社区精选：启动时 `SkillMarket.seed()` 写入 4 个模拟技能（医学营养顾问、健身增肌教练、减脂陪跑、工作日午餐规划），已存在则跳过。
+- 服务端接入：`SkillMarket.list()` 在 `service.mode == "service"` 时优先请求 `GET /api/v1/skills/market`，失败自动回退本地 SQLite；其余写接口走同一套语义，服务端只需实现同名端点。
 
 上传安全：
 
@@ -614,6 +663,15 @@ priority: 12
 - 会话表保留 `summary`、`compacted_until_id`，用于一次性摘要与前缀稳定。
 - 持久化摘要不调用模型，使用确定性规则压缩，避免额外 token 与延迟。
 
+上下文使用率面板：
+
+- `GET /api/context` 返回窗口大小（取模型 `context`，当前 1,000,000，即产品层 1MB）、已用 token、百分比与五段明细：系统提示词、工具、对话消息、MCP、技能。
+- 系统提示词包含稳定规则、档案、记忆与摘要；工具按当前模式的实际 JSON Schema 估算；技能只统计必注入的语气技能与会话命中的专家，避免把全部技能都算进去。
+- 前端在工具栏显示「上下文 x%」胶囊，点击打开面板，分段条与图例颜色一一对应；窗口为 1M 时显示「1M」。
+- `POST /api/context/compact` 调用 `compact_all()`：把全部未压缩对话写成简略摘要（每条 80 字、总长上限 2400 字），推进 `compacted_until_id`，压缩后对话消息段归零。
+- 达到 1MB 上限时，`chat_events` 在进入工具与档案查询前直接返回 `context_limit` 错误并提示「请新开对话」，不执行本轮业务查询。
+- DeepSeek 单次请求仍受 64K 限制：Runtime 在历史 token 超过 60K 的 80% 时自动调用 `compact_all()`，避免模型 400；压缩后仍超限才由 1MB guard 拦截。
+
 记忆抽取规则：
 
 - “我对 X 过敏” → 过敏。
@@ -629,7 +687,7 @@ priority: 12
 
 - **数据库边界**：Agent 不导入 MySQL/Redis 驱动，唯一数据出口是 `ServiceClient`。
 - **身份边界**：工具参数中的 `user_id` 由注册中心强制注入，模型无法指定他人。
-- **写操作边界**：`record_meal`、`install_skill`、`import_skill` 必须二次确认；未确认时返回 `confirm_required` 并结束本轮。
+- **写操作边界**：`record_meal`、`update_health_profile`、`install_skill`、`import_skill` 必须二次确认；未确认时返回 `confirm_required` 并结束本轮。
 - **技能边界**：技能只能调用 `allowed-tools` 与当前模式工具集的交集。
 - **上传边界**：只接受文本，校验名称与大小，限制用户技能目录。
 - **路径边界**：RAG 入库接口不接受任意目录，只接受文本。
@@ -652,16 +710,21 @@ priority: 12
 | GET | `/api/traces` | 最近 trace 列表 |
 | GET | `/api/traces/{id}` | 单次 trace 与全部 span |
 | GET | `/api/models` | 模型列表与可用性 |
+| GET | `/api/context?session_id=&mode=&access_level=&tone=` | 上下文使用率与分段统计 |
+| POST | `/api/context/compact` | 压缩早期对话，返回压缩前后 token |
 | POST | `/api/chat` | 非流式对话，返回完整事件与答案 |
 | POST | `/api/chat/stream` | SSE 流式对话 |
 | GET | `/api/sessions/{id}/messages` | 会话消息 |
 | DELETE | `/api/sessions/{id}` | 清空会话 |
 | GET | `/api/skills?mode=&user_id=` | 技能列表与安全摘要 |
 | POST | `/api/skills/enable` | 启用/停用技能，需工作模式 |
-| POST | `/api/skills/install` | 导入 SKILL.md，需工作模式 |
+| POST | `/api/skills/install` | 手动导入 SKILL.md，问答与工作模式均可 |
 | GET | `/api/skills/market` | 市场列表 |
 | POST | `/api/skills/market/publish` | 发布技能 |
 | POST | `/api/skills/market/install` | 安装市场技能，需工作模式 |
+| GET | `/api/skills/market/installed?user_id=` | 已安装技能 |
+| DELETE | `/api/skills/market/{id}` | 删除自己发布的市场技能 |
+| DELETE | `/api/skills/{id}` | 卸载已安装技能，需工作模式 |
 | POST | `/api/skills/market/share` | 分享给好友，校验好友关系 |
 | GET | `/api/skills/market/shared` | 收到的分享 |
 | GET | `/api/memory?user_id=` | 长期记忆 |
@@ -692,10 +755,14 @@ priority: 12
   "session_id": "s_001",
   "message": "今天该吃什么",
   "mode": "qa",
-  "model_id": "rule-fallback",
+  "model_id": "deepseek-flash",
+  "tone": "normal",
+  "access_level": "manual",
   "skill_id": "meal-planning",
+  "skill_ids": ["medical-expert", "fitness-expert"],
   "confirmed_tools": [],
   "use_rag": null,
+  "use_cached_image": false,
   "images": [],
   "client_context": {
     "profile": {"name": "我", "height": 170, "weight": 60, "age": 28, "goal": "均衡饮食", "activity": "久坐", "waterTarget": 1800, "sleep": 7, "note": "下午容易口渴"},
@@ -708,7 +775,16 @@ priority: 12
 
 `client_context` 是前端 localStorage 的只读快照。Agent 会做字段白名单与长度校验，仅保留档案、今日餐次与今日营养；mock 模式下用它对齐页面显示，真实服务端可用时以服务端数据为准。
 
-`images` 是图片数组，支持 dataURL 与 http(s) URL，最多 4 张、单张不超过 2.5MB。Agent 会构造 OpenAI 多模态 `image_url` 内容；当前模型未声明 `vision` 能力时会发出提示，建议切换到 `deepseek-vl2` 或本地视觉模型。
+Agent 通过 `update_health_profile` 写入过的档案字段会标记为 overridden，后续 `client_context.profile` 中的旧值不会覆盖这些字段；未写入过的字段仍以前端快照为准。这样 Agent 改完身高后，页面 localStorage 的旧身高不会把 Agent 的记忆改回去。
+
+`images` 是图片数组，支持 dataURL 与 http(s) URL，最多 10 张、单张原图不超过 2MB（dataURL 不超过 350 万字符）；前端支持从剪贴板直接粘贴图片。Agent 会构造 OpenAI 多模态 `image_url` 内容；当前唯一模型 `deepseek-flash` 声明了 `vision`，可直接识别图片，不再触发能力提示。
+
+图片缓存（同会话多轮追问）：
+
+- 每次带图请求都会把该会话最近一轮图片保留在 Agent 内存缓存中（每会话最多 4 张，最多 50 个会话，LRU 淘汰，不落库）。
+- 后续请求不带 `images` 时，如果消息包含“这张图 / 这图 / 刚才那张 / 图中”等指代，或显式传 `use_cached_image: true`，会自动复用上一轮图片，`meta.image_source` 为 `cache`。
+- 无指代且未显式开启时不会复用，避免每轮重复传图、浪费 token。
+- 缓存只在当前进程内有效，重启后失效；图片仍只用于当前轮，历史消息只保存文本与图片数量。
 
 ### 9.2 SSE 事件协议
 
@@ -721,7 +797,7 @@ data: {"text":"今天"}
 
 | 事件 | 载荷 | 说明 |
 | --- | --- | --- |
-| `meta` | session_id、trace_id、mode、model、skill、plan、images、new_memories、service、client_context | 本轮开始 |
+| `meta` | session_id、trace_id、mode、model、skill、tone、plan、images、new_memories、service、client_context | 本轮开始 |
 | `plan` | id、task_type、complexity、steps、needs_confirmation | 执行计划 |
 | `replan` | plan、failed_tool、error | 工具失败后的重规划 |
 | `worker_start` | worker_id、thread_id、created、trigger_id | Router 已分派 Worker |
@@ -1050,11 +1126,18 @@ done.trace_id = tr_e166960433ec4e
 
 说明：真实模型调用需要 Agent 进程能访问外网。受管沙箱会拦截出站 443，此时会自动降级到 `rule-fallback`，并在 `notice` 事件中提示。
 
+若 Key 有效却一直降级，按顺序排查：
+
+1. 看服务端 stderr 是否有 `[agent-llm] 模型请求失败`，或读 `GET /api/agent/meta` 的 `llm.last_error`。
+2. 出现 `hit restricted [127.0.0.1:7897]` 一类报错，说明请求走了系统代理：确认 `llm.proxy_mode` 为 `direct`；若是 `system`，去掉 `EAT_LLM_USE_SYSTEM_PROXY` 并重启。
+3. 出现 `HTTP 401` 检查 Key 是否有效；出现 `HTTP 400 model_not_found` 检查 `models.json` 中的 `model` 名称（该 API 只接受 `deepseek-flash` / `deepseek-v4-pro`，`deepseek-v4.1-*` 会被拒绝）。
+4. 直连不可用但本地代理可用时，显式设置 `EAT_LLM_PROXY=http://127.0.0.1:7897` 并重启服务。
+
 ### 13.3 建议复查项
 
 修改 Agent 代码后至少复查：
 
-- 问答模式是否仍看不到 `get_menu` 与 `record_meal`。
+- 问答模式是否仍看不到 `get_menu`、`record_meal` 与 `update_health_profile`。
 - 写操作是否仍然必须确认，确认后是否幂等。
 - MCP 子进程退出后主服务是否仍可用。
 - 模型不可用时是否降级而不是报错。
@@ -1182,7 +1265,7 @@ done.trace_id = tr_e166960433ec4e
 
 ### 16.1 基线说明
 
-上游四个文件 `index.html`、`styles.css`、`features.css`、`app.js` 保持 `origin/main c83068c` 的视觉与交互，没有改动样式规则和页面结构。
+上游四个文件以 `origin/main c83068c` 为视觉基线；除第 16.2 节列出的授权改动外，主流程与视觉规则保持原样。
 
 为接入 Agent，新增两个独立文件：
 
@@ -1193,6 +1276,15 @@ done.trace_id = tr_e166960433ec4e
 
 1. `sendPrompt()` 开头调用 `window.eatAgent.intercept(rawText)`，返回 true 时由适配层接管。
 2. 文件末尾导出 `window.eatLocal = { sendPrompt, recordMeal, getHealthAnalysis, showToast }`，供降级与 `client_context` 使用。
+
+2026-11-13 按用户要求补充的前端改动：
+
+| 文件 | 改动 |
+| --- | --- |
+| `index.html` | 输入框增加 `maxlength="2000"` 与字数计数 `0/2000` |
+| `app.js` | Agent 接管分支发送后清空输入并重置高度；输入框自适应高度上限 112px → 220px |
+| `agent-adapter.js` | 移除工具条图片按钮，图片能力并入输入框右侧拍照按钮；模型菜单显示「饭饭 + 真实模型名」；客户端设置注入「回答语气」开关 |
+| `agent.css` | 长文本高度、字数计数、模型副标题与语气开关样式 |
 
 ### 16.2 Agent 侧已对齐并已接入的内容
 
@@ -1211,7 +1303,14 @@ done.trace_id = tr_e166960433ec4e
 | 问答顺序 | 先渲染用户消息，再渲染 Agent 回答；修复了此前 Agent 气泡先出现的问题 |
 | Markdown 排版 | 简单问题轻量段落；复杂问题支持二级标题、列表、加粗、行内代码与引用 |
 | 逐字流式 | 后端 token 逐字到达，前端每次追加后重新渲染 Markdown |
-| 图片输入 | 工具条新增图片按钮与预览，最多 4 张；用户消息显示缩略图；请求携带 `images` |
+| 图片输入 | 输入框右侧拍照按钮统一入口，与适配层共用隐藏的 `#agentImageInput`，最多 10 张；支持从剪贴板直接粘贴图片；用户消息显示缩略图；请求携带 `images` |
+| 档案写回 | `update_health_profile` 成功后，适配层同步 localStorage 的档案并提示刷新页面后档案页显示新值 |
+| 工作权限 | 切到工作模式或再次点击「工作」弹出底部抽屉，选择「手动审批 / 完全访问」，存 `eat-agent-access`，请求携带 `access_level` |
+| 上下文面板 | 工具栏「上下文 x%」胶囊，展示五段 token 明细，可一键压缩；`meta`/`done` 后自动刷新 |
+| 专家入口 | 原工具条「Skill 市场」改为「专家」，可多选内置与已安装技能组合；选中项在输入框上方显示专家标识 chip，可逐个移除；请求同时携带 `skill_ids` 与首个 `skill_id` |
+| 市场入口 | 顶部导航在「积分商城」右侧新增 Skill 市场按钮，视觉与同排导航一致；支持搜索、分类、安装、卸载、导入 SKILL.md；安装需要工作模式，手动导入不需要 |
+| 确认弹窗 | 写操作确认改为 380px 短弹窗，只保留一行说明与工具名 |
+| 模式 tooltip | 问答/工作的说明改为白色轻提示，不再弹出底部黑色提示条；顶部历史、设置、我的 tooltip 提高层级完整显示 |
 | 计划与重规划 | `plan` / `replan` 事件更新消息状态，不展示内部推理 |
 | Worker 状态 | `worker_start` / `worker_done` 可显示分派状态 |
 
@@ -1612,7 +1711,7 @@ LLM 网关：
 限制：
 
 - 最多 4 张。
-- 单张 dataURL 不超过 2.5MB。
+- 单张 dataURL 不超过 350 万字符（原图约 2MB），一次最多 10 张；请求体上限 36MB。
 - 只接受 `data:image/` 与 `http(s)` URL。
 - 服务端请求体上限提升到 12MB。
 
@@ -1630,14 +1729,15 @@ LLM 网关：
 
 模型能力：
 
-- `deepseek-chat` 不声明 `vision`，图片请求会收到提示。
-- 新增 `deepseek-vl2` 配置，声明 `vision`，需要账号开通对应模型。
-- 本地 VLM 可通过 `local-openai` 配置接入。
+- 当前唯一模型 `deepseek-flash` 声明 `vision`，实测可识别红色、蓝色等图片内容。
+- `deepseek-v4-pro` 同样可用，但短 `max_tokens` 下容易只返回空内容，不作为图片入口。
+- 该 API 可用模型名以 `GET /v1/models` 为准；`deepseek-v4.1-*` 会被服务端拒绝。
+- 本地 VLM 仍可通过新增 OpenAI 兼容配置接入，需自行补 `models.json`。
 - 图片只用于当前轮，历史消息中只保存文本与图片数量，避免数据库膨胀。
 
 前端：
 
-- 工具条新增“图片”按钮，最多 4 张，支持预览与移除。
+- 输入框右侧拍照按钮统一图片入口，最多 4 张，支持预览与移除。
 - 用户消息气泡显示缩略图。
 - 发送后清空预览。
 
@@ -1688,7 +1788,7 @@ LLM 网关：
 
 人工确认：
 
-- `record_meal`、`install_skill`、`import_skill` 仍然必须确认。
+- `record_meal`、`update_health_profile`、`install_skill`、`import_skill` 仍然必须确认。
 - 未确认时 `confirm_required` 结束本轮，模型不能自问自答。
 - 当前没有转账、删除数据、发送邮件等高风险工具；若新增，必须沿用确认与审计机制。
 

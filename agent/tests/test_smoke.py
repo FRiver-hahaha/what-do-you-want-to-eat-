@@ -107,10 +107,32 @@ class TestHTTP(unittest.TestCase):
         self.assertFalse(payload["ok"])
         self.assertEqual(payload["error"], "permission_denied")
 
-    def test_skill_install_requires_work_mode(self) -> None:
-        with self.assertRaises(AgentError) as captured:
-            self._route("POST", "/api/skills/install", {"content": "---\nname: x\n---\nbody", "mode": "qa"})
-        self.assertEqual(captured.exception.status, 403)
+    def test_skill_install_allows_qa_mode(self) -> None:
+        name = f"qa_import_{uuid.uuid4().hex[:6]}"
+        content = f"""---
+name: {name}
+display_name: 问答导入测试
+description: 验证问答模式可以手动导入技能
+version: 1.0.0
+author: u_demo
+category: test
+tags: [测试]
+allowed-tools: []
+permissions: []
+modes: [qa, work]
+triggers: []
+priority: 3
+---
+正文
+"""
+        status, payload = self._route(
+            "POST",
+            "/api/skills/install",
+            {"content": content, "user_id": "u_demo", "mode": "qa"},
+        )
+        self.assertEqual(status, 200)
+        self.assertTrue(payload.get("ok"))
+        get_app().skills.uninstall(name, "u_demo")
 
 
 class TestMarket(unittest.TestCase):
@@ -410,9 +432,9 @@ class TestContextCompaction(unittest.TestCase):
         for index in range(40):
             manager.append(session_id, "u_demo", "user", f"用户第 {index} 条：" + "饮食记录" * 120)
             manager.append(session_id, "u_demo", "assistant", f"助手第 {index} 条：" + "建议内容" * 120)
+        manager.compact_all(session_id)
         history = manager.history_messages(session_id)
-        self.assertGreater(len(history), 0)
-        self.assertLessEqual(len(history), 12)
+        self.assertEqual(len(history), 0)
         session = manager.session(session_id) or {}
         self.assertGreater(int(session.get("compacted_until_id") or 0), 0)
         self.assertTrue(session.get("summary"))

@@ -210,6 +210,66 @@ def _record_meal(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
     return ToolResult(ok=True, summary=f"已记录{meal_type}：{payload['text']}", data=data)
 
 
+def _update_health_profile(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
+    fields: dict[str, Any] = {}
+    for key in ("height", "weight"):
+        if args.get(key) not in (None, ""):
+            try:
+                fields[key] = round(float(args[key]), 1)
+            except (TypeError, ValueError):
+                return ToolResult(ok=False, summary=f"{key} 必须是数字", error="invalid_number")
+    for key in ("age", "water_target"):
+        if args.get(key) not in (None, ""):
+            try:
+                fields[key] = int(float(args[key]))
+            except (TypeError, ValueError):
+                return ToolResult(ok=False, summary=f"{key} 必须是整数", error="invalid_number")
+    if args.get("sleep") not in (None, ""):
+        try:
+            hours = float(args["sleep"])
+        except (TypeError, ValueError):
+            return ToolResult(ok=False, summary="sleep 必须是小时数", error="invalid_number")
+        fields["sleep"] = f"{hours:g}小时"
+        fields["sleep_hours"] = hours
+    for key in ("allergies", "dislikes"):
+        value = args.get(key)
+        if isinstance(value, list):
+            fields[key] = [str(item).strip()[:30] for item in value if str(item).strip()]
+        elif value not in (None, ""):
+            fields[key] = [item.strip() for item in str(value).replace("、", ",").split(",") if item.strip()]
+    if args.get("name") not in (None, ""):
+        fields["name"] = str(args["name"]).strip()[:20]
+    for key in ("gender", "diet_style"):
+        if args.get(key) not in (None, ""):
+            fields[key] = str(args[key]).strip()[:20]
+    for key in ("goal", "activity", "note"):
+        if args.get(key) not in (None, ""):
+            fields[key] = str(args[key]).strip()[:120]
+    if not fields:
+        return ToolResult(ok=False, summary="没有提供要修改的档案字段", error="missing_fields")
+
+    data = ctx.service.update_profile(ctx.user_id, fields)
+    if not data.get("ok"):
+        return ToolResult(ok=False, summary="健康档案更新失败", error=data.get("error", "update_failed"))
+    labels = {
+        "name": "称呼",
+        "gender": "性别",
+        "diet_style": "饮食风格",
+        "height": "身高",
+        "weight": "体重",
+        "age": "年龄",
+        "goal": "目标",
+        "activity": "活动量",
+        "water_target": "饮水目标",
+        "sleep": "睡眠",
+        "allergies": "过敏",
+        "dislikes": "忌口",
+        "note": "备注",
+    }
+    parts = [f"{labels[key]} {value}" for key, value in fields.items() if key != "sleep_hours"]
+    return ToolResult(ok=True, summary="已更新健康档案：" + "、".join(parts), data=data)
+
+
 def build_diet_tools() -> list[ToolSpec]:
     return [
         ToolSpec(
@@ -276,6 +336,32 @@ def build_diet_tools() -> list[ToolSpec]:
             handler=_friend_ranking,
             category="read",
             tags=("ranking",),
+        ),
+        ToolSpec(
+            name="update_health_profile",
+            description="更新当前用户的健康档案：称呼、性别、身高、体重、年龄、健康目标、活动量、饮水目标、睡眠、饮食风格、过敏与忌口、备注，必须经用户确认后执行",
+            parameters=_schema(
+                {
+                    "name": {"type": "string", "description": "称呼，最多 20 字"},
+                    "gender": {"type": "string", "description": "性别"},
+                    "height": {"type": "number", "description": "身高 cm"},
+                    "weight": {"type": "number", "description": "体重 kg"},
+                    "age": {"type": "integer", "description": "年龄"},
+                    "goal": {"type": "string", "description": "健康目标，如 均衡饮食、控制体重、增加蛋白"},
+                    "activity": {"type": "string", "description": "活动量，如 久坐、适中、较高"},
+                    "water_target": {"type": "integer", "description": "每日饮水目标 ml"},
+                    "sleep": {"type": "number", "description": "常态睡眠小时数"},
+                    "diet_style": {"type": "string", "description": "饮食风格，如 普通饮食、素食、低脂"},
+                    "allergies": {"type": "array", "items": {"type": "string"}, "description": "过敏食物列表"},
+                    "dislikes": {"type": "array", "items": {"type": "string"}, "description": "不吃或不喜欢的食物列表"},
+                    "note": {"type": "string", "description": "备注，最多 120 字"},
+                }
+            ),
+            handler=_update_health_profile,
+            category="write",
+            modes=("work",),
+            require_confirm=True,
+            tags=("profile", "write"),
         ),
         ToolSpec(
             name="record_meal",

@@ -18,8 +18,8 @@ INJECTION_MARKERS = (
 
 SECRET_PATTERN = re.compile(r"sk-[A-Za-z0-9_-]{16,}")
 PHONE_PATTERN = re.compile(r"(?<!\d)1[3-9]\d{9}(?!\d)")
-MAX_IMAGES = 4
-MAX_IMAGE_CHARS = 2_500_000
+MAX_IMAGES = 10
+MAX_IMAGE_CHARS = 3_500_000
 
 
 def detect_injection(text: str) -> dict[str, Any]:

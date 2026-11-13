@@ -54,7 +54,7 @@ MCP_START_TIMEOUT = float(os.environ.get("EAT_MCP_START_TIMEOUT", "12"))
 
 MAX_TOOL_STEPS = int(os.environ.get("EAT_MAX_TOOL_STEPS", "6"))
 MAX_CONTEXT_MESSAGES = int(os.environ.get("EAT_MAX_CONTEXT_MESSAGES", "18"))
-MAX_CONTEXT_CHARS = int(os.environ.get("EAT_MAX_CONTEXT_CHARS", "24000"))
+MAX_CONTEXT_CHARS = int(os.environ.get("EAT_MAX_CONTEXT_CHARS", "1000000"))
 MAX_TOOL_RESULT_CHARS = int(os.environ.get("EAT_MAX_TOOL_RESULT_CHARS", "6000"))
 RAG_TOP_K = int(os.environ.get("EAT_RAG_TOP_K", "4"))
 
@@ -142,6 +142,8 @@ def available_models() -> list[dict[str, Any]]:
     models = MODELS_CONFIG.get("models", [])
     result: list[dict[str, Any]] = []
     for model in models:
+        if model.get("hidden"):
+            continue
         item = dict(model)
         provider = item.get("provider", "")
         env_name = item.get("api_key_env")

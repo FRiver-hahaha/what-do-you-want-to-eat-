@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-PROFILE_FIELDS = {"name", "height", "weight", "age", "goal", "activity", "note", "waterTarget", "sleep"}
+PROFILE_FIELDS = {"name", "gender", "diet_style", "height", "weight", "age", "goal", "activity", "note", "waterTarget", "sleep"}
 NUTRITION_FIELDS = {"protein", "fiber", "veggies", "water"}
 MEAL_FIELDS = {"type", "time", "text", "protein", "fiber", "veggies", "water"}
 MAX_CONTEXT_CHARS = 8000
@@ -68,12 +68,26 @@ def sanitize_client_context(value: Any) -> dict[str, Any]:
     return result
 
 
+PROFILE_KEY_ALIASES = {
+    "water_target": {"water_target", "waterTarget"},
+    "sleep": {"sleep", "sleep_hours"},
+}
+
+
+def _locked_profile_keys(data: dict[str, Any]) -> set[str]:
+    locked: set[str] = set()
+    for item in data.get("overridden_fields") or []:
+        locked.update(PROFILE_KEY_ALIASES.get(str(item), {str(item)}))
+    return locked
+
+
 def merge_profile(data: dict[str, Any], client_profile: Any) -> dict[str, Any]:
     merged = dict(data)
     if not isinstance(client_profile, dict):
         return merged
+    locked = _locked_profile_keys(data)
     for key, value in client_profile.items():
-        if key not in PROFILE_FIELDS or value is None:
+        if key not in PROFILE_FIELDS or value is None or key in locked:
             continue
         if key in ("height", "weight", "age", "waterTarget", "sleep"):
             try:
@@ -223,6 +237,6 @@ def contract() -> dict[str, Any]:
             {"id": "real_service_data", "name": "真实服务端数据", "needed_ui": "无需前端改动", "agent_api": "EAT_SERVER_BASE_URL + /api/v1/*"},
             {"id": "meal_search_backend", "name": "菜品搜索走后端", "needed_ui": "可保留本地 searchFoods", "agent_api": "GET /api/tools + search_foods"},
             {"id": "guess_backend", "name": "猜餐走后端", "needed_ui": "保留本地 renderInference 作为降级", "agent_api": "meal-guess Skill + get_recent_meals"},
-            {"id": "vision_model", "name": "视觉模型开通", "needed_ui": "图片入口已接入", "agent_api": "deepseek-vl2 或本地 VLM"},
+            {"id": "vision_model", "name": "视觉能力", "needed_ui": "拍照入口已接入", "agent_api": "deepseek-flash 原生支持 image_url 图片输入"},
         ],
     }

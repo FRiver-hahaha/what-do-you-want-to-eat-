@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+import sys
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -38,6 +39,36 @@ class LLMChunk:
 
 class LLMError(RuntimeError):
     pass
+
+
+def _build_opener() -> urllib.request.OpenerDirector:
+    proxy = os.environ.get("EAT_LLM_PROXY", "").strip()
+    if proxy:
+        handler = urllib.request.ProxyHandler({"http": proxy, "https": proxy})
+    elif os.environ.get("EAT_LLM_USE_SYSTEM_PROXY", "") == "1":
+        handler = urllib.request.ProxyHandler()
+    else:
+        handler = urllib.request.ProxyHandler({})
+    return urllib.request.build_opener(handler)
+
+
+def _proxy_mode() -> str:
+    proxy = os.environ.get("EAT_LLM_PROXY", "").strip()
+    if proxy:
+        return "custom"
+    if os.environ.get("EAT_LLM_USE_SYSTEM_PROXY", "") == "1":
+        return "system"
+    return "direct"
+
+
+def _describe_error(exc: BaseException) -> str:
+    if isinstance(exc, urllib.error.HTTPError):
+        try:
+            body = exc.read().decode("utf-8", "replace")[:300]
+        except Exception:
+            body = ""
+        return f"HTTP {exc.code} {body}".strip()
+    return f"{type(exc).__name__}: {exc}"
 
 
 class HashEmbedder:
@@ -380,6 +411,19 @@ class RuleProvider:
 class OpenAICompatibleProvider:
     name = "openai-compatible"
 
+    def __init__(self) -> None:
+        self.opener = _build_opener()
+        self.last_error = ""
+
+    def _open(self, request: urllib.request.Request, timeout: float) -> Any:
+        try:
+            return self.opener.open(request, timeout=timeout)
+        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError) as exc:
+            reason = _describe_error(exc)
+            self.last_error = reason
+            sys.stderr.write(f"[agent-llm] 模型请求失败：{reason}\n")
+            raise LLMError(f"模型调用失败：{reason}") from exc
+
     def chat(
         self,
         messages: list[dict[str, Any]],
@@ -405,7 +449,7 @@ class OpenAICompatibleProvider:
         if api_key:
             request.add_header("Authorization", f"Bearer {api_key}")
         try:
-            with urllib.request.urlopen(request, timeout=float(model_cfg.get("timeout", 60))) as response:
+            with self._open(request, float(model_cfg.get("timeout", 60))) as response:
                 raw = response.read().decode("utf-8")
             parsed = json.loads(raw)
             choice = (parsed.get("choices") or [{}])[0]
@@ -418,8 +462,12 @@ class OpenAICompatibleProvider:
                 provider=self.name,
                 finish_reason=choice.get("finish_reason", "stop"),
             )
-        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError, json.JSONDecodeError) as exc:
-            raise LLMError(f"模型调用失败：{exc}") from exc
+        except LLMError:
+            raise
+        except (json.JSONDecodeError, TimeoutError, OSError) as exc:
+            self.last_error = _describe_error(exc)
+            sys.stderr.write(f"[agent-llm] 模型响应解析失败：{self.last_error}\n")
+            raise LLMError(f"模型调用失败：{self.last_error}") from exc
 
     def stream(
         self,
@@ -450,7 +498,7 @@ class OpenAICompatibleProvider:
         usage: dict[str, Any] = {}
         finish_reason = "stop"
         try:
-            with urllib.request.urlopen(request, timeout=float(model_cfg.get("timeout", 90))) as response:
+            with self._open(request, float(model_cfg.get("timeout", 90))) as response:
                 for raw_line in response:
                     line = raw_line.decode("utf-8", errors="replace").strip()
                     if not line or not line.startswith("data:"):
@@ -493,8 +541,12 @@ class OpenAICompatibleProvider:
                             slot["function"]["arguments"] += json.dumps(arguments, ensure_ascii=False)
                     if choice.get("finish_reason"):
                         finish_reason = str(choice["finish_reason"])
-        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError, json.JSONDecodeError) as exc:
-            raise LLMError(f"模型调用失败：{exc}") from exc
+        except LLMError:
+            raise
+        except (json.JSONDecodeError, TimeoutError, OSError) as exc:
+            self.last_error = _describe_error(exc)
+            sys.stderr.write(f"[agent-llm] 模型流式响应失败：{self.last_error}\n")
+            raise LLMError(f"模型调用失败：{self.last_error}") from exc
         yield LLMChunk(
             content="".join(content_parts),
             tool_calls=[slots[index] for index in sorted(slots)],
@@ -516,6 +568,14 @@ class LLMGateway:
             "openai-compatible": OpenAICompatibleProvider(),
         }
         self.embedder = HashEmbedder()
+        self.last_error = ""
+
+    def diagnostics(self) -> dict[str, Any]:
+        return {
+            "proxy_mode": _proxy_mode(),
+            "proxy_env": bool(os.environ.get("EAT_LLM_PROXY", "").strip()),
+            "last_error": self.last_error,
+        }
 
     def list_models(self) -> list[dict[str, Any]]:
         return available_models()
@@ -551,7 +611,8 @@ class LLMGateway:
                 chunk.provider = provider.name
                 yield chunk
             return
-        except LLMError:
+        except LLMError as exc:
+            self.last_error = str(exc)
             if emitted:
                 yield LLMChunk(
                     finish_reason="error",
@@ -561,6 +622,7 @@ class LLMGateway:
                     done=True,
                 )
                 return
+
         fallback = self.providers["rule"]
         for chunk in fallback.stream(messages, {"id": "rule-fallback", "provider": "rule"}, tools):
             chunk.degraded = True

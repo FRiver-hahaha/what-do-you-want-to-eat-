@@ -115,6 +115,8 @@ svg { display: block; }
 .tooltip-left:hover::after, .tooltip-left:focus-visible::after { transform: translate(0, -50%); }
 .top-actions .tooltip:last-child::after { right: 0; left: auto; transform: translate(0, -4px); }
 .top-actions .tooltip:last-child:hover::after, .top-actions .tooltip:last-child:focus-visible::after { transform: translate(0, 0); }
+.top-actions .tooltip::after { z-index: 400; }
+.topbar, .top-actions, .top-navigation { overflow: visible; }
 .composer-tool.tooltip::after { top: auto; bottom: calc(100% + 8px); }
 
 .workspace-body { display: flex; min-height: 0; flex: 1; gap: 16px; }

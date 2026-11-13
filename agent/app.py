@@ -1,18 +1,29 @@
 from __future__ import annotations
 
+import json
 from typing import Any, Iterator
 
 from agent import __version__
 from agent.config import (
     DEFAULT_USER_ID,
     MCP_CONFIG,
+    MODELS_CONFIG,
     MODES_CONFIG,
     available_models,
     default_model_id,
 )
-from agent.core.context import ContextManager
+from agent.core.context import ContextManager, estimate_tokens
 from agent.core.memory import MemoryStore
 from agent.core.planner import Planner
+from agent.core.prompts import (
+    ACCESS_RULES,
+    BASE_RULES,
+    FORMAT_RULES,
+    MODE_RULES,
+    SAFETY_RULES,
+    SUPER_AGENT_RULES,
+    TOOL_RULES,
+)
 from agent.core.runtime import AgentEvent, AgentRuntime
 from agent.core.super_agent import SuperAgent
 from agent.core.trace import TRACER
@@ -49,6 +60,7 @@ class AgentApp:
         self.market = SkillMarket(None, self.service)
         self.skills = SkillsRegistry(self.registry, self.market)
         self.market.skills = self.skills
+        self.market.seed()
         self.mcp = MCPManager(MCP_CONFIG, self.registry)
         self.mcp.start()
         self.knowledge = KnowledgeBase()
@@ -77,9 +89,12 @@ class AgentApp:
             "models": available_models(),
             "modes": list(MODES_CONFIG.values()),
             "tools": self.registry.public_list(),
-            "skills": [self._skill_public(skill, "") for skill in self.skills.all()],
+            "skills": [self._skill_public(skill, "") for skill in self.skills.all() if skill.category != "tone"],
+            "tones": self.skills.tones(),
+            "default_tone": "normal",
             "mcp": self.mcp.status(),
             "service": self.service.status(),
+            "llm": self.gateway.diagnostics(),
             "rag": self.knowledge.stats(),
             "frontend": {
                 "baseline": "origin/main c83068c",
@@ -131,7 +146,31 @@ class AgentApp:
 
     def chat_events(self, request: dict[str, Any]) -> Iterator[AgentEvent]:
         request.setdefault("user_id", DEFAULT_USER_ID)
+        guard = self._context_limit_guard(request)
+        if guard is not None:
+            yield from guard
+            return
         yield from self.super_agent.handle(request)
+
+    def _context_limit_guard(self, request: dict[str, Any]) -> Iterator[AgentEvent] | None:
+        stats = self.context_stats(request)
+        if stats["used"] < stats["window"]:
+            return None
+        message = "上下文已达 1MB 上限，请新开对话后再继续。"
+        return iter(
+            [
+                AgentEvent("notice", {"level": "error", "message": message}),
+                AgentEvent("error", {"code": "context_limit", "message": message}),
+                AgentEvent(
+                    "done",
+                    {
+                        "session_id": str(request.get("session_id") or ""),
+                        "degraded": False,
+                        "finish_reason": "context_limit",
+                    },
+                ),
+            ]
+        )
 
     def chat(self, request: dict[str, Any]) -> dict[str, Any]:
         events = list(self.chat_events(request))
@@ -176,7 +215,11 @@ class AgentApp:
         return {"ok": True, "session_id": session_id}
 
     def list_skills(self, mode: str, user_id: str) -> list[dict[str, Any]]:
-        return [self._skill_public(skill, user_id) for skill in self.skills.all() if mode in skill.modes]
+        return [
+            self._skill_public(skill, user_id)
+            for skill in self.skills.all()
+            if mode in skill.modes and skill.category != "tone"
+        ]
 
     def enable_skill(self, payload: dict[str, Any]) -> dict[str, Any]:
         mode = str(payload.get("mode") or "qa")
@@ -191,9 +234,7 @@ class AgentApp:
         return {"ok": ok, "message": message, "skill": self._skill_public(self.skills.get(skill_id), user_id)}
 
     def install_skill(self, payload: dict[str, Any]) -> dict[str, Any]:
-        mode = str(payload.get("mode") or "qa")
-        if mode != "work":
-            raise AgentError(403, "mode_forbidden", "导入技能需要工作模式")
+
         content = str(payload.get("content") or "")
         if not content:
             raise AgentError(400, "empty_content", "缺少 SKILL.md 内容")
@@ -202,6 +243,81 @@ class AgentApp:
         if not ok:
             raise AgentError(400, "skill_invalid", message)
         return {"ok": ok, "message": message, "skill": meta}
+
+    def context_stats(self, payload: dict[str, Any]) -> dict[str, Any]:
+        session_id = str(payload.get("session_id") or "")
+        user_id = str(payload.get("user_id") or DEFAULT_USER_ID)
+        mode = str(payload.get("mode") or "qa")
+        model_id = str(payload.get("model_id") or default_model_id())
+        access_level = str(payload.get("access_level") or "manual")
+        model = next((item for item in MODELS_CONFIG.get("models", []) if item.get("id") == model_id), {})
+        window = int(model.get("context") or 1000000)
+
+        rows = self.context.history_messages(session_id) if session_id else []
+        messages = [row for row in rows if str(row.get("content") or "").strip()]
+        message_tokens = sum(estimate_tokens(str(row.get("content") or "")) for row in messages)
+        tool_tokens = estimate_tokens(json.dumps(self.registry.openai_tools(mode), ensure_ascii=False))
+        mcp_names = self.mcp.all_tools() if self.mcp else []
+        mcp_tokens = estimate_tokens(json.dumps(mcp_names, ensure_ascii=False))
+        tone_id = str(payload.get("tone") or "normal")
+        skill_tokens = 0
+        tone_skill = self.skills.resolve_tone(tone_id)
+        if tone_skill is not None:
+            skill_tokens += estimate_tokens(tone_skill.body)
+        session = self.context.session(session_id) if session_id else None
+        if session:
+            active_skill = self.skills.get(str(session.get("skill_id") or ""))
+            if active_skill is not None:
+                skill_tokens += estimate_tokens(active_skill.body)
+        system_text = (
+            BASE_RULES
+            + MODE_RULES.get(mode, MODE_RULES["qa"])
+            + ACCESS_RULES.get(access_level, ACCESS_RULES["manual"])
+            + FORMAT_RULES
+            + TOOL_RULES
+            + SAFETY_RULES
+            + SUPER_AGENT_RULES
+            + json.dumps(self.service.get_profile(user_id), ensure_ascii=False)
+            + self.memory.prompt_block(user_id)
+            + (self.context.session_summary(session_id) if session_id else "")
+        )
+        system_tokens = estimate_tokens(system_text)
+        segments = [
+            {"id": "system", "label": "系统提示词", "tokens": system_tokens},
+            {"id": "tools", "label": "工具", "tokens": tool_tokens},
+            {"id": "messages", "label": "对话消息", "tokens": message_tokens},
+            {"id": "mcp", "label": "MCP", "tokens": mcp_tokens},
+            {"id": "skills", "label": "技能", "tokens": skill_tokens},
+        ]
+        used = sum(item["tokens"] for item in segments)
+        return {
+            "session_id": session_id,
+            "mode": mode,
+            "model": model_id,
+            "window": window,
+            "used": used,
+            "percent": round(used / window * 100, 1) if window else 0,
+            "messages": len(messages),
+            "compactable": bool(messages),
+            "segments": segments,
+        }
+
+    def compact_context(self, payload: dict[str, Any]) -> dict[str, Any]:
+        session_id = str(payload.get("session_id") or "")
+        if not session_id:
+            raise AgentError(400, "missing_session", "缺少 session_id")
+        before = self.context_stats(payload)
+        summary = self.context.compact_all(session_id)
+        after = self.context_stats(payload)
+        return {
+            "ok": True,
+            "session_id": session_id,
+            "before": before["used"],
+            "after": after["used"],
+            "saved": max(0, before["used"] - after["used"]),
+            "summary_chars": len(summary),
+            "stats": after,
+        }
 
     def market_list(self, search: str = "", category: str = "") -> list[dict[str, Any]]:
         return self.market.list(search=search, category=category)
@@ -235,6 +351,29 @@ class AgentApp:
         if not ok:
             raise AgentError(403, "share_forbidden", message)
         return {"ok": ok, "message": message, "shares": shares}
+
+    def market_delete(self, payload: dict[str, Any]) -> dict[str, Any]:
+        if str(payload.get("mode") or "qa") != "work":
+            raise AgentError(403, "mode_forbidden", "删除市场技能需要工作模式")
+        skill_id = str(payload.get("id") or "")
+        owner = str(payload.get("owner") or DEFAULT_USER_ID)
+        ok, message = self.market.delete(skill_id, owner)
+        if not ok:
+            raise AgentError(400, "delete_failed", message)
+        return {"ok": True, "message": message}
+
+    def skill_uninstall(self, payload: dict[str, Any]) -> dict[str, Any]:
+        if str(payload.get("mode") or "qa") != "work":
+            raise AgentError(403, "mode_forbidden", "卸载技能需要工作模式")
+        skill_id = str(payload.get("id") or "")
+        user_id = str(payload.get("user_id") or DEFAULT_USER_ID)
+        ok, message = self.skills.uninstall(skill_id, user_id)
+        if not ok:
+            raise AgentError(400, "uninstall_failed", message)
+        return {"ok": True, "message": message}
+
+    def market_installed(self, user_id: str) -> list[dict[str, Any]]:
+        return [self._skill_public(skill, user_id) for skill in self.skills.installed(user_id)]
 
     def shared_with_me(self, user_id: str) -> list[dict[str, Any]]:
         return self.market.shared_with_me(user_id)

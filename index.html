@@ -97,13 +97,14 @@
           <button class="nav-item tooltip" type="button" data-view="profile" data-tooltip="健康档案" aria-label="健康档案"><svg class="icon"><use href="#icon-user"></use></svg></button>
 
           <button class="nav-item tooltip" type="button" data-view="shop" data-tooltip="积分商城" aria-label="积分商城"><svg class="icon"><use href="#icon-shop"></use></svg></button>
+          <button class="nav-item tooltip" id="agentMarketEntry" type="button" data-tooltip="Skill 市场" aria-label="Skill 市场"><svg class="icon"><use href="#icon-download"></use></svg></button>
         </nav>
 
         <div class="top-actions">
           <div class="agent-state"><span class="status-dot"></span>健康分析已就绪</div>
           <button class="icon-button tooltip" id="agentHistoryEntry" type="button" data-tooltip="历史对话" aria-label="历史对话"><svg class="icon"><use href="#icon-history"></use></svg></button>
-          <button class="icon-button tooltip" id="settingsButton" type="button" data-tooltip="客户端设置" aria-label="客户端设置"><svg class="icon"><use href="#icon-settings"></use></svg></button>
-          <button class="user-avatar-button tooltip" id="userAvatarButton" type="button" data-tooltip="个人信息与设置" aria-label="设置个人信息"><span id="avatarInitial">我</span></button>
+          <button class="icon-button tooltip" id="settingsButton" type="button" data-tooltip="设置" aria-label="设置"><svg class="icon"><use href="#icon-settings"></use></svg></button>
+          <button class="user-avatar-button tooltip" id="userAvatarButton" type="button" data-tooltip="我的" aria-label="打开我的档案"><span id="avatarInitial">我</span></button>
         </div>
       </header>
 
@@ -139,11 +140,11 @@
 
             <form class="composer glass-panel" id="chatForm">
               <button class="composer-tool model-switch tooltip" id="profileShortcut" type="button" data-tooltip="切换模型" aria-label="切换模型"><svg class="icon"><use href="#icon-sliders"></use></svg><span id="profileModelLabel">模型</span></button>
-              <div class="input-container"><textarea id="chatInput" rows="1" placeholder="记一餐，例如：米饭和青菜" aria-label="记录今天吃过的食物"></textarea><span class="input-hint"><kbd class="keycap">Enter</kbd> 记录</span></div>
+              <div class="input-container"><textarea id="chatInput" rows="1" maxlength="2000" placeholder="记一餐，例如：米饭和青菜" aria-label="记录今天吃过的食物"></textarea><span class="input-hint"><span class="input-count" id="inputCount">0/2000</span><kbd class="keycap">Enter</kbd> 发送</span></div>
               <button class="composer-tool photo-button tooltip" id="photoButton" type="button" data-tooltip="拍照上传饭菜" aria-label="拍照上传饭菜"><svg class="icon"><use href="#icon-camera"></use></svg></button>
               <input id="photoInput" type="file" accept="image/*" capture="environment" hidden>
               <button class="send-button" type="submit" aria-label="发送"><svg class="icon"><use href="#icon-arrow-up"></use></svg></button>
-              <p class="composer-note">本地分析演示 · 仅作日常饮食管理参考，不替代专业医疗建议</p>
+              <p class="composer-note">内容由 AI 生成，仅作日常饮食管理参考</p>
             </form>
           </section>
 

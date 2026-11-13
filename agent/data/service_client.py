@@ -106,6 +106,7 @@ class ServiceClient:
         self.token = token if token is not None else SERVER_TOKEN
         self.last_error = ""
         self._mock_meals = _build_mock_meals()
+        self._profile_overrides: dict[str, dict[str, Any]] = {}
 
     @property
     def mode(self) -> str:
@@ -138,9 +139,31 @@ class ServiceClient:
         if remote:
             return remote
         profile = copy.deepcopy(MOCK_PROFILE)
+        overrides = self._profile_overrides.get(user_id, {})
+        profile.update(overrides)
         profile["user_id"] = user_id
         profile["source"] = "mock"
+        profile["overridden_fields"] = sorted(overrides)
+        height = profile.get("height")
+        weight = profile.get("weight")
+        if height and weight:
+            profile["bmi"] = round(float(weight) / (float(height) / 100) ** 2, 2)
         return profile
+
+    def update_profile(self, user_id: str, fields: dict[str, Any]) -> dict[str, Any]:
+        remote = self._request("PATCH", f"/api/v1/users/{user_id}/health-profile", fields)
+        if remote:
+            return remote
+        current = self._profile_overrides.setdefault(user_id, {})
+        current.update(fields)
+        profile = self.get_profile(user_id)
+        return {
+            "ok": True,
+            "user_id": user_id,
+            "profile": profile,
+            "updated": sorted(fields),
+            "source": "mock",
+        }
 
     def get_recent_meals(self, user_id: str, days: int = 7) -> dict[str, Any]:
         remote = self._request("GET", f"/api/v1/users/{user_id}/meals?days={days}")

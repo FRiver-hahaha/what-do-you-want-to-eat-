@@ -112,6 +112,25 @@ class ContextManager:
         )
         return combined
 
+    def compact_all(self, session_id: str, max_chars: int = 2400) -> str:
+        session = self.session(session_id) or {}
+        rows = self._history_rows(session_id, 0)
+        if not rows:
+            return str(session.get("summary") or "")
+        lines = []
+        for row in rows:
+            text = re.sub(r"\s+", " ", str(row.get("content") or "")).strip()
+            if text:
+                lines.append(f"{'用户' if row['role'] == 'user' else '助手'}：{text[:80]}")
+        combined = "\n".join(lines).strip()
+        if len(combined) > max_chars:
+            combined = combined[-max_chars:]
+        execute(
+            "UPDATE sessions SET summary = ?, compacted_until_id = ? WHERE id = ?",
+            (combined, int(rows[-1]["id"]), session_id),
+        )
+        return combined
+
     def history_messages(self, session_id: str, limit: int = 200) -> list[dict[str, Any]]:
         session = self.session(session_id) or {}
         rows = self._history_rows(session_id, int(session.get("compacted_until_id") or 0))

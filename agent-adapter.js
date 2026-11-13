@@ -3,19 +3,27 @@
   const STORE = {
     mode: "eat-agent-mode",
     model: "eat-agent-model",
+    tone: "eat-agent-tone",
+    access: "eat-agent-access",
+    expert: "eat-agent-expert",
     session: "eat-agent-session",
     userId: "eat-agent-user"
   };
+  const MAX_IMAGES = 10;
   const state = {
     ready: false,
     fallback: false,
     sending: false,
     mode: localStorage.getItem(STORE.mode) || "qa",
     modelId: localStorage.getItem(STORE.model) || "",
+    tone: localStorage.getItem(STORE.tone) || "normal",
+    access: localStorage.getItem(STORE.access) || "manual",
+    expertId: localStorage.getItem(STORE.expert) || "",
     sessionId: localStorage.getItem(STORE.session) || `web_${Date.now().toString(36)}`,
     userId: localStorage.getItem(STORE.userId) || "u_demo",
     models: [],
     meta: null,
+    experts: [],
     pending: null,
     lastUser: null,
     images: []
@@ -154,12 +162,13 @@
     toolbar.className = "agent-toolbar";
     toolbar.innerHTML = `
       <div class="agent-mode" role="group" aria-label="Agent 模式">
-        <button type="button" data-mode="qa">问答</button>
-        <button type="button" data-mode="work">工作</button>
+        <button type="button" data-mode="qa" data-tooltip="只读问答，不写入数据">问答</button>
+        <button type="button" data-mode="work" data-tooltip="可读菜单、写入记录、管理技能">工作</button>
+        <span class="agent-access-badge" id="agentAccessBadge"></span>
       </div>
-      <button type="button" class="agent-chip" id="agentSkillButton">Skill 市场</button>
+      <button type="button" class="agent-chip" id="agentExpertButton" title="选择专家">专家</button>
       <button type="button" class="agent-chip" id="agentNewSession">新对话</button>
-      <button type="button" class="agent-chip" id="agentImageButton">图片</button>
+      <button type="button" class="agent-chip agent-context-chip" id="agentContextButton" title="查看上下文使用率">上下文</button>
       <input type="file" id="agentImageInput" accept="image/*" multiple hidden>
       <span class="agent-conn"><i></i><span id="agentConnText">连接中</span></span>
     `;
@@ -168,31 +177,89 @@
     preview.id = "agentImagePreview";
     preview.className = "agent-image-preview";
     toolbar.insertAdjacentElement("afterend", preview);
+    const expertChips = document.createElement("div");
+    expertChips.id = "agentExpertChips";
+    expertChips.className = "agent-expert-chips";
+    preview.insertAdjacentElement("afterend", expertChips);
     toolbar.querySelectorAll(".agent-mode button").forEach(button => {
       button.classList.toggle("active", button.dataset.mode === state.mode);
       button.addEventListener("click", () => {
-        state.mode = button.dataset.mode;
-        localStorage.setItem(STORE.mode, state.mode);
-        toolbar.querySelectorAll(".agent-mode button").forEach(item => item.classList.toggle("active", item === button));
-        toast(state.mode === "work" ? "工作模式：可读实时菜单、写入记录、管理技能" : "问答模式：只读对话");
+        const mode = button.dataset.mode;
+        const alreadyWork = state.mode === "work";
+        applyMode(mode);
+        if (mode === "work") openAccessSheet(alreadyWork ? "settings" : "switch");
       });
     });
-    $("#agentSkillButton", toolbar)?.addEventListener("click", openMarket);
+    $("#agentExpertButton", toolbar)?.addEventListener("click", openExpertMenu);
     $("#agentNewSession", toolbar)?.addEventListener("click", startNewSession);
-    $("#agentImageButton", toolbar)?.addEventListener("click", () => $("#agentImageInput", toolbar)?.click());
+    $("#agentContextButton", toolbar)?.addEventListener("click", () => openContextPanel());
     $("#agentImageInput", toolbar)?.addEventListener("change", handleImageFiles);
+    document.getElementById("agentMarketEntry")?.addEventListener("click", openMarket);
+    document.getElementById("photoButton")?.addEventListener("click", event => {
+      if (!state.ready) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      $("#agentImageInput", toolbar)?.click();
+    }, true);
+    bindComposer();
+  }
+
+  function updateInputCount() {
+    const input = document.getElementById("chatInput");
+    const counter = document.getElementById("inputCount");
+    if (!input || !counter) return;
+    const limit = Number(input.maxLength) > 0 ? Number(input.maxLength) : 2000;
+    counter.textContent = `${input.value.length}/${limit}`;
+    counter.classList.toggle("near-limit", input.value.length >= limit * 0.9);
+  }
+
+  function clearComposer() {
+    const input = document.getElementById("chatInput");
+    if (input) {
+      input.value = "";
+      input.style.height = "auto";
+    }
+    updateInputCount();
+  }
+
+  function bindComposer() {
+    const input = document.getElementById("chatInput");
+    if (!input || input.dataset.agentBound) return;
+    input.dataset.agentBound = "1";
+    input.addEventListener("input", updateInputCount);
+    input.addEventListener("paste", handleImagePaste);
+    updateInputCount();
   }
 
   function handleImageFiles(event) {
-    const files = Array.from(event.target.files || []).slice(0, 4);
+    const files = Array.from(event.target.files || []);
+    event.target.value = "";
+    addImageFiles(files);
+  }
+
+  function handleImagePaste(event) {
+    const items = Array.from(event.clipboardData?.items || []);
+    const files = items
+      .filter(item => item.type && item.type.startsWith("image/"))
+      .map(item => item.getAsFile())
+      .filter(Boolean);
     if (!files.length) return;
-    if (state.images.length + files.length > 4) {
-      toast("最多上传 4 张图片");
+    event.preventDefault();
+    addImageFiles(files);
+  }
+
+  function addImageFiles(files) {
+    const images = files.filter(file => file && file.type && file.type.startsWith("image/"));
+    if (!images.length) return;
+    const room = MAX_IMAGES - state.images.length;
+    if (room <= 0) {
+      toast(`最多上传 ${MAX_IMAGES} 张图片`);
+      return;
     }
-    files.slice(0, Math.max(0, 4 - state.images.length)).forEach(file => {
-      if (!file.type.startsWith("image/")) return;
-      if (file.size > 2_500_000) {
-        toast("单张图片不能超过 2.5MB");
+    if (images.length > room) toast(`最多上传 ${MAX_IMAGES} 张图片`);
+    images.slice(0, room).forEach(file => {
+      if (file.size > 2_000_000) {
+        toast("单张图片不能超过 2MB");
         return;
       }
       const reader = new FileReader();
@@ -202,7 +269,238 @@
       };
       reader.readAsDataURL(file);
     });
-    event.target.value = "";
+  }
+
+  function applyMode(mode) {
+    state.mode = mode === "work" ? "work" : "qa";
+    localStorage.setItem(STORE.mode, state.mode);
+    document.querySelectorAll(".agent-mode button").forEach(item => item.classList.toggle("active", item.dataset.mode === state.mode));
+    updateAccessBadge();
+    refreshContextBadge();
+  }
+
+  function updateAccessBadge() {
+    const badge = document.getElementById("agentAccessBadge");
+    if (!badge) return;
+    badge.hidden = state.mode !== "work";
+    badge.textContent = state.access === "full" ? "完全访问" : "手动审批";
+    badge.dataset.access = state.access;
+  }
+
+  function openAccessSheet(reason = "settings") {
+    const dialog = $("#agentAccessDialog");
+    if (!dialog) return;
+    syncAccessOptions();
+    const note = $("#agentAccessNote");
+    if (note) {
+      note.textContent = reason === "switch"
+        ? "工作模式会读取菜单并执行写操作，请选择审批方式"
+        : "签到与早、中、晚餐上报始终需要你手动操作";
+    }
+    if (!dialog.open) dialog.showModal();
+  }
+
+  function syncAccessOptions() {
+    document.querySelectorAll("#agentAccessDialog [data-access]").forEach(button => {
+      button.classList.toggle("active", button.dataset.access === state.access);
+    });
+  }
+
+  function setAccess(level) {
+    state.access = level === "full" ? "full" : "manual";
+    localStorage.setItem(STORE.access, state.access);
+    updateAccessBadge();
+    syncAccessOptions();
+    $("#agentAccessDialog")?.close();
+    toast(state.access === "full" ? "已切换为完全访问" : "已切换为手动审批");
+    refreshContextBadge();
+  }
+
+  function contextQuery() {
+    const params = new URLSearchParams({
+      session_id: state.sessionId,
+      user_id: state.userId,
+      mode: state.mode,
+      access_level: state.access,
+      tone: state.tone
+    });
+    if (state.modelId) params.set("model_id", state.modelId);
+    return params.toString();
+  }
+
+  async function contextStats() {
+    return api(`/api/context?${contextQuery()}`);
+  }
+
+  async function refreshContextBadge() {
+    const button = document.getElementById("agentContextButton");
+    if (!button || !state.ready) return;
+    try {
+      const stats = await contextStats();
+      button.textContent = `上下文 ${stats.percent}%`;
+      button.dataset.percent = String(stats.percent);
+    } catch {
+      button.textContent = "上下文";
+    }
+  }
+
+  async function openContextPanel() {
+    const panel = $("#agentContextPanel");
+    if (!panel) return;
+    if (!panel.open) panel.showModal();
+    await renderContextPanel();
+  }
+
+  async function renderContextPanel() {
+    const percentNode = $("#agentContextPercent");
+    const usedNode = $("#agentContextUsed");
+    const bar = $("#agentContextBar");
+    const legend = $("#agentContextLegend");
+    if (!bar || !legend) return;
+    bar.innerHTML = `<span class="agent-context-loading">正在统计</span>`;
+    legend.innerHTML = "";
+    try {
+      const stats = await contextStats();
+      state.contextStats = stats;
+      if (percentNode) percentNode.textContent = `${stats.percent}%`;
+      if (usedNode) {
+        const windowLabel = stats.window >= 1_000_000
+          ? `${Math.round(stats.window / 100000) / 10}M`
+          : `${Math.round(stats.window / 1000)}K`;
+        usedNode.textContent = `已使用 ${Math.round(stats.used / 100) / 10}K / ${windowLabel}`;
+      }
+      const total = Math.max(1, stats.used);
+      bar.innerHTML = stats.segments
+        .filter(item => item.tokens > 0)
+        .map(item => `<i data-segment="${item.id}" style="flex:${Math.max(1, Math.round(item.tokens / total * 100))} 0 0" title="${escapeHtml(item.label)} ${item.tokens}"></i>`)
+        .join("");
+      legend.innerHTML = stats.segments.map(item => `
+        <li><i data-segment="${item.id}"></i><span>${escapeHtml(item.label)}</span><strong>${item.tokens ? Math.round(item.tokens / total * 1000) / 10 : 0}%</strong></li>
+      `).join("");
+      const compact = $("#agentContextCompact");
+      if (compact) compact.disabled = !stats.compactable;
+    } catch (error) {
+      bar.innerHTML = `<span class="agent-context-loading">统计失败：${escapeHtml(error.message)}</span>`;
+    }
+  }
+
+  async function compactContext() {
+    const button = $("#agentContextCompact");
+    if (button) button.disabled = true;
+    try {
+      const data = await api("/api/context/compact", {
+        method: "POST",
+        body: JSON.stringify({
+          session_id: state.sessionId,
+          user_id: state.userId,
+          mode: state.mode,
+          access_level: state.access,
+          model_id: state.modelId || undefined
+        })
+      });
+      toast(data.saved > 0 ? `已压缩 ${data.saved} tokens` : "当前没有可压缩的早期对话");
+      await renderContextPanel();
+      refreshContextBadge();
+    } catch (error) {
+      toast(`压缩失败：${error.message}`);
+    } finally {
+      if (button) button.disabled = false;
+    }
+  }
+
+  function selectedExperts() {
+    return state.experts.filter(item => state.expertIds.includes(item.id));
+  }
+
+  function updateExpertLabel() {
+    const button = document.getElementById("agentExpertButton");
+    if (!button) return;
+    const selected = selectedExperts();
+    button.textContent = selected.length === 0
+      ? "专家"
+      : selected.length === 1
+        ? (selected[0].display_name || selected[0].name)
+        : `专家 ${selected.length}`;
+    button.classList.toggle("has-expert", selected.length > 0);
+    updateExpertChips();
+  }
+
+  function updateExpertChips() {
+    const container = document.getElementById("agentExpertChips");
+    if (!container) return;
+    const selected = selectedExperts();
+    container.classList.toggle("has-chips", selected.length > 0);
+    container.innerHTML = selected.map(skill => `
+      <span class="agent-expert-chip">
+        <i>${escapeHtml((skill.display_name || skill.name || "专").slice(0, 1))}</i>
+        <span>${escapeHtml(skill.display_name || skill.name)}</span>
+        <button type="button" data-remove-expert="${escapeHtml(skill.id)}" aria-label="移除专家">×</button>
+      </span>
+    `).join("");
+    container.querySelectorAll("[data-remove-expert]").forEach(button => {
+      button.addEventListener("click", () => toggleExpert(button.dataset.removeExpert));
+    });
+  }
+
+  async function loadExperts() {
+    if (state.experts.length) return state.experts;
+    try {
+      const data = await api(`/api/skills?mode=work&user_id=${encodeURIComponent(state.userId)}`);
+      state.experts = data.skills || [];
+    } catch {
+      state.experts = [];
+    }
+    updateExpertChips();
+    return state.experts;
+  }
+
+  function renderExpertList(experts) {
+    const list = $("#agentExpertList");
+    if (!list) return;
+    list.innerHTML = `
+      <button type="button" class="agent-expert-option ${state.expertIds.length ? "" : "active"}" data-expert=""><span class="agent-expert-mark">自</span><span class="agent-expert-copy"><strong>自动选择</strong><small>按消息匹配最合适的技能</small></span></button>
+      ${experts.map(skill => `
+        <button type="button" class="agent-expert-option ${state.expertIds.includes(skill.id) ? "active" : ""}" data-expert="${escapeHtml(skill.id)}">
+          <span class="agent-expert-mark">${escapeHtml((skill.display_name || skill.name || "专").slice(0, 1))}</span>
+          <span class="agent-expert-copy"><strong>${escapeHtml(skill.display_name || skill.name)}</strong><small>${escapeHtml(skill.description || "")}${skill.source === "user" ? " · 已安装" : ""}</small></span>
+          <span class="agent-expert-check">${state.expertIds.includes(skill.id) ? "已选" : ""}</span>
+        </button>
+      `).join("")}
+      <p class="agent-expert-hint">可多选组合，点击外部关闭</p>
+    `;
+    list.querySelectorAll("[data-expert]").forEach(button => {
+      button.addEventListener("click", () => toggleExpert(button.dataset.expert));
+    });
+  }
+
+  async function openExpertMenu() {
+    const menu = $("#agentExpertMenu");
+    if (!menu) return;
+    if (menu.classList.contains("open")) {
+      menu.classList.remove("open");
+      return;
+    }
+    const experts = await loadExperts();
+    renderExpertList(experts);
+    const anchor = document.getElementById("agentExpertButton");
+    const rect = anchor?.getBoundingClientRect();
+    menu.style.left = `${Math.max(12, rect ? rect.left : 12)}px`;
+    menu.style.top = `${rect ? rect.bottom + 8 : 80}px`;
+    menu.classList.add("open");
+  }
+
+  function toggleExpert(id) {
+    if (!id) {
+      state.expertIds = [];
+    } else if (state.expertIds.includes(id)) {
+      state.expertIds = state.expertIds.filter(item => item !== id);
+    } else {
+      state.expertIds = [...state.expertIds, id];
+    }
+    localStorage.setItem(STORE.expert, JSON.stringify(state.expertIds));
+    updateExpertLabel();
+    if ($("#agentExpertMenu")?.classList.contains("open")) renderExpertList(state.experts);
+    toast(state.expertIds.length ? `已选择 ${state.expertIds.length} 位专家` : "已切换为自动匹配");
   }
 
   function renderImagePreview() {
@@ -241,14 +539,89 @@
     `;
     const marketDialog = document.createElement("dialog");
     marketDialog.id = "agentSkillDialog";
-    marketDialog.className = "agent-dialog";
+    marketDialog.className = "agent-dialog agent-market-dialog";
     marketDialog.innerHTML = `
-      <header><div><span class="section-kicker">能力扩展</span><h2>Skill 市场</h2></div><button class="icon-button" id="agentSkillClose" type="button" aria-label="关闭">×</button></header>
-      <div id="agentSkillList" class="agent-market-list"></div>
-      <footer><span id="agentSkillHint" class="agent-muted">安装与分享需要工作模式</span></footer>
+      <form method="dialog" class="agent-market-body">
+        <header><div><span class="section-kicker">能力扩展</span><h2>Skill 市场</h2></div><button class="icon-button" id="agentSkillClose" type="button" aria-label="关闭">×</button></header>
+        <div class="agent-market-toolbar">
+          <label class="agent-market-search"><svg class="icon"><use href="#icon-search"></use></svg><input id="agentMarketSearch" type="search" placeholder="搜索名称、作者或标签" aria-label="搜索技能"></label>
+          <div class="agent-market-tabs" id="agentMarketTabs" role="group" aria-label="技能分类">
+            <button type="button" data-category="" class="active">全部</button>
+            <button type="button" data-category="health">健康</button>
+            <button type="button" data-category="fitness">健身</button>
+            <button type="button" data-category="nutrition">营养</button>
+            <button type="button" data-category="planning">规划</button>
+          </div>
+          <button type="button" class="agent-chip" id="agentMarketImport">导入 SKILL.md</button>
+          <input id="agentSkillFile" type="file" accept=".md,text/markdown,text/plain" hidden>
+        </div>
+        <div id="agentSkillList" class="agent-market-list"></div>
+        <section class="agent-market-installed">
+          <h3>已安装</h3>
+          <div id="agentInstalledList"></div>
+        </section>
+        <footer><span id="agentSkillHint" class="agent-muted">安装市场技能需要工作模式</span></footer>
+      </form>
     `;
-    document.body.append(confirmDialog, marketDialog);
+    const accessDialog = document.createElement("dialog");
+    accessDialog.id = "agentAccessDialog";
+    accessDialog.className = "agent-access-sheet";
+    accessDialog.innerHTML = `
+      <form method="dialog" class="agent-access-body">
+        <header><div><span class="section-kicker">工作模式</span><h2>选择访问权限</h2></div><button type="button" id="agentAccessClose" aria-label="关闭">×</button></header>
+        <div class="agent-access-options">
+          <button type="button" data-access="manual"><span class="agent-access-mark">手</span><span><strong>手动审批</strong><small>重要操作由你确认</small></span></button>
+          <button type="button" data-access="full"><span class="agent-access-mark">全</span><span><strong>完全访问</strong><small>写操作直接执行，三餐上报仍需确认</small></span></button>
+        </div>
+        <p class="agent-access-note" id="agentAccessNote">签到与早、中、晚餐上报始终需要你手动操作</p>
+      </form>
+    `;
+    const contextPanel = document.createElement("dialog");
+    contextPanel.id = "agentContextPanel";
+    contextPanel.className = "agent-context-panel";
+    contextPanel.innerHTML = `
+      <form method="dialog" class="agent-context-body">
+        <header><div><span class="section-kicker">会话资源</span><h2>上下文使用率</h2></div><button type="button" id="agentContextClose" aria-label="关闭">×</button></header>
+        <div class="agent-context-summary"><strong id="agentContextPercent">0%</strong><span id="agentContextUsed">已使用 0 / 64K</span></div>
+        <div class="agent-context-bar" id="agentContextBar"></div>
+        <ul class="agent-context-legend" id="agentContextLegend"></ul>
+        <footer><button type="button" class="button primary-button" id="agentContextCompact">压缩上下文</button><small>保留最近 6 条，压缩早期对话</small></footer>
+      </form>
+    `;
+    const expertMenu = document.createElement("div");
+    expertMenu.id = "agentExpertMenu";
+    expertMenu.className = "agent-expert-menu";
+    expertMenu.innerHTML = `<div class="agent-expert-head">选择专家</div><div id="agentExpertList" class="agent-expert-list"></div>`;
+    document.body.append(confirmDialog, marketDialog, accessDialog, contextPanel, expertMenu);
     $("#agentSkillClose")?.addEventListener("click", () => marketDialog.close());
+    $("#agentMarketSearch")?.addEventListener("input", () => {
+      clearTimeout(state.marketTimer);
+      state.marketTimer = setTimeout(() => openMarket(true), 220);
+    });
+    $("#agentMarketTabs")?.addEventListener("click", event => {
+      const button = event.target.closest("button[data-category]");
+      if (!button) return;
+      $("#agentMarketTabs").querySelectorAll("button").forEach(item => item.classList.toggle("active", item === button));
+      state.marketCategory = button.dataset.category || "";
+      openMarket(true);
+    });
+    $("#agentMarketImport")?.addEventListener("click", () => {
+
+      $("#agentSkillFile")?.click();
+    });
+    $("#agentSkillFile")?.addEventListener("change", importSkillFile);
+    accessDialog.querySelectorAll("[data-access]").forEach(button => {
+      button.addEventListener("click", () => setAccess(button.dataset.access));
+    });
+    $("#agentAccessClose")?.addEventListener("click", () => accessDialog.close());
+    $("#agentContextClose")?.addEventListener("click", () => contextPanel.close());
+    $("#agentContextCompact")?.addEventListener("click", compactContext);
+    document.addEventListener("click", event => {
+      const menu = document.getElementById("agentExpertMenu");
+      if (!menu?.classList.contains("open")) return;
+      if (menu.contains(event.target) || event.target.closest("#agentExpertButton")) return;
+      menu.classList.remove("open");
+    });
     confirmDialog.addEventListener("close", () => {
       if (confirmDialog.returnValue !== "confirm" || !state.pending) return;
       const pending = state.pending;
@@ -283,6 +656,10 @@
       const source = meta.service?.mode === "service" ? "服务端" : "mock";
       const mcpOnline = Object.values(meta.mcp?.servers || {}).some(server => server.running);
       updateConnection(`Agent 在线 · ${source}${mcpOnline ? " · MCP" : ""}`, "online");
+      updateAccessBadge();
+      updateExpertLabel();
+      loadExperts().then(() => updateExpertLabel());
+      refreshContextBadge();
     } catch {
       state.ready = false;
       updateConnection("本地模式", "offline");
@@ -419,6 +796,7 @@ bubble.classList.add("is-streaming");
     state.sending = true;
     state.images = [];
     renderImagePreview();
+    clearComposer();
     const citations = [];
     recordHistory("user", text || "请分析图片");
 
@@ -432,6 +810,10 @@ bubble.classList.add("is-streaming");
           message: text,
           mode: state.mode,
           model_id: state.modelId || undefined,
+          tone: state.tone,
+          skill_id: state.expertIds[0] || undefined,
+          skill_ids: state.expertIds,
+          access_level: state.access,
           confirmed_tools: options.confirmedTools || [],
           client_context: clientContext(),
           images
@@ -454,8 +836,9 @@ bubble.classList.add("is-streaming");
         } else if (event === "tool_result") {
           if (data.need_confirm) status.textContent = "等待你的确认";
           else status.textContent = data.ok ? "已完成查询" : "查询失败，继续整理";
+          if (data.name === "update_health_profile" && data.ok) syncLocalProfile(data.data?.profile);
         } else if (event === "token") {
-answerText += data.text || "";
+          answerText += data.text || "";
           bubble.innerHTML = renderMarkdown(answerText);
           const conversation = document.getElementById("conversation");
           conversation?.scrollTo({ top: conversation.scrollHeight, behavior: "smooth" });
@@ -476,7 +859,7 @@ answerText += data.text || "";
           const dialog = $("#agentConfirmDialog");
           const textNode = $("#agentConfirmText");
           const toolsNode = $("#agentConfirmTools");
-          if (textNode) textNode.textContent = "这项操作会修改你的饮食记录或本地技能，确认后才会真正执行。";
+          if (textNode) textNode.textContent = "会修改你的数据，确认后生效。";
           if (toolsNode) toolsNode.innerHTML = (data.confirmed_tools || []).map(tool => `<span>${escapeHtml(tool)}</span>`).join("");
           if (dialog && !dialog.open) dialog.showModal();
           status.textContent = "等待你的确认";
@@ -488,6 +871,7 @@ answerText += data.text || "";
           article.classList.remove("typing-message");
           bubble.classList.remove("is-streaming");
           if (!citations.length) status.textContent = "刚刚";
+          refreshContextBadge();
         }
       });
 
@@ -541,12 +925,69 @@ answerText += data.text || "";
     return menu;
   }
 
+  function syncLocalProfile(profile) {
+    if (!profile || typeof profile !== "object") return;
+    const key = "eat-health-profile-v2";
+    let next = {};
+    try {
+      next = JSON.parse(localStorage.getItem(key) || "{}");
+    } catch {
+      next = {};
+    }
+    ["height", "weight", "age"].forEach(field => {
+      const value = Number(profile[field]);
+      if (profile[field] != null && !Number.isNaN(value)) next[field] = value;
+    });
+    if (profile.water_target != null) next.waterTarget = Number(profile.water_target);
+    if (profile.sleep_hours != null) next.sleep = Number(profile.sleep_hours);
+    ["name", "goal", "activity", "note", "gender", "diet_style"].forEach(field => {
+      if (profile[field] != null) next[field] = String(profile[field]);
+    });
+    localStorage.setItem(key, JSON.stringify(next));
+    toast("档案已更新，刷新页面后档案页同步显示");
+  }
+
+  function mountToneSetting() {
+    const dialog = document.getElementById("settingsDialog");
+    const content = dialog?.querySelector(".dialog-content");
+    if (!content || document.getElementById("agentToneRow")) return;
+    const options = [
+      { id: "normal", label: "正常" },
+      { id: "gentle", label: "温和" },
+      { id: "efficient", label: "效率" }
+    ];
+    if (!options.some(item => item.id === state.tone)) {
+      state.tone = "normal";
+      localStorage.setItem(STORE.tone, state.tone);
+    }
+    const row = document.createElement("div");
+    row.className = "setting-row";
+    row.id = "agentToneRow";
+    row.innerHTML = `<span><strong>回答语气</strong><small>决定饭饭的表达方式，默认正常</small></span><div class="agent-tone-options" role="group" aria-label="回答语气">${options.map(item => `<button type="button" data-tone="${item.id}">${item.label}</button>`).join("")}</div>`;
+    content.prepend(row);
+    const buttons = row.querySelectorAll("[data-tone]");
+    const sync = () => buttons.forEach(button => button.classList.toggle("active", button.dataset.tone === state.tone));
+    buttons.forEach(button => {
+      button.addEventListener("click", () => {
+        state.tone = button.dataset.tone;
+        localStorage.setItem(STORE.tone, state.tone);
+        sync();
+        toast(`回答语气：${button.textContent}`);
+      });
+    });
+    sync();
+  }
+
   function renderModelMenu() {
     const menu = ensureModelMenu();
     const list = menu.querySelector("#agentModelList");
     if (!list) return;
     list.innerHTML = state.models.length
-      ? state.models.map(model => `<button type="button" class="agent-model-option ${model.id === state.modelId ? "active" : ""}" data-model-id="${escapeHtml(model.id)}" ${model.available ? "" : "disabled"}>${escapeHtml(model.name)}${model.available ? "" : "（未配置 Key）"}</button>`).join("")
+      ? state.models.map(model => {
+        const real = model.real_model || model.model || model.id;
+        const detail = [real, model.available ? "" : "未配置 Key"].filter(Boolean).join(" · ");
+        return `<button type="button" class="agent-model-option ${model.id === state.modelId ? "active" : ""}" data-model-id="${escapeHtml(model.id)}" ${model.available ? "" : "disabled"}><span class="agent-model-name">${escapeHtml(model.name)}</span><small class="agent-model-meta">${escapeHtml(detail)}</small></button>`;
+      }).join("")
       : `<p class="agent-muted">暂无可用模型</p>`;
     list.querySelectorAll("[data-model-id]").forEach(button => {
       button.addEventListener("click", () => {
@@ -771,37 +1212,68 @@ answerText += data.text || "";
     });
   }
 
-  async function openMarket() {
+  async function openMarket(force = false) {
     const dialog = $("#agentSkillDialog");
     const list = $("#agentSkillList");
+    const installedList = $("#agentInstalledList");
     const hint = $("#agentSkillHint");
     if (!dialog || !list) return;
-    if (hint) hint.textContent = state.mode === "work" ? "工作模式：可以安装或分享技能" : "安装与分享需要先切换到工作模式";
-    dialog.showModal();
-    list.innerHTML = `<p class="agent-muted">加载中…</p>`;
+    if (!dialog.open) dialog.showModal();
+    if (force || !list.dataset.loaded) {
+      list.innerHTML = `<p class="agent-muted">加载中…</p>`;
+      if (installedList) installedList.innerHTML = `<p class="agent-muted">加载中…</p>`;
+    }
+    if (hint) hint.textContent = state.mode === "work" ? "工作模式：可以安装、导入与卸载技能" : "安装、导入与卸载需要先切换到工作模式";
+    const search = $("#agentMarketSearch")?.value.trim() || "";
+    const category = state.marketCategory || "";
     try {
-      const data = await api("/api/skills/market");
-      const skills = data.skills || [];
+      const query = new URLSearchParams({ search, category });
+      const [marketData, installedData] = await Promise.all([
+        api(`/api/skills/market?${query.toString()}`),
+        api(`/api/skills/market/installed?user_id=${encodeURIComponent(state.userId)}`)
+      ]);
+      const skills = marketData.skills || [];
+      const installed = installedData.skills || [];
+      const installedIds = new Set(installed.map(skill => skill.id));
+      list.dataset.loaded = "1";
       if (!skills.length) {
-        list.innerHTML = `<p class="agent-muted">市场还没有技能。可以在工作模式下导入 SKILL.md，或由其他用户发布。</p>`;
-        return;
+        list.innerHTML = `<p class="agent-muted">没有匹配的技能。可以在工作模式下导入 SKILL.md。</p>`;
+      } else {
+        list.innerHTML = skills.map(skill => {
+          const tags = (skill.tags || []).map(tag => `<span>${escapeHtml(tag)}</span>`).join("");
+          return `
+            <article class="agent-market-item">
+              <header><strong>${escapeHtml(skill.display_name || skill.name)}</strong><span class="agent-market-owner">@${escapeHtml(skill.owner || "community")}</span></header>
+              <p>${escapeHtml(skill.description || "")}</p>
+              <div class="agent-market-tags">${tags}</div>
+              <footer>
+                <span class="agent-market-meta">v${escapeHtml(skill.version || "1.0.0")} · ${Number(skill.downloads || 0)} 次安装 · ${Number(skill.rating || 0).toFixed(1)} 分</span>
+                <div class="agent-market-actions">
+                  ${installedIds.has(skill.id)
+                    ? `<span class="agent-market-installed-tag">已安装</span>`
+                    : `<button type="button" class="agent-chip" data-install="${escapeHtml(skill.id)}" ${state.mode !== "work" ? "disabled" : ""}>安装</button>`}
+                </div>
+              </footer>
+            </article>
+          `;
+        }).join("");
       }
-      list.innerHTML = skills.map(skill => `
-        <article class="agent-market-item">
-          <div class="agent-market-copy"><strong>${escapeHtml(skill.display_name || skill.name)}</strong><small>${escapeHtml(skill.description || "")}</small></div>
-          <span class="agent-market-meta">v${escapeHtml(skill.version || "1.0.0")} · ${Number(skill.downloads || 0)} 次安装</span>
-          <div class="agent-market-actions">
-            <button type="button" class="agent-chip" data-install="${escapeHtml(skill.id)}">安装</button>
-            <button type="button" class="agent-chip" data-share="${escapeHtml(skill.id)}">分享</button>
-          </div>
-        </article>
-      `).join("");
       list.querySelectorAll("[data-install]").forEach(button => {
         button.addEventListener("click", () => installSkill(button.dataset.install));
       });
-      list.querySelectorAll("[data-share]").forEach(button => {
-        button.addEventListener("click", () => shareSkill(button.dataset.share));
-      });
+      if (installedList) {
+        installedList.innerHTML = installed.length
+          ? installed.map(skill => `
+              <div class="agent-installed-item">
+                <span><strong>${escapeHtml(skill.display_name || skill.name)}</strong><small>${escapeHtml(skill.category || "技能")} · v${escapeHtml(skill.version || "1.0.0")}</small></span>
+                <button type="button" class="agent-chip agent-chip-quiet" data-uninstall="${escapeHtml(skill.id)}" ${state.mode !== "work" ? "disabled" : ""}>卸载</button>
+              </div>
+            `).join("")
+          : `<p class="agent-muted">还没有安装市场技能。内置专家默认可用。</p>`;
+        installedList.querySelectorAll("[data-uninstall]").forEach(button => {
+          button.addEventListener("click", () => uninstallSkill(button.dataset.uninstall));
+        });
+      }
     } catch (error) {
       list.innerHTML = `<p class="agent-muted">市场加载失败：${escapeHtml(error.message)}</p>`;
     }
@@ -809,7 +1281,7 @@ answerText += data.text || "";
 
   async function installSkill(id) {
     if (state.mode !== "work") {
-      toast("请先切换到工作模式");
+      toast("安装技能需要工作模式");
       return;
     }
     try {
@@ -818,8 +1290,53 @@ answerText += data.text || "";
         body: JSON.stringify({ id, user_id: state.userId, mode: "work" })
       });
       toast(data.message || "安装成功");
+      state.experts = [];
+      await openMarket(true);
+      updateExpertLabel();
     } catch (error) {
       toast(`安装失败：${error.message}`);
+    }
+  }
+
+  async function uninstallSkill(id) {
+    if (state.mode !== "work") {
+      toast("卸载技能需要工作模式");
+      return;
+    }
+    try {
+      const data = await api(`/api/skills/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        body: JSON.stringify({ user_id: state.userId, mode: "work" })
+      });
+      toast(data.message || "已卸载");
+      state.experts = [];
+      await openMarket(true);
+      updateExpertLabel();
+    } catch (error) {
+      toast(`卸载失败：${error.message}`);
+    }
+  }
+
+  async function importSkillFile(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (file.size > 200_000) {
+      toast("SKILL.md 不能超过 200KB");
+      return;
+    }
+    try {
+      const content = await file.text();
+      const data = await api("/api/skills/install", {
+        method: "POST",
+        body: JSON.stringify({ content, user_id: state.userId })
+      });
+      toast(data.message || "导入成功");
+      state.experts = [];
+      await openMarket(true);
+      updateExpertLabel();
+    } catch (error) {
+      toast(`导入失败：${error.message}`);
     }
   }
 
@@ -880,6 +1397,9 @@ answerText += data.text || "";
 
   mountToolbar();
   mountDialogs();
+  mountToneSetting();
+  updateAccessBadge();
+  updateExpertLabel();
   loadModels();
   loadMeta();
 })();

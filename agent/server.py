@@ -12,12 +12,14 @@ from agent import __version__
 from agent.app import AgentApp, AgentError
 from agent.core.runtime import AgentEvent
 
-MAX_BODY_BYTES = 12_000_000
+MAX_BODY_BYTES = 36_000_000
 
 SESSION_MESSAGES = re.compile(r"^/api/sessions/([^/]+)/messages$")
 SESSION_DELETE = re.compile(r"^/api/sessions/([^/]+)$")
 MEMORY_DELETE = re.compile(r"^/api/memory/(\d+)$")
 TRACE_DETAIL = re.compile(r"^/api/traces/([^/]+)$")
+MARKET_SKILL_DELETE = re.compile(r"^/api/skills/market/([^/]+)$")
+SKILL_DELETE = re.compile(r"^/api/skills/([^/]+)$")
 
 
 class AgentHTTPRequestHandler(BaseHTTPRequestHandler):
@@ -141,6 +143,20 @@ class AgentHTTPRequestHandler(BaseHTTPRequestHandler):
         if path == "/api/models" and method == "GET":
             return 200, {"models": app.models(), "default": app.meta()["default_model"]}
 
+        if path == "/api/context" and method == "GET":
+            return 200, app.context_stats(
+                {
+                    "session_id": query.get("session_id", ""),
+                    "user_id": query.get("user_id", "u_demo"),
+                    "mode": query.get("mode", "qa"),
+                    "model_id": query.get("model_id", ""),
+                    "access_level": query.get("access_level", "manual"),
+                }
+            )
+
+        if path == "/api/context/compact" and method == "POST":
+            return 200, app.compact_context(body)
+
         if path == "/api/super/status" and method == "GET":
             return 200, app.super_agent.status()
 
@@ -192,6 +208,21 @@ class AgentHTTPRequestHandler(BaseHTTPRequestHandler):
 
         if path == "/api/skills/market/shared" and method == "GET":
             return 200, {"shares": app.shared_with_me(query.get("user_id", "u_demo"))}
+
+        if path == "/api/skills/market/installed" and method == "GET":
+            return 200, {"skills": app.market_installed(query.get("user_id", "u_demo"))}
+
+        match = MARKET_SKILL_DELETE.match(path)
+        if match and method == "DELETE":
+            payload = dict(body)
+            payload["id"] = unquote(match.group(1))
+            return 200, app.market_delete(payload)
+
+        match = SKILL_DELETE.match(path)
+        if match and method == "DELETE":
+            payload = dict(body)
+            payload["id"] = unquote(match.group(1))
+            return 200, app.skill_uninstall(payload)
 
         if path == "/api/memory" and method == "GET":
             return 200, {"memories": app.memory_list(query.get("user_id", "u_demo"))}

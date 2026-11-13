@@ -990,7 +990,11 @@ function recordMeal(text, nutritionOverride = {}, forcedType = "") {
 }
 
 function sendPrompt(rawText) {
-  if (window.eatAgent && window.eatAgent.intercept(rawText)) return;
+  if (window.eatAgent && window.eatAgent.intercept(rawText)) {
+    elements.chatInput.value = "";
+    elements.chatInput.style.height = "auto";
+    return;
+  }
   const text = rawText.trim();
   if (!text) {
     elements.chatInput.focus();
@@ -1304,7 +1308,7 @@ elements.chatInput.addEventListener("keydown", event => {
 
 elements.chatInput.addEventListener("input", () => {
   elements.chatInput.style.height = "auto";
-  elements.chatInput.style.height = `${Math.min(elements.chatInput.scrollHeight, 112)}px`;
+  elements.chatInput.style.height = `${Math.min(elements.chatInput.scrollHeight, 220)}px`;
 });
 
 document.getElementById("viewFullReport").addEventListener("click", () => switchView("report"));

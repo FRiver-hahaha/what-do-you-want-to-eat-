@@ -1,8 +1,8 @@
 {
-  "default": "deepseek-chat",
+  "default": "deepseek-flash",
   "routing": {
-    "intent": "deepseek-chat",
-    "chat": "deepseek-chat",
+    "intent": "deepseek-flash",
+    "chat": "deepseek-flash",
     "summary": "rule-fallback",
     "embedding": "hash-embedding"
   },
@@ -13,50 +13,19 @@
       "provider": "rule",
       "caps": ["chat", "tools"],
       "context": 8000,
+      "hidden": true,
       "description": "零网络依赖的降级模型，保证断网、无 Key 时服务仍可完整运行"
     },
     {
-      "id": "deepseek-chat",
-      "name": "DeepSeek Chat",
+      "id": "deepseek-flash",
+      "name": "饭饭",
       "provider": "openai-compatible",
-      "model": "deepseek-chat",
-      "base_url": "https://api.deepseek.com/v1",
-      "api_key_env": "DEEPSEEK_API_KEY",
-      "caps": ["chat", "tools", "stream"],
-      "context": 64000,
-      "description": "通用推理与工具调用，成本较低，适合日常问答"
-    },
-    {
-      "id": "deepseek-vl2",
-      "name": "DeepSeek VL2 视觉",
-      "provider": "openai-compatible",
-      "model": "deepseek-vl2",
+      "model": "deepseek-flash",
       "base_url": "https://api.deepseek.com/v1",
       "api_key_env": "DEEPSEEK_API_KEY",
       "caps": ["chat", "tools", "stream", "vision"],
-      "context": 32000,
-      "description": "图片与文字组合输入；需要账号开通视觉模型，不可用时自动降级"
-    },
-    {
-      "id": "qwen-plus",
-      "name": "通义千问 Plus",
-      "provider": "openai-compatible",
-      "model": "qwen-plus",
-      "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-      "api_key_env": "DASHSCOPE_API_KEY",
-      "caps": ["chat", "tools", "stream"],
-      "context": 128000,
-      "description": "中文健康饮食场景表现稳定，支持函数调用"
-    },
-    {
-      "id": "local-openai",
-      "name": "本地 OpenAI 兼容服务",
-      "provider": "openai-compatible",
-      "model": "local-model",
-      "base_url": "http://127.0.0.1:8000/v1",
-      "caps": ["chat", "tools", "stream"],
-      "context": 32000,
-      "description": "对接 Ollama / vLLM / LM Studio 等本地推理服务"
+      "context": 1000000,
+      "description": "DeepSeek 真实模型，同时支持文字与图片输入，负责问答、工具调用与配餐"
     }
   ]
 }
