@@ -288,7 +288,7 @@ function renderShop() {
   const interactions = pointsState.interactions[today] || 0;
   const healthAward = pointsState.healthAwards[today] || 0;
   const checkedIn = Boolean(pointsState.checkins[today]);
-  document.getElementById("pointsBalance").textContent = balance;
+  animateNumber(document.getElementById("pointsBalance"), balance);
   document.getElementById("pointsEarned").textContent = earned;
   document.getElementById("pointsSpent").textContent = pointsState.spent;
   document.getElementById("dailyCheckin").disabled = checkedIn;
@@ -342,8 +342,12 @@ function renderInference() {
   currentGuessFoodId = food.id;
   document.getElementById("guessPeriod").textContent = `${period} · 根据当前个人健康状况`;
   document.getElementById("guessName").textContent = food.name;
-  document.getElementById("guessImage").src = food.image;
-  document.getElementById("guessImage").alt = `猜测你吃了${food.name}`;
+  const guessImage = document.getElementById("guessImage");
+  guessImage.src = food.image;
+  guessImage.alt = `猜测你吃了${food.name}`;
+  guessImage.style.animation = "none";
+  void guessImage.offsetWidth;
+  guessImage.style.animation = "";
   document.getElementById("guessMatch").textContent = `${match}% 匹配`;
   document.getElementById("guessBar").style.transform = `scaleX(${match / 100})`;
   document.getElementById("guessReason").textContent = `你的目标是「${profile.goal}」，日常${profile.activity}、睡眠 ${profile.sleep} 小时；结合近 7 天健康均分 ${average} 和当前${analysis.ratios.water < 0.8 ? "饮水不足" : "饮水节奏"}，我猜你更可能选择了这道${food.category}的食物。`;
@@ -385,14 +389,35 @@ function getHealthAnalysis() {
   return { nutrition, targets, ratios, score, status, summary, adjustment };
 }
 
+function animateNumber(element, target, options = {}) {
+  if (!element) return;
+  const duration = options.duration || 550;
+  const prefix = options.prefix || "";
+  const from = element.dataset.animValue === undefined ? 0 : Number(element.dataset.animValue);
+  const to = Number(target);
+  element.dataset.animValue = String(to);
+  if (!Number.isFinite(from) || !Number.isFinite(to) || from === to) {
+    element.textContent = `${prefix}${Math.round(to)}`;
+    return;
+  }
+  const start = performance.now();
+  const ease = progress => 1 - Math.pow(1 - progress, 3);
+  const tick = now => {
+    const progress = Math.min(1, (now - start) / duration);
+    element.textContent = `${prefix}${Math.round(from + (to - from) * ease(progress))}`;
+    if (progress < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
 function renderReport() {
   const analysis = getHealthAnalysis();
   const { nutrition, targets, ratios, score, status, adjustment } = analysis;
   elements.mealCount.textContent = `已记录 ${meals.length} 餐`;
-  document.getElementById("detailScoreValue").textContent = score;
+  animateNumber(document.getElementById("detailScoreValue"), score);
   document.getElementById("detailScoreStatus").textContent = status;
   document.getElementById("adjustmentInsight").textContent = adjustment;
-  document.getElementById("snapshotScore").textContent = score;
+  animateNumber(document.getElementById("snapshotScore"), score);
   document.getElementById("avatarInitial").textContent = (profile.name || "我").trim().slice(0, 1);
   document.getElementById("snapshotAge").textContent = `${profile.age} 岁`;
   document.getElementById("snapshotBody").textContent = `${profile.height} cm · ${profile.weight} kg`;
@@ -425,10 +450,17 @@ function renderTrend(score) {
     const y = 158 - (value - 60) * 3.2;
     return [Number(x.toFixed(1)), Number(Math.max(28, y).toFixed(1))];
   });
-  document.getElementById("trendLine").setAttribute("points", points.map(point => point.join(",")).join(" "));
-  document.getElementById("trendArea").setAttribute("d", `M${points[0][0]} 158 L${points.map(point => point.join(" ")).join(" L")} L${points[points.length - 1][0]} 158 Z`);
+  const trendLine = document.getElementById("trendLine");
+  const trendArea = document.getElementById("trendArea");
+  trendLine.setAttribute("points", points.map(point => point.join(",")).join(" "));
+  trendArea.setAttribute("d", `M${points[0][0]} 158 L${points.map(point => point.join(" ")).join(" L")} L${points[points.length - 1][0]} 158 Z`);
+  trendLine.style.animation = "none";
+  trendArea.style.animation = "none";
+  void trendLine.getBoundingClientRect();
+  trendLine.style.animation = "";
+  trendArea.style.animation = "";
   document.getElementById("trendDots").innerHTML = points.map((point, index) => `<circle class="trend-dot${index === points.length - 1 ? " current" : ""}" cx="${point[0]}" cy="${point[1]}" r="${index === points.length - 1 ? 5 : 3.5}"></circle>`).join("");
-  document.getElementById("trendAverage").textContent = `均值 ${Math.round(values.reduce((sum, value) => sum + value, 0) / values.length)}`;
+  animateNumber(document.getElementById("trendAverage"), Math.round(values.reduce((sum, value) => sum + value, 0) / values.length), { prefix: "均值 " });
 }
 
 function renderMeals() {
@@ -451,9 +483,27 @@ function renderLeaderboard(currentScore = getHealthAnalysis().score) {
   const champion = data[0];
   document.getElementById("championAvatar").textContent = champion.name === "你" ? "我" : champion.name.slice(0, 1);
   document.getElementById("championName").textContent = champion.name;
-  document.getElementById("championScore").textContent = champion.score;
+  animateNumber(document.getElementById("championScore"), champion.score);
   document.getElementById("championNote").textContent = `${activeRanking === "week" ? "本周" : "今日"}第 1 名 · ${champion.note}`;
+  const previousCurrent = elements.leaderboardList.querySelector(".leaderboard-row.current-user");
+  const previousTop = previousCurrent ? previousCurrent.getBoundingClientRect().top : null;
   elements.leaderboardList.innerHTML = data.map((item, index) => `<div class="leaderboard-row${item.current ? " current-user" : ""}"><span class="rank-number">${index + 1}</span><span class="friend-avatar">${escapeHtml(item.name === "你" ? "我" : item.name.slice(0, 1))}</span><div class="friend-copy"><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.note)}</small></div><span class="friend-score">${item.score}<small>分</small></span></div>`).join("");
+  const nextCurrent = elements.leaderboardList.querySelector(".leaderboard-row.current-user");
+  if (previousTop !== null && nextCurrent) {
+    const delta = previousTop - nextCurrent.getBoundingClientRect().top;
+    if (Math.abs(delta) > 1) {
+      nextCurrent.style.transition = "none";
+      nextCurrent.style.transform = `translateY(${delta}px)`;
+      requestAnimationFrame(() => {
+        nextCurrent.style.transition = "transform 460ms cubic-bezier(0.22, 1, 0.36, 1)";
+        nextCurrent.style.transform = "translateY(0)";
+      });
+      nextCurrent.addEventListener("transitionend", () => {
+        nextCurrent.style.transition = "";
+        nextCurrent.style.transform = "";
+      }, { once: true });
+    }
+  }
   const rank = data.findIndex(item => item.current) + 1;
   document.getElementById("rankingSummary").textContent = activeRanking === "week" ? `本周健康均分 ${weeklyAverage} · 当前第 ${rank} 名 · 周奖励预计 +${getWeeklyBonus()}` : `今日健康分 ${currentScore} · 当前第 ${rank} 名`;
   if (document.getElementById("view-shop").classList.contains("active")) renderShop();
@@ -526,7 +576,8 @@ function appendMasonryCycle() {
     card.type = "button";
     card.className = "masonry-card";
     card.dataset.foodId = food.id;
-    card.style.setProperty("--match", match);
+    card.style.setProperty("--match", "0");
+    requestAnimationFrame(() => card.style.setProperty("--match", match));
     card.innerHTML = `<span class="masonry-image-wrap"><img src="${food.image}" alt="${food.name}" style="height:${imageHeight}px" loading="lazy"><span class="masonry-add">${icon("plus")}</span></span><span class="masonry-copy"><small>${food.category}</small><strong>${food.name}</strong><span><span>${food.calories} 千卡</span><span>${food.protein} g 蛋白</span></span><span class="search-result-match">匹配 ${match}%</span></span>`;
     columns[columnIndex].appendChild(card);
   });
@@ -573,7 +624,8 @@ function renderMasonryResults(list, query) {
     card.type = "button";
     card.className = "masonry-card";
     card.dataset.foodId = food.id;
-    card.style.setProperty("--match", item.match);
+    card.style.setProperty("--match", "0");
+    requestAnimationFrame(() => card.style.setProperty("--match", item.match));
     card.innerHTML = `<span class="masonry-image-wrap"><img src="${food.image}" alt="${escapeHtml(food.name)}" style="height:${imageHeights[index % imageHeights.length]}px" loading="lazy"><span class="masonry-add">${icon("plus")}</span></span><span class="masonry-copy"><small>${escapeHtml(food.category)}</small><strong>${escapeHtml(food.name)}</strong><span><span>${food.calories} 千卡</span><span>蛋白 ${food.protein} g</span></span><span class="search-result-match">匹配 ${item.match}%</span></span>`;
     columns[index % columns.length].appendChild(card);
   });
@@ -642,6 +694,11 @@ function renderFoodSearch(query) {
     return `<div class="food-search-group"><h4>${groupNames[nature]}</h4>${items.map(item => `<button class="search-result" type="button" data-food-id="${item.food.id}" style="--match:${item.match}"><img src="${item.food.image}" alt="${escapeHtml(item.food.name)}" loading="lazy"><span class="search-result-copy"><small>${escapeHtml(item.food.category)}</small><strong>${escapeHtml(item.food.name)}</strong><span>${item.food.calories} 千卡 · 蛋白 ${item.food.protein} g</span></span><span class="search-result-match">匹配 ${item.match}%</span></button>`).join("")}</div>`;
   }).join("");
   box.classList.add("open");
+  box.querySelectorAll(".search-result").forEach(card => {
+    const target = card.style.getPropertyValue("--match");
+    card.style.setProperty("--match", "0");
+    requestAnimationFrame(() => card.style.setProperty("--match", target));
+  });
 }
 
 function clearFoodSearch() {
@@ -666,7 +723,9 @@ function pickRandomFood(excludeId) {
 function renderRandomPicker(food) {
   randomFoodId = food.id;
   const match = getFoodMatch(food);
-  document.querySelector(".random-picker-card").style.setProperty("--match", match);
+  const pickerCard = document.querySelector(".random-picker-card");
+  pickerCard.style.setProperty("--match", "0");
+  requestAnimationFrame(() => pickerCard.style.setProperty("--match", match));
   document.getElementById("randomImage").src = food.image;
   document.getElementById("randomImage").alt = food.name;
   document.getElementById("randomCategory").textContent = `随机一道 · ${food.category}`;

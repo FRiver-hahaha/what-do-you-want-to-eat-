@@ -293,6 +293,7 @@
     const paragraph = document.createElement("p");
     bubble.innerHTML = "";
     bubble.appendChild(paragraph);
+    bubble.classList.add("is-streaming");
     status.textContent = "正在思考";
     state.sending = true;
     const citations = [];
@@ -328,7 +329,9 @@
           if (data.need_confirm) status.textContent = "等待你的确认";
           else status.textContent = data.ok ? "已完成查询" : "查询失败，继续整理";
         } else if (event === "token") {
-          paragraph.textContent += data.text || "";
+          const chunk = document.createElement("span");
+          chunk.textContent = data.text || "";
+          paragraph.appendChild(chunk);
           const conversation = document.getElementById("conversation");
           conversation?.scrollTo({ top: conversation.scrollHeight, behavior: "smooth" });
         } else if (event === "citation") {
@@ -353,6 +356,7 @@
           paragraph.textContent = data.message || "Agent 返回了错误";
         } else if (event === "done") {
           article.classList.remove("typing-message");
+          bubble.classList.remove("is-streaming");
           if (!citations.length) status.textContent = "刚刚";
         }
       });
@@ -363,6 +367,7 @@
       recordHistory("agent", paragraph.textContent);
       renderCitations(article, citations);
       article.classList.remove("typing-message");
+      bubble.classList.remove("is-streaming");
     } catch (error) {
       removeNode(article);
       removeNode(userArticle);

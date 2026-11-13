@@ -426,3 +426,107 @@ textarea:focus-visible,
   box-shadow: 0 0 0 1px rgba(108, 140, 255, 0.35), 0 0 0 6px rgba(108, 140, 255, 0.12), 0 10px 30px rgba(108, 140, 255, 0.16);
 }
 .food-search-field input:focus { border-color: rgba(255, 255, 255, 0.42); }
+/* ---- Page motion: messages, guess card, rings, trend ---- */
+@keyframes eat-message-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes eat-card-in { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+@keyframes eat-image-in { from { opacity: 0; transform: scale(1.03); } to { opacity: 1; transform: scale(1); } }
+@keyframes eat-trend-draw { from { stroke-dashoffset: 1200; } to { stroke-dashoffset: 0; } }
+@keyframes eat-dot-in { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: scale(1); } }
+@keyframes eat-area-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes eat-caret { 0%, 45% { opacity: 1; } 50%, 100% { opacity: 0; } }
+
+.message { animation: eat-message-in 220ms var(--ease) both; }
+.inference-card { animation: eat-card-in 320ms var(--ease) both; }
+.inference-visual img { animation: eat-image-in 320ms var(--ease) both; }
+
+.trend-line { stroke-dasharray: 1200; animation: eat-trend-draw 600ms ease-out both; }
+.trend-area { animation: eat-area-in 600ms ease-out both; }
+.trend-dot { animation: eat-dot-in 300ms var(--ease) both; transform-box: fill-box; transform-origin: center; }
+#trendDots .trend-dot:nth-child(1) { animation-delay: 0ms; }
+#trendDots .trend-dot:nth-child(2) { animation-delay: 60ms; }
+#trendDots .trend-dot:nth-child(3) { animation-delay: 120ms; }
+#trendDots .trend-dot:nth-child(4) { animation-delay: 180ms; }
+#trendDots .trend-dot:nth-child(5) { animation-delay: 240ms; }
+#trendDots .trend-dot:nth-child(6) { animation-delay: 300ms; }
+#trendDots .trend-dot:nth-child(7) { animation-delay: 360ms; }
+
+@property --match { syntax: "<number>"; inherits: true; initial-value: 0; }
+.search-result::before,
+.masonry-card::before,
+.random-picker-card::before { transition: --match 420ms var(--ease); }
+
+.message-bubble.is-streaming::after {
+  display: inline-block;
+  width: 6px;
+  height: 1em;
+  margin-left: 3px;
+  vertical-align: -2px;
+  content: "";
+  background: var(--accent-ink);
+  animation: eat-caret 1s steps(1, end) infinite;
+}
+
+.message-bubble.is-streaming p > span { animation: eat-fade-in 160ms linear both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .message, .inference-card, .inference-visual img, .trend-line, .trend-area, .trend-dot { animation: none !important; }
+  .search-result::before, .masonry-card::before, .random-picker-card::before { transition: none !important; }
+  .message-bubble.is-streaming::after { animation: none !important; }
+}
+/* ---- Guess card: rotating gradient border + yellow breathing glow ---- */
+@property --halo-angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+
+.inference-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.inference-card::before {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  padding: 2px;
+  content: "";
+  background: conic-gradient(from var(--halo-angle), #fff4a3, #ffd54a, #ffb300, #ffd54a, #fff4a3);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: guess-halo-spin 5s linear infinite;
+}
+
+.inference-card::after {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  content: "";
+  background:
+    radial-gradient(circle 64px at 27% 88%, rgba(255, 228, 92, 0.9), transparent 100%),
+    radial-gradient(circle 64px at 73% 88%, rgba(255, 196, 0, 0.55), transparent 100%);
+  filter: blur(20px);
+  pointer-events: none;
+  transform-origin: 50% 50%;
+  animation: guess-halo-glow-spin 5s linear infinite, guess-halo-breathe 3.2s ease-in-out infinite alternate;
+}
+
+@keyframes guess-halo-spin {
+  to { --halo-angle: 360deg; }
+}
+
+@keyframes guess-halo-glow-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes guess-halo-breathe {
+  from { opacity: 0.45; }
+  to { opacity: 0.9; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inference-card::before,
+  .inference-card::after { animation: none !important; }
+}
