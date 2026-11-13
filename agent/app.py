@@ -12,7 +12,10 @@ from agent.config import (
 )
 from agent.core.context import ContextManager
 from agent.core.memory import MemoryStore
+from agent.core.planner import Planner
 from agent.core.runtime import AgentEvent, AgentRuntime
+from agent.core.super_agent import SuperAgent
+from agent.core.trace import TRACER
 from agent.data.db import init_db
 from agent.data.service_client import ServiceClient
 from agent.llm.gateway import LLMGateway
@@ -61,7 +64,10 @@ class AgentApp:
             context=self.context,
             memory=self.memory,
             knowledge=self.knowledge,
+            planner=Planner(),
+            tracer=TRACER,
         )
+        self.super_agent = SuperAgent(self.runtime)
 
     def meta(self) -> dict[str, Any]:
         return {
@@ -76,30 +82,45 @@ class AgentApp:
             "service": self.service.status(),
             "rag": self.knowledge.stats(),
             "frontend": {
-                "baseline": "origin/main 32ec689",
+                "baseline": "origin/main c83068c",
                 "contract": "/api/frontend/contract",
                 "client_context": True,
+            },
+            "super_agent": self.super_agent.status(),
+            "traces": {"list": "/api/traces", "detail": "/api/traces/{id}"},
+            "capabilities": {
+                "images": True,
+                "streaming_tokens": True,
+                "planning": True,
+                "replanning": True,
+                "trace": True,
+                "watchdog": True,
             },
             "streaming": {
                 "transport": "sse",
                 "endpoint": "/api/chat/stream",
                 "events": [
                     "meta",
+                    "plan",
                     "skill",
                     "citation",
                     "tool_call",
                     "tool_result",
                     "token",
                     "notice",
+                    "replan",
                     "confirm_required",
+                    "worker_start",
+                    "worker_done",
+                    "watchdog",
                     "done",
                     "error",
                 ],
             },
             "boundaries": {
                 "database": "Agent 仅通过 ServiceClient 访问服务端；不连接 MySQL/Redis",
-                "agent_storage": "会话、记忆、Skill 市场与 RAG 索引存放在 Agent 自有 SQLite",
-                "frontend": "前端无需改动，按 SSE 契约接入即可；未接入时保留本地规则渲染",
+                "agent_storage": "会话、记忆、Skill 市场、RAG 索引、Trace 存放在 Agent 自有 SQLite",
+                "frontend": "前端通过 agent-adapter.js 接入；离线时回退本地规则",
             },
         }
 
@@ -110,7 +131,7 @@ class AgentApp:
 
     def chat_events(self, request: dict[str, Any]) -> Iterator[AgentEvent]:
         request.setdefault("user_id", DEFAULT_USER_ID)
-        yield from self.runtime.handle(request)
+        yield from self.super_agent.handle(request)
 
     def chat(self, request: dict[str, Any]) -> dict[str, Any]:
         events = list(self.chat_events(request))
@@ -131,6 +152,15 @@ class AgentApp:
         from agent.core.frontend import contract
 
         return contract()
+
+    def traces(self, limit: int = 20) -> list[dict[str, Any]]:
+        return TRACER.list(limit)
+
+    def trace(self, trace_id: str) -> dict[str, Any]:
+        trace = TRACER.get(trace_id)
+        if trace is None:
+            raise AgentError(404, "trace_not_found", "Trace 不存在")
+        return trace
 
     def session_messages(self, session_id: str) -> dict[str, Any]:
         session = self.context.session(session_id)
@@ -282,5 +312,6 @@ class AgentApp:
         return {"ok": True}
 
     def close(self) -> None:
+        self.super_agent.close()
         self.mcp.close()
         self.registry.shutdown()

@@ -12,11 +12,12 @@ from agent import __version__
 from agent.app import AgentApp, AgentError
 from agent.core.runtime import AgentEvent
 
-MAX_BODY_BYTES = 1_000_000
+MAX_BODY_BYTES = 12_000_000
 
 SESSION_MESSAGES = re.compile(r"^/api/sessions/([^/]+)/messages$")
 SESSION_DELETE = re.compile(r"^/api/sessions/([^/]+)$")
 MEMORY_DELETE = re.compile(r"^/api/memory/(\d+)$")
+TRACE_DETAIL = re.compile(r"^/api/traces/([^/]+)$")
 
 
 class AgentHTTPRequestHandler(BaseHTTPRequestHandler):
@@ -139,6 +140,17 @@ class AgentHTTPRequestHandler(BaseHTTPRequestHandler):
 
         if path == "/api/models" and method == "GET":
             return 200, {"models": app.models(), "default": app.meta()["default_model"]}
+
+        if path == "/api/super/status" and method == "GET":
+            return 200, app.super_agent.status()
+
+        if path == "/api/traces" and method == "GET":
+            limit = int(query.get("limit", "20"))
+            return 200, {"traces": app.traces(limit)}
+
+        match = TRACE_DETAIL.match(path)
+        if match and method == "GET":
+            return 200, app.trace(unquote(match.group(1)))
 
         if path in ("/api/chat", "/api/chat/stream") and method == "POST":
             request = dict(body)

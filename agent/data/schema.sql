@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   model_id TEXT,
   skill_id TEXT,
   summary TEXT NOT NULL DEFAULT '',
+  compacted_until_id INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -115,3 +116,27 @@ CREATE TABLE IF NOT EXISTS rag_chunks (
 );
 
 CREATE INDEX IF NOT EXISTS idx_rag_chunks_doc ON rag_chunks(doc_id);
+CREATE TABLE IF NOT EXISTS traces (
+  id TEXT PRIMARY KEY,
+  thread_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'running',
+  model TEXT NOT NULL DEFAULT '',
+  tokens INTEGER NOT NULL DEFAULT 0,
+  error TEXT NOT NULL DEFAULT '',
+  started_at TEXT NOT NULL,
+  finished_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS spans (
+  id TEXT PRIMARY KEY,
+  trace_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'internal',
+  status TEXT NOT NULL DEFAULT 'ok',
+  duration_ms INTEGER NOT NULL DEFAULT 0,
+  detail TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_spans_trace ON spans(trace_id, created_at);

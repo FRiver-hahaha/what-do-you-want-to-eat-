@@ -17,7 +17,8 @@
     models: [],
     meta: null,
     pending: null,
-    lastUser: null
+    lastUser: null,
+    images: []
   };
   let toastTimer;
 
@@ -25,6 +26,63 @@
 
   function escapeHtml(value) {
     return String(value).replace(/[&<>'"]/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[character]));
+  }
+
+  function renderInline(text) {
+    return text
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/`([^`]+)`/g, "<code>$1</code>");
+  }
+
+  function renderMarkdown(markdown) {
+    const lines = escapeHtml(markdown).split("\n");
+    let html = "";
+    let list = "";
+    const closeList = () => {
+      if (list) {
+        html += `</${list}>`;
+        list = "";
+      }
+    };
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line) {
+        closeList();
+        continue;
+      }
+      if (line.startsWith("### ")) {
+        closeList();
+        html += `<h3>${renderInline(line.slice(4))}</h3>`;
+      } else if (line.startsWith("## ")) {
+        closeList();
+        html += `<h2>${renderInline(line.slice(3))}</h2>`;
+      } else if (line.startsWith("# ")) {
+        closeList();
+        html += `<h3>${renderInline(line.slice(2))}</h3>`;
+      } else if (/^[-*]\s+/.test(line)) {
+        if (list !== "ul") {
+          closeList();
+          list = "ul";
+          html += "<ul>";
+        }
+        html += `<li>${renderInline(line.replace(/^[-*]\s+/, ""))}</li>`;
+      } else if (/^\d+\.\s+/.test(line)) {
+        if (list !== "ol") {
+          closeList();
+          list = "ol";
+          html += "<ol>";
+        }
+        html += `<li>${renderInline(line.replace(/^\d+\.\s+/, ""))}</li>`;
+      } else if (line.startsWith("&gt; ")) {
+        closeList();
+        html += `<blockquote>${renderInline(line.slice(5))}</blockquote>`;
+      } else {
+        closeList();
+        html += `<p>${renderInline(line)}</p>`;
+      }
+    }
+    closeList();
+    return html;
   }
 
   function toast(message) {
@@ -101,9 +159,15 @@
       </div>
       <button type="button" class="agent-chip" id="agentSkillButton">Skill 市场</button>
       <button type="button" class="agent-chip" id="agentNewSession">新对话</button>
+      <button type="button" class="agent-chip" id="agentImageButton">图片</button>
+      <input type="file" id="agentImageInput" accept="image/*" multiple hidden>
       <span class="agent-conn"><i></i><span id="agentConnText">连接中</span></span>
     `;
     composer.parentElement.insertBefore(toolbar, composer);
+    const preview = document.createElement("div");
+    preview.id = "agentImagePreview";
+    preview.className = "agent-image-preview";
+    toolbar.insertAdjacentElement("afterend", preview);
     toolbar.querySelectorAll(".agent-mode button").forEach(button => {
       button.classList.toggle("active", button.dataset.mode === state.mode);
       button.addEventListener("click", () => {
@@ -115,6 +179,48 @@
     });
     $("#agentSkillButton", toolbar)?.addEventListener("click", openMarket);
     $("#agentNewSession", toolbar)?.addEventListener("click", startNewSession);
+    $("#agentImageButton", toolbar)?.addEventListener("click", () => $("#agentImageInput", toolbar)?.click());
+    $("#agentImageInput", toolbar)?.addEventListener("change", handleImageFiles);
+  }
+
+  function handleImageFiles(event) {
+    const files = Array.from(event.target.files || []).slice(0, 4);
+    if (!files.length) return;
+    if (state.images.length + files.length > 4) {
+      toast("最多上传 4 张图片");
+    }
+    files.slice(0, Math.max(0, 4 - state.images.length)).forEach(file => {
+      if (!file.type.startsWith("image/")) return;
+      if (file.size > 2_500_000) {
+        toast("单张图片不能超过 2.5MB");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        state.images.push(String(reader.result));
+        renderImagePreview();
+      };
+      reader.readAsDataURL(file);
+    });
+    event.target.value = "";
+  }
+
+  function renderImagePreview() {
+    const preview = $("#agentImagePreview");
+    if (!preview) return;
+    preview.classList.toggle("has-images", state.images.length > 0);
+    preview.innerHTML = state.images.map((source, index) => `
+      <div class="agent-image-thumb">
+        <img src="${source}" alt="待发送图片">
+        <button type="button" data-remove-image="${index}" aria-label="移除图片">×</button>
+      </div>
+    `).join("");
+    preview.querySelectorAll("[data-remove-image]").forEach(button => {
+      button.addEventListener("click", () => {
+        state.images.splice(Number(button.dataset.removeImage), 1);
+        renderImagePreview();
+      });
+    });
   }
 
   function mountDialogs() {
@@ -183,16 +289,29 @@
     }
   }
 
-  function appendUser(text) {
+  function appendUser(text, images = []) {
     const conversation = document.getElementById("conversation");
     if (!conversation) return null;
     const article = document.createElement("article");
     article.className = "message user-message";
     const bubble = document.createElement("div");
     bubble.className = "message-bubble";
-    const paragraph = document.createElement("p");
-    paragraph.textContent = text;
-    bubble.appendChild(paragraph);
+    if (text) {
+      const paragraph = document.createElement("p");
+      paragraph.textContent = text;
+      bubble.appendChild(paragraph);
+    }
+    if (images.length) {
+      const media = document.createElement("div");
+      media.className = "message-images";
+      images.forEach(source => {
+        const image = document.createElement("img");
+        image.src = source;
+        image.alt = "用户上传的图片";
+        media.appendChild(image);
+      });
+      bubble.appendChild(media);
+    }
     article.appendChild(bubble);
     const anchor = document.getElementById("quickPrompts");
     conversation.insertBefore(article, anchor || null);
@@ -286,20 +405,22 @@
       toast("正在回答，请稍等");
       return;
     }
+    const images = options.images || state.images || [];
+    let userArticle = null;
+    if (options.appendUser !== false) userArticle = appendUser(text, images);
     const article = options.article || createAgentMessage();
     if (!article) return;
     const bubble = $(".message-bubble", article);
     const status = $(".agent-status", article);
-    const paragraph = document.createElement("p");
+    let answerText = "";
     bubble.innerHTML = "";
-    bubble.appendChild(paragraph);
-    bubble.classList.add("is-streaming");
+bubble.classList.add("is-streaming");
     status.textContent = "正在思考";
     state.sending = true;
+    state.images = [];
+    renderImagePreview();
     const citations = [];
-    let userArticle = null;
-    if (options.appendUser !== false) userArticle = appendUser(text);
-    recordHistory("user", text);
+    recordHistory("user", text || "请分析图片");
 
     try {
       const response = await fetch(`${BASE}/api/chat/stream`, {
@@ -312,7 +433,8 @@
           mode: state.mode,
           model_id: state.modelId || undefined,
           confirmed_tools: options.confirmedTools || [],
-          client_context: clientContext()
+          client_context: clientContext(),
+          images
         })
       });
       if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
@@ -321,6 +443,10 @@
         if (event === "meta") {
           const model = data.model && data.model !== "auto" ? data.model : state.modelId || "本地规则";
           status.textContent = `${data.mode_name || "问答"} · ${model}`;
+        } else if (event === "worker_start") {
+          status.textContent = "已分派 Worker";
+        } else if (event === "plan") {
+          status.textContent = `计划：${data.task_type || "处理中"}`;
         } else if (event === "skill") {
           status.textContent = `技能：${data.display_name || data.id}`;
         } else if (event === "tool_call") {
@@ -329,15 +455,18 @@
           if (data.need_confirm) status.textContent = "等待你的确认";
           else status.textContent = data.ok ? "已完成查询" : "查询失败，继续整理";
         } else if (event === "token") {
-          const chunk = document.createElement("span");
-          chunk.textContent = data.text || "";
-          paragraph.appendChild(chunk);
+answerText += data.text || "";
+          bubble.innerHTML = renderMarkdown(answerText);
           const conversation = document.getElementById("conversation");
           conversation?.scrollTo({ top: conversation.scrollHeight, behavior: "smooth" });
         } else if (event === "citation") {
           citations.push(data);
         } else if (event === "notice") {
           toast(data.message || "已切换本地模型");
+        } else if (event === "replan") {
+          toast(`已重新规划：${data.failed_tool || "工具失败"}`);
+        } else if (event === "watchdog") {
+          toast(data.message || "后台任务已超时");
         } else if (event === "confirm_required") {
           state.pending = {
             text,
@@ -353,7 +482,8 @@
           status.textContent = "等待你的确认";
         } else if (event === "error") {
           status.textContent = "出错了";
-          paragraph.textContent = data.message || "Agent 返回了错误";
+          answerText = data.message || "Agent 返回了错误";
+          bubble.innerHTML = renderMarkdown(answerText);
         } else if (event === "done") {
           article.classList.remove("typing-message");
           bubble.classList.remove("is-streaming");
@@ -361,10 +491,11 @@
         }
       });
 
-      if (!paragraph.textContent.trim()) {
-        paragraph.textContent = "我这轮没有取到足够的信息。你可以告诉我具体餐次，我再查一次。";
+      if (!answerText.trim()) {
+        answerText = "我这轮没有取到足够的信息。你可以告诉我具体餐次，我再查一次。";
+        bubble.innerHTML = renderMarkdown(answerText);
       }
-      recordHistory("agent", paragraph.textContent);
+      recordHistory("agent", answerText);
       renderCitations(article, citations);
       article.classList.remove("typing-message");
       bubble.classList.remove("is-streaming");
@@ -375,7 +506,9 @@
       updateConnection("本地模式", "offline");
       toast("Agent 不可用，已切回本地分析");
       window.eatAgent.fallback = true;
-      window.eatLocal?.sendPrompt?.(text);
+      if (text) {
+        window.eatLocal?.sendPrompt?.(text);
+      }
     } finally {
       state.sending = false;
     }
@@ -583,6 +716,8 @@
     archiveCurrentSession();
     state.sessionId = `web_${Date.now().toString(36)}`;
     localStorage.setItem(STORE.session, state.sessionId);
+    state.images = [];
+    renderImagePreview();
     const conversation = document.getElementById("conversation");
     if (conversation) [...conversation.querySelectorAll(".message")].slice(1).forEach(node => node.remove());
     renderHistoryList(document.getElementById("agentHistorySearch")?.value || "");
@@ -714,12 +849,12 @@
         return false;
       }
       const value = String(text || "").trim();
-      if (!value) return false;
+      if (!value && !state.images.length) return false;
       if (state.sending) {
         toast("正在回答，请稍等");
         return true;
       }
-      send(value);
+      send(value, { images: state.images });
       return true;
     },
     fallback: false,

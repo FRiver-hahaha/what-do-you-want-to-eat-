@@ -41,6 +41,21 @@ SAFETY_RULES = """安全边界：
 - 涉及严重过敏、持续呕吐、呼吸困难、孕期或慢性病用药时，建议就医或咨询专业人士。
 """
 
+FORMAT_RULES = """排版规则（服务于可读性）：
+- 简单问题用 1-3 句直接回答，不强行分点，不加标题。
+- 复杂问题才用 Markdown：先给结论，再用小标题、列表或表格组织依据；不要为了排版而排版。
+- 不使用一级标题；标题最多二级；列表不超过两层。
+- 关键数字可以加粗，但一段最多两处。
+- 除非用户要求，不使用代码块。
+- 图片输入时先描述看到的食物和份量，再给建议。
+"""
+
+SUPER_AGENT_RULES = """单 Agent 工作规则：
+- 内部按 Router / Worker 分工，对外只输出最终结果，不展示内部计划、思考链或工具原始 JSON。
+- 工具失败时换一种可用工具或如实说明；必要时重新规划，不要重复同一个失败调用。
+- 高风险写操作必须等待用户确认，确认前不要声称已经完成。
+"""
+
 
 def _profile_block(profile: dict[str, Any]) -> str:
     if not profile:
@@ -67,18 +82,33 @@ def build_system_prompt(
     knowledge_block: str = "",
     tool_names: list[str] | None = None,
     client_block: str = "",
+    plan_block: str = "",
+    summary_block: str = "",
+    has_images: bool = False,
 ) -> str:
-    parts = [BASE_RULES, MODE_RULES.get(mode, MODE_RULES["qa"]), _profile_block(profile)]
+    parts = [
+        BASE_RULES,
+        MODE_RULES.get(mode, MODE_RULES["qa"]),
+        FORMAT_RULES,
+        TOOL_RULES,
+        SAFETY_RULES,
+        SUPER_AGENT_RULES,
+        _profile_block(profile),
+    ]
     if client_block:
         parts.append(client_block)
     if memory_block:
         parts.append(memory_block)
+    if summary_block:
+        parts.append("<history_summary>\n" + summary_block + "\n</history_summary>")
+    if plan_block:
+        parts.append(plan_block)
     if tool_names:
         parts.append("<tools>当前可用工具：" + "、".join(sorted(tool_names)) + "</tools>")
     if skill_prompt:
         parts.append(skill_prompt)
     if knowledge_block:
         parts.append("<knowledge>\n" + knowledge_block + "\n</knowledge>")
-    parts.append(TOOL_RULES)
-    parts.append(SAFETY_RULES)
+    if has_images:
+        parts.append("<images>本轮用户提供了图片，请先识别其中的食物与份量，再结合档案和工具数据分析。</images>")
     return "\n\n".join(parts)

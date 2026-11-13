@@ -151,18 +151,25 @@ def build_client_block(client_context: dict[str, Any], allow_local: bool) -> str
 
 def contract() -> dict[str, Any]:
     return {
-        "version": "1.0.0",
-        "frontend_baseline": "origin/main 32ec689",
+        "version": "2.0.0",
+        "frontend_baseline": "origin/main c83068c",
         "aligned": {
             "food_fields": ["id", "name", "category", "description", "calories", "protein", "fiber", "veggies", "water", "nature", "keywords", "image", "match"],
             "profile_fields": sorted(PROFILE_FIELDS),
             "meal_fields": sorted(MEAL_FIELDS),
             "match_algorithm": "与 app.js getFoodMatch 同源：基础 54，按蔬菜/蛋白/纤维缺口加权，热量档位，放纵 -14，目标修正，20 到 98",
             "chat_entry": "#chatForm + #chatInput",
+            "images": "POST /api/chat/stream 的 images 数组，支持 dataURL 或 http(s) 图片，最多 4 张",
+            "markdown": "回答按 Markdown 渲染：简单问题轻量段落，复杂问题使用标题、列表与加粗",
+            "streaming": "token 按模型生成顺序逐字到达",
+            "plan": "plan / replan 事件暴露执行计划与重新规划",
+            "worker": "worker_start / worker_done 暴露 Router 分派结果",
         },
         "dom": {
             "composer": "#chatForm",
             "chat_input": "#chatInput",
+            "image_preview": "#agentImagePreview",
+            "image_input": "#agentImageInput",
             "conversation": "#conversation",
             "user_message": ".message.user-message",
             "agent_message": ".message.agent-message",
@@ -191,6 +198,11 @@ def contract() -> dict[str, Any]:
         },
         "event_mapping": {
             "meta": "写入当前会话状态，不直接渲染",
+            "plan": "显示当前任务计划类型，不展示内部推理",
+            "replan": "提示已根据失败结果重新规划",
+            "worker_start": "在 .message-meta 显示 Worker 已分派",
+            "worker_done": "结束 Worker 状态",
+            "watchdog": "用 toast 提示后台任务超时或异常",
             "skill": "可在消息元信息显示当前技能名",
             "citation": "追加到回答下方，作为可展开来源",
             "tool_call": "在 .message-meta 显示正在查询的状态",
@@ -206,14 +218,11 @@ def contract() -> dict[str, Any]:
             "meals": [{"type": "string", "time": "string", "text": "string", "protein": "number", "fiber": "number", "veggies": "number", "water": "number"}],
             "today": {"score": "number", "status": "string", "nutrition": {"protein": "number", "fiber": "number", "veggies": "number", "water": "number"}},
         },
+        "request_images": {"type": "array", "items": "dataURL 或 http(s) URL", "max_items": 4, "max_chars": 2500000},
         "gaps": [
-            {"id": "mode_switch", "name": "问答/工作模式切换", "needed_ui": "在 #chatForm 附近增加模式切换", "agent_api": "POST /api/chat/stream 的 mode 字段"},
-            {"id": "model_select", "name": "模型选择", "needed_ui": "在设置弹窗或输入区增加模型下拉", "agent_api": "GET /api/models + model_id 字段"},
-            {"id": "sse_adapter", "name": "SSE 流式适配层", "needed_ui": "新增独立 JS 模块，不修改 app.js 主流程", "agent_api": "POST /api/chat/stream"},
-            {"id": "confirm_dialog", "name": "写操作确认弹窗", "needed_ui": "新增通用确认 dialog", "agent_api": "confirm_required 事件 + confirmed_tools"},
-            {"id": "skill_market", "name": "Skill 市场与安装", "needed_ui": "新增市场视图或弹窗", "agent_api": "GET /api/skills/market、POST /api/skills/market/install、share"},
-            {"id": "citation_panel", "name": "知识引用展示", "needed_ui": "在回答下方增加来源展开区", "agent_api": "citation 事件"},
-            {"id": "session_manager", "name": "会话列表与清空", "needed_ui": "新增会话入口", "agent_api": "GET /api/sessions/{id}/messages、DELETE /api/sessions/{id}"},
-            {"id": "health_status", "name": "Agent 连接状态", "needed_ui": "在 .agent-state 显示 mock/service、MCP 状态", "agent_api": "GET /api/agent/meta、GET /api/mcp/status"}
+            {"id": "real_service_data", "name": "真实服务端数据", "needed_ui": "无需前端改动", "agent_api": "EAT_SERVER_BASE_URL + /api/v1/*"},
+            {"id": "meal_search_backend", "name": "菜品搜索走后端", "needed_ui": "可保留本地 searchFoods", "agent_api": "GET /api/tools + search_foods"},
+            {"id": "guess_backend", "name": "猜餐走后端", "needed_ui": "保留本地 renderInference 作为降级", "agent_api": "meal-guess Skill + get_recent_meals"},
+            {"id": "vision_model", "name": "视觉模型开通", "needed_ui": "图片入口已接入", "agent_api": "deepseek-vl2 或本地 VLM"},
         ],
     }

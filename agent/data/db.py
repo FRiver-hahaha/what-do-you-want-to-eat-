@@ -41,6 +41,9 @@ def init_db() -> None:
     sql = SCHEMA_PATH.read_text(encoding="utf-8")
     with transaction() as conn:
         conn.executescript(sql)
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(sessions)").fetchall()}
+        if "compacted_until_id" not in columns:
+            conn.execute("ALTER TABLE sessions ADD COLUMN compacted_until_id INTEGER NOT NULL DEFAULT 0")
 
 
 def execute(sql: str, params: Sequence[Any] = ()) -> int:

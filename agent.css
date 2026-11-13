@@ -562,3 +562,113 @@
 .agent-avatar.has-photo svg {
   display: none;
 }
+
+.agent-image-preview {
+  display: none;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.agent-image-preview.has-images {
+  display: flex;
+}
+
+.agent-image-thumb {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 4px 14px rgba(31, 38, 57, 0.08);
+}
+
+.agent-image-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.agent-image-thumb button {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(31, 38, 57, 0.65);
+  color: #ffffff;
+  font-size: 13px;
+  line-height: 20px;
+  cursor: pointer;
+}
+
+.message-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.message-images img {
+  display: block;
+  width: 120px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 10px;
+}
+
+.message-bubble h2 {
+  margin: 2px 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.message-bubble h3 {
+  margin: 8px 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.message-bubble p {
+  margin: 0 0 7px;
+  line-height: 1.6;
+}
+
+.message-bubble ul,
+.message-bubble ol {
+  margin: 4px 0 8px;
+  padding-left: 20px;
+}
+
+.message-bubble li {
+  margin: 3px 0;
+  line-height: 1.55;
+}
+
+.message-bubble strong {
+  color: #1f2639;
+  font-weight: 600;
+}
+
+.message-bubble code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: rgba(31, 38, 57, 0.06);
+  font-size: 0.9em;
+}
+
+.message-bubble blockquote {
+  margin: 6px 0;
+  padding: 6px 12px;
+  border-left: 3px solid #ffb6c1;
+  border-radius: 0 8px 8px 0;
+  background: rgba(255, 255, 255, 0.45);
+  color: #6b7280;
+}
