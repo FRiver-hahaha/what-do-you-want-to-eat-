@@ -162,13 +162,18 @@
     toolbar.className = "agent-toolbar";
     toolbar.innerHTML = `
       <div class="agent-mode" role="group" aria-label="Agent 模式">
-        <button type="button" data-mode="qa" data-tooltip="只读问答，不写入数据">问答</button>
-        <button type="button" data-mode="work" data-tooltip="可读菜单、写入记录、管理技能">工作</button>
-        <span class="agent-access-badge" id="agentAccessBadge"></span>
+        <button type="button" class="agent-btn" data-mode="qa">问答</button>
+        <div class="agent-work" id="agentWork">
+          <button type="button" class="agent-btn agent-work-main" data-mode="work"><span id="agentWorkLabel">工作 · 手动审批</span></button>
+          <button type="button" class="agent-work-caret" id="agentAccessToggle" aria-label="切换工作方式"><svg class="icon"><use href="#icon-chevron-right"></use></svg></button>
+          <div class="agent-access-menu" id="agentAccessMenu">
+            <button type="button" data-access="manual"><span>手动审批</span><small>重要操作由你确认</small></button>
+            <button type="button" data-access="full"><span>完全访问</span><small>写操作直接执行</small></button>
+          </div>
+        </div>
       </div>
-      <button type="button" class="agent-chip" id="agentExpertButton" title="选择专家">专家</button>
-      <button type="button" class="agent-chip" id="agentNewSession">新对话</button>
-      <button type="button" class="agent-chip agent-context-chip" id="agentContextButton" title="查看上下文使用率">上下文</button>
+      <button type="button" class="agent-btn" id="agentNewSession">新对话</button>
+      <button type="button" class="agent-btn agent-context-chip" id="agentContextButton"><span id="agentContextLabel">上下文 0%</span></button>
       <input type="file" id="agentImageInput" accept="image/*" multiple hidden>
       <span class="agent-conn"><i></i><span id="agentConnText">连接中</span></span>
     `;
@@ -181,18 +186,25 @@
     expertChips.id = "agentExpertChips";
     expertChips.className = "agent-expert-chips";
     preview.insertAdjacentElement("afterend", expertChips);
-    toolbar.querySelectorAll(".agent-mode button").forEach(button => {
+    toolbar.querySelectorAll("[data-mode]").forEach(button => {
       button.classList.toggle("active", button.dataset.mode === state.mode);
+      button.addEventListener("click", () => applyMode(button.dataset.mode));
+    });
+    $("#agentAccessToggle", toolbar)?.addEventListener("click", event => {
+      event.stopPropagation();
+      toggleAccessMenu();
+    });
+    $("#agentAccessMenu", toolbar)?.querySelectorAll("[data-access]").forEach(button => {
       button.addEventListener("click", () => {
-        const mode = button.dataset.mode;
-        const alreadyWork = state.mode === "work";
-        applyMode(mode);
-        if (mode === "work") openAccessSheet(alreadyWork ? "settings" : "switch");
+        setAccess(button.dataset.access);
+        closeAccessMenu();
       });
     });
-    $("#agentExpertButton", toolbar)?.addEventListener("click", openExpertMenu);
+    document.addEventListener("click", event => {
+      if (!event.target.closest(".agent-work")) closeAccessMenu();
+    });
     $("#agentNewSession", toolbar)?.addEventListener("click", startNewSession);
-    $("#agentContextButton", toolbar)?.addEventListener("click", () => openContextPanel());
+    $("#agentContextButton", toolbar)?.addEventListener("click", () => toggleContextPanel());
     $("#agentImageInput", toolbar)?.addEventListener("change", handleImageFiles);
     document.getElementById("agentMarketEntry")?.addEventListener("click", openMarket);
     document.getElementById("photoButton")?.addEventListener("click", event => {
@@ -202,6 +214,8 @@
       $("#agentImageInput", toolbar)?.click();
     }, true);
     bindComposer();
+    updateWorkLabel();
+    setInterval(() => { if (state.ready) refreshContextBadge(); }, 8000);
   }
 
   function updateInputCount() {
@@ -274,17 +288,26 @@
   function applyMode(mode) {
     state.mode = mode === "work" ? "work" : "qa";
     localStorage.setItem(STORE.mode, state.mode);
-    document.querySelectorAll(".agent-mode button").forEach(item => item.classList.toggle("active", item.dataset.mode === state.mode));
-    updateAccessBadge();
+    document.querySelectorAll(".agent-mode [data-mode]").forEach(item => item.classList.toggle("active", item.dataset.mode === state.mode));
+    updateWorkLabel();
     refreshContextBadge();
   }
 
-  function updateAccessBadge() {
-    const badge = document.getElementById("agentAccessBadge");
-    if (!badge) return;
-    badge.hidden = state.mode !== "work";
-    badge.textContent = state.access === "full" ? "完全访问" : "手动审批";
-    badge.dataset.access = state.access;
+  function updateWorkLabel() {
+    const label = document.getElementById("agentWorkLabel");
+    if (label) label.textContent = `工作 · ${state.access === "full" ? "完全访问" : "手动审批"}`;
+    const menu = document.getElementById("agentAccessMenu");
+    menu?.querySelectorAll("[data-access]").forEach(button => button.classList.toggle("active", button.dataset.access === state.access));
+  }
+
+  function toggleAccessMenu() {
+    const menu = document.getElementById("agentAccessMenu");
+    if (menu) menu.classList.toggle("open");
+  }
+
+  function closeAccessMenu() {
+    const menu = document.getElementById("agentAccessMenu");
+    if (menu) menu.classList.remove("open");
   }
 
   function openAccessSheet(reason = "settings") {
@@ -309,7 +332,7 @@
   function setAccess(level) {
     state.access = level === "full" ? "full" : "manual";
     localStorage.setItem(STORE.access, state.access);
-    updateAccessBadge();
+    updateWorkLabel();
     syncAccessOptions();
     $("#agentAccessDialog")?.close();
     toast(state.access === "full" ? "已切换为完全访问" : "已切换为手动审批");
@@ -337,17 +360,50 @@
     if (!button || !state.ready) return;
     try {
       const stats = await contextStats();
-      button.textContent = `上下文 ${stats.percent}%`;
+      const label = document.getElementById("agentContextLabel");
+      if (label) label.textContent = `上下文 ${stats.percent}%`;
       button.dataset.percent = String(stats.percent);
+      button.style.setProperty("--context-progress", String(stats.percent));
     } catch {
-      button.textContent = "上下文";
+      const label = document.getElementById("agentContextLabel");
+      if (label) label.textContent = "上下文";
     }
+  }
+
+  function toggleContextPanel() {
+    const panel = $("#agentContextPanel");
+    if (panel?.open) {
+      closeContextPanel();
+      return;
+    }
+    panel?.classList.remove("closing");
+    openContextPanel();
+  }
+
+  function closeContextPanel() {
+    const panel = $("#agentContextPanel");
+    if (!panel?.open) return;
+    panel.classList.add("closing");
+    setTimeout(() => {
+      panel.classList.remove("closing");
+      panel.close();
+    }, 280);
   }
 
   async function openContextPanel() {
     const panel = $("#agentContextPanel");
     if (!panel) return;
-    if (!panel.open) panel.showModal();
+    const button = document.getElementById("agentContextButton");
+    if (button) {
+      const rect = button.getBoundingClientRect();
+      const width = Math.min(380, window.innerWidth - 24);
+      const left = Math.max(12, Math.min(rect.left, window.innerWidth - width - 12));
+      panel.style.width = `${width}px`;
+      panel.style.left = `${left}px`;
+      panel.style.bottom = `${window.innerHeight - rect.top + 10}px`;
+      panel.style.transformOrigin = `${rect.left + rect.width / 2 - left}px 100%`;
+    }
+    if (!panel.open) panel.show();
     await renderContextPanel();
   }
 
@@ -614,8 +670,13 @@
       button.addEventListener("click", () => setAccess(button.dataset.access));
     });
     $("#agentAccessClose")?.addEventListener("click", () => accessDialog.close());
-    $("#agentContextClose")?.addEventListener("click", () => contextPanel.close());
+    $("#agentContextClose")?.addEventListener("click", () => closeContextPanel());
     $("#agentContextCompact")?.addEventListener("click", compactContext);
+    document.addEventListener("click", event => {
+      if (!contextPanel.open) return;
+      if (contextPanel.contains(event.target) || event.target.closest("#agentContextButton")) return;
+      closeContextPanel();
+    });
     document.addEventListener("click", event => {
       const menu = document.getElementById("agentExpertMenu");
       if (!menu?.classList.contains("open")) return;
@@ -656,7 +717,7 @@
       const source = meta.service?.mode === "service" ? "服务端" : "mock";
       const mcpOnline = Object.values(meta.mcp?.servers || {}).some(server => server.running);
       updateConnection(`Agent 在线 · ${source}${mcpOnline ? " · MCP" : ""}`, "online");
-      updateAccessBadge();
+      updateWorkLabel();
       updateExpertLabel();
       loadExperts().then(() => updateExpertLabel());
       refreshContextBadge();
@@ -1398,7 +1459,7 @@ bubble.classList.add("is-streaming");
   mountToolbar();
   mountDialogs();
   mountToneSetting();
-  updateAccessBadge();
+  updateWorkLabel();
   updateExpertLabel();
   loadModels();
   loadMeta();
