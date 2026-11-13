@@ -1,0 +1,1345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChatRoom</title>
+<style>
+/* ================================================================
+   Reset & Base
+   ================================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", sans-serif;
+  font-size: 14px; color: #333; background: #f0f0f0;
+  height: 100vh; overflow: hidden; user-select: none;
+}
+
+/* ================================================================
+   Login Overlay
+   ================================================================ */
+#login-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: linear-gradient(135deg, #12b7f5 0%, #1890ff 60%, #0d47a1 100%);
+  display: flex; align-items: center; justify-content: center;
+}
+#login-box { width: 400px; background: #fff; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,.3); padding: 40px 36px 32px; }
+#login-box h2 { text-align: center; font-size: 22px; color: #12b7f5; margin-bottom: 24px; }
+#login-box .tabs { display: flex; border-bottom: 2px solid #eee; margin-bottom: 20px; }
+#login-box .tabs button {
+  flex: 1; padding: 10px 0; border: none; background: none;
+  font-size: 15px; color: #999; cursor: pointer; transition: .2s;
+}
+#login-box .tabs button.active { color: #12b7f5; border-bottom: 2px solid #12b7f5; margin-bottom: -2px; }
+#login-box .field { margin-bottom: 14px; }
+#login-box .field input {
+  width: 100%; padding: 10px 14px; border: 1px solid #ddd; border-radius: 6px;
+  font-size: 14px; outline: none; transition: border .2s;
+}
+#login-box .field input:focus { border-color: #12b7f5; }
+#login-box .btn {
+  width: 100%; padding: 10px; border: none; border-radius: 6px;
+  font-size: 15px; cursor: pointer; transition: .2s; margin-top: 6px;
+}
+#login-box .btn.primary { background: #12b7f5; color: #fff; }
+#login-box .btn.primary:hover { background: #0ea0df; }
+#login-box .btn.primary:disabled { background: #b0dff5; cursor: not-allowed; }
+#login-box .btn.secondary { background: #f0f0f0; color: #666; margin-top: 4px; }
+#login-box .btn.secondary:hover { background: #e0e0e0; }
+#login-box .msg { text-align: center; margin-top: 10px; font-size: 13px; min-height: 20px; }
+#login-box .msg.ok { color: #52c41a; }
+#login-box .msg.err { color: #f5222d; }
+#login-box .url-row { margin-bottom: 16px; }
+#login-box .url-row input { width: 100%; padding: 10px 14px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; outline: none; }
+#login-box .url-row input:focus { border-color: #12b7f5; }
+#login-box .url-row input:disabled { background: #f5f5f5; color: #999; }
+
+/* ================================================================
+   Main App Layout
+   ================================================================ */
+#app { display: flex; height: 100vh; }
+
+/* Sidebar */
+#sidebar {
+  width: 280px; min-width: 280px; background: #e9edf2;
+  display: flex; flex-direction: column; border-right: 1px solid #d6d6d6;
+}
+#sidebar-top {
+  padding: 14px 16px; border-bottom: 1px solid #d6d6d6;
+  display: flex; align-items: center;
+}
+#sidebar-top .avatar {
+  width: 38px; height: 38px; border-radius: 50%; background: #12b7f5;
+  color: #fff; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 16px; margin-right: 10px; flex-shrink: 0;
+}
+#sidebar-top .uname { font-size: 15px; font-weight: 600; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+#unread-badge {
+  display: none; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 14px;
+  background: #f5222d; color: #fff; font-size: 12px; cursor: pointer; flex-shrink: 0;
+}
+#unread-badge:hover { background: #d9363e; }
+
+#sidebar-nav { flex: 1; overflow-y: auto; }
+.nav-section { padding: 6px 0; }
+.nav-section-title { padding: 10px 16px 4px; font-size: 12px; color: #999; }
+.nav-empty { padding: 16px; text-align: center; color: #ccc; font-size: 13px; }
+.nav-item {
+  display: flex; align-items: center; padding: 11px 16px; cursor: pointer;
+  transition: background .1s; border-bottom: 1px solid rgba(0,0,0,.03);
+}
+.nav-item:hover { background: #dce6f0; }
+.nav-item .n-icon { margin-right: 10px; font-size: 18px; flex-shrink: 0; width: 24px; text-align: center; }
+.nav-item .n-label { flex: 1; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nav-item .n-sub { font-size: 12px; color: #999; margin-left: 6px; white-space: nowrap; }
+.nav-item .n-arrow { color: #bbb; font-size: 14px; }
+.nav-item.back { color: #12b7f5; font-weight: 600; border-bottom: 1px solid #d6d6d6; }
+.nav-item.back .n-icon { color: #12b7f5; }
+.nav-item.action { color: #52c41a; }
+.nav-item.danger { color: #f5222d; }
+
+/* member ops rows */
+.member-row {
+  display: flex; align-items: center; padding: 10px 16px; border-bottom: 1px solid rgba(0,0,0,.04);
+}
+.member-row .n-label { flex: 1; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.member-row .n-sub { font-size: 11px; color: #999; margin: 0 8px; white-space: nowrap; }
+.member-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.member-actions .act {
+  padding: 3px 8px; border: 1px solid #ddd; border-radius: 3px; font-size: 11px;
+  cursor: pointer; background: #fff; color: #333;
+}
+.member-actions .act.accept { background: #52c41a; color: #fff; border-color: #52c41a; }
+.member-actions .act.reject { background: #f5222d; color: #fff; border-color: #f5222d; }
+.member-actions .act:hover { filter: brightness(.95); }
+
+/* invite modal list */
+.invite-friend { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; cursor: pointer; }
+.invite-friend:hover { background: #f0f7ff; }
+
+/* ================================================================
+   Main (chat area)
+   ================================================================ */
+#main { flex: 1; display: flex; flex-direction: column; background: #f5f6fa; }
+.placeholder { flex: 1; display: flex; align-items: center; justify-content: center; color: #ccc; font-size: 18px; }
+
+.chat-header {
+  padding: 12px 20px; border-bottom: 1px solid #e0e0e0; background: #fff;
+  font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 12px;
+}
+.chat-header .back-btn {
+  padding: 4px 10px; border: 1px solid #ddd; border-radius: 4px;
+  background: #fff; cursor: pointer; font-size: 12px; color: #666;
+}
+.chat-header .back-btn:hover { border-color: #12b7f5; color: #12b7f5; }
+.chat-header .clear-btn { margin-left: auto; padding: 4px 10px; border: 1px solid #ddd; border-radius: 4px; background: #fff; cursor: pointer; font-size: 12px; color: #999; }
+.chat-header .clear-btn:hover { border-color: #f5222d; color: #f5222d; }
+.readonly-tag { font-size: 12px; color: #999; font-weight: 400; }
+
+.messages { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 4px; }
+.msg-row { display: flex; margin-bottom: 12px; align-items: flex-start; }
+.msg-row.self { flex-direction: row-reverse; }
+.msg-row .m-avatar {
+  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 13px;
+}
+.msg-row.self .m-avatar { margin-left: 10px; }
+.msg-row:not(.self) .m-avatar { margin-right: 10px; }
+.msg-row .m-body { max-width: 60%; display: flex; flex-direction: column; }
+.msg-row.self .m-body { align-items: flex-end; }
+.msg-row .m-bubble {
+  padding: 10px 14px; border-radius: 8px; word-break: break-all; line-height: 1.5; font-size: 14px;
+}
+.msg-row:not(.self) .m-bubble { background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.msg-row.self .m-bubble { background: #9eea6a; }
+.msg-row .m-time { font-size: 11px; color: #bbb; margin-top: 2px; }
+.m-file { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 10px; background: rgba(0,0,0,.05); border-radius: 6px; margin-top: 6px; font-size: 13px; }
+.m-file:hover { background: rgba(0,0,0,.12); }
+.m-file-name { font-size: 13px; }
+.m-file-sent { font-size: 12px; color: #aaa; margin-top: 4px; }
+
+.input-area { border-top: 1px solid #e0e0e0; background: #fff; }
+.input-toolbar { display: flex; gap: 4px; padding: 6px 16px; }
+.input-toolbar button { padding: 4px 10px; border: none; background: none; cursor: pointer; font-size: 12px; color: #999; border-radius: 4px; }
+.input-toolbar button:hover { background: #f0f0f0; color: #333; }
+.input-area textarea { width: 100%; height: 80px; border: none; outline: none; resize: none; padding: 0 16px 10px; font-size: 14px; font-family: inherit; line-height: 1.6; }
+.input-bottom { display: flex; justify-content: flex-end; padding: 6px 16px 10px; }
+.input-bottom button { padding: 6px 24px; border: none; border-radius: 4px; background: #12b7f5; color: #fff; font-size: 14px; cursor: pointer; }
+.input-bottom button:hover { background: #0ea0df; }
+.input-bottom button:disabled { background: #b0dff5; cursor: not-allowed; }
+.input-bottom .limit-hint { margin-right: 12px; align-self: center; font-size: 12px; color: #f5222d; white-space: nowrap; }
+
+/* unread list */
+.unread-list { flex: 1; overflow-y: auto; padding: 8px 0; }
+.unread-item { display: flex; align-items: flex-start; gap: 10px; padding: 12px 20px; border-bottom: 1px solid #eee; }
+.unread-item.clickable { cursor: pointer; }
+.unread-item.clickable:hover { background: #eef4fb; }
+.unread-type { font-size: 18px; flex-shrink: 0; }
+.unread-text { font-size: 14px; line-height: 1.5; word-break: break-all; }
+
+/* Modal */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,.4);
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-box { width: 380px; max-height: 80vh; overflow-y: auto; background: #fff; border-radius: 10px; padding: 28px 28px 20px; box-shadow: 0 10px 40px rgba(0,0,0,.2); }
+.modal-box h3 { margin-bottom: 16px; font-size: 16px; color: #333; }
+.modal-box .field { margin-bottom: 12px; }
+.modal-box .field input, .modal-box .field select { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; outline: none; }
+.modal-box .field input:focus, .modal-box .field select:focus { border-color: #12b7f5; }
+.modal-box .btns { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+.modal-box .btns button { padding: 6px 18px; border: none; border-radius: 4px; font-size: 13px; cursor: pointer; }
+.modal-box .btns .ok { background: #12b7f5; color: #fff; }
+.modal-box .btns .cancel { background: #eee; color: #666; }
+.modal-box .btn2 { padding: 8px 12px; border: 1px solid #12b7f5; border-radius: 4px; background: #fff; color: #12b7f5; cursor: pointer; font-size: 13px; white-space: nowrap; }
+.modal-box .btn2:hover { background: #eef7ff; }
+.modal-box .modal-msg { margin-bottom: 12px; font-size: 13px; }
+.modal-box .modal-msg.ok { color: #52c41a; }
+.modal-box .modal-msg.err { color: #f5222d; }
+</style>
+</head>
+<body>
+
+<!-- Login Overlay -->
+<div id="login-overlay">
+<div id="login-box">
+  <h2>ChatRoom</h2>
+  <div class="url-row" style="display:flex;gap:8px">
+    <input type="text" id="ws-url" placeholder="ws://IP:10000" value="ws://127.0.0.1:10000" style="flex:1">
+    <button class="btn primary" style="width:auto;margin:0;white-space:nowrap" id="connect-btn" onclick="App.connect()">连接</button>
+  </div>
+  <div class="tabs">
+    <button class="active" data-tab="login">密码登录</button>
+    <button data-tab="code">验证码登录</button>
+    <button data-tab="register">注册账号</button>
+  </div>
+  <!-- 密码登录 -->
+  <div id="form-login">
+    <div class="field"><input type="text" id="l-email" placeholder="邮箱"></div>
+    <div class="field"><input type="password" id="l-pwd" placeholder="密码"></div>
+    <button class="btn primary" onclick="App.login()">登 录</button>
+  </div>
+  <!-- 验证码登录 -->
+  <div id="form-code" style="display:none">
+    <div class="field"><input type="text" id="c-email" placeholder="邮箱"></div>
+    <div class="field" style="display:flex;gap:8px">
+      <input type="text" id="c-code" placeholder="验证码" style="flex:1">
+      <button class="btn secondary" style="width:auto;margin:0;white-space:nowrap" onclick="App.sendCode()">获取验证码</button>
+    </div>
+    <button class="btn primary" onclick="App.codeLogin()">登 录</button>
+  </div>
+  <!-- 注册 -->
+  <div id="form-register" style="display:none">
+    <div class="field"><input type="text" id="r-email" placeholder="邮箱"></div>
+    <div class="field"><input type="text" id="r-name" placeholder="用户名"></div>
+    <div class="field"><input type="password" id="r-pwd" placeholder="密码"></div>
+    <button class="btn primary" onclick="App.register()">注 册</button>
+  </div>
+  <div class="msg" id="login-msg"></div>
+</div>
+</div>
+
+<!-- Main App -->
+<div id="app" style="display:none">
+  <div id="sidebar">
+    <div id="sidebar-top">
+      <span class="avatar" id="my-avatar">我</span>
+      <span class="uname" id="my-name"></span>
+      <span id="unread-badge" onclick="App.openUnread()">🔔 未读 0</span>
+    </div>
+    <div id="sidebar-nav"></div>
+  </div>
+  <div id="main"></div>
+</div>
+
+<script>
+// ================================================================
+// 协议类型映射（与服务端 ChatService.cc 一致）
+//   0 心跳  1 注册  2 密码登录  3 发送验证码  4 验证码登录  5 改密
+//   6 退出登录  7 注销账号  8 好友列表  9 好友申请  10 处理好友申请
+//   11 拉黑/取消  12 删除好友  13 私聊  14 私聊历史  15 群列表
+//   16 创建群  17 邀请入群  18 申请入群  19 处理入群申请  20 群成员
+//   21 设置管理  22 踢出成员  23 退出群  24 解散群  25 群聊  26 群历史  27 拉取文件
+// ================================================================
+const App = {
+  ws: null,
+  url: '',
+  user: null,          // {id, name, email}
+  friends: [],         // 好友列表（type 8）
+  groups: [],          // 群列表（type 15）
+  unread: [],          // 未读消息 [{type, text, chatType?, chatId?, chatName?}]
+  navStack: [],        // 页面栈
+  historyTarget: null, // 当前聊天/历史对象 {type:'friend'|'group', id, name}
+  historyReadonly: false,
+  chatSession: null,   // 当前会话 {type, id}，仅私聊/群聊时设置
+  messages: {},        // key('friend_x'/'group_x') -> 气泡数组
+  groupCtx: {},        // {groupId, myRole, members}
+  memberMode: null,    // 'menu' | 'ops' | null
+  codeFlow: null,      // 'login' | 'changepwd'
+  view: 'placeholder', // 'placeholder' | 'chat' | 'unread'
+  heartbeatTimer: null,
+  reconnectTimer: null,
+
+  // ── 文件传输运行时状态 ───────────
+  _sendingFile: false,   // 是否有文件正在发送（阻塞并发）
+  _pendingFile: null,    // 等待 code:4 的文件 {type, rid, file, name, ref?}
+  _fileOp: null,         // 'upload' | 'download' | null
+  _fileActive: false,    // 是否处于 @FILE|R| 与 @FILE|E| 之间
+  _fileChunks: [],       // 累积的二进制字节
+  _dlName: null,         // 下载时的原始文件名
+
+  // ── 连接 ───────────────────────────
+  connect(url) {
+    this.url = url || document.getElementById('ws-url').value.trim();
+    if (!this.url) { this.showLoginMsg('请输入 WebSocket 地址', 'err'); return; }
+    this.showLoginMsg('连接中...', '');
+    document.getElementById('ws-url').disabled = true;
+    document.getElementById('connect-btn').disabled = true;
+    try { this.ws = new WebSocket(this.url); }
+    catch (e) { this.showLoginMsg('地址格式错误', 'err'); return; }
+    this.ws.binaryType = 'arraybuffer';
+
+    this.ws.onopen = () => {
+      this.showLoginMsg('已连接', 'ok');
+      this.startHeartbeat();
+    };
+    this.ws.onclose = () => {
+      this.stopHeartbeat();
+      if (this.user) {
+        // 连接断开后服务端已登出当前用户，回到登录页
+        this.resetToLogin();
+        this.showLoginMsg('连接断开，请重新登录', 'err');
+      } else {
+        this.showLoginMsg('连接断开，正在重连...', 'err');
+      }
+      this.scheduleReconnect();
+    };
+    this.ws.onerror = () => { this.showLoginMsg('连接错误', 'err'); };
+    this.ws.onmessage = (e) => {
+      const d = e.data;
+      if (typeof d === 'string') {
+        if (d.indexOf('@FILE|') === 0) { this.onFileMarker(d); return; }
+        try { this.dispatch(JSON.parse(d)); }
+        catch (_) { console.log('raw:', d); }
+        return;
+      }
+      // 二进制帧：文件数据（8001 响应，经 transit 原样转发）
+      this.onFileBinary(d);
+    };
+  },
+
+  scheduleReconnect() {
+    if (this.reconnectTimer) return;
+    this.reconnectTimer = setInterval(() => {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        clearInterval(this.reconnectTimer);
+        this.reconnectTimer = null;
+        this.showLoginMsg('已重连', 'ok');
+        return;
+      }
+      try { this.connect(this.url); } catch (e) {}
+    }, 3000);
+  },
+
+  startHeartbeat() {
+    this.stopHeartbeat();
+    this.heartbeatTimer = setInterval(() => { this.send({type:0}); }, 20000);
+  },
+  stopHeartbeat() {
+    if (this.heartbeatTimer) { clearInterval(this.heartbeatTimer); this.heartbeatTimer = null; }
+  },
+
+  send(obj) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      this.alertError('未连接，正在重连中...');
+      return;
+    }
+    this.ws.send(JSON.stringify(obj));
+  },
+
+  // ── 登录 / 注册 ─────────────────────
+  login() {
+    const email = document.getElementById('l-email').value.trim();
+    const pwd = document.getElementById('l-pwd').value.trim();
+    if (!email || !pwd) { this.showLoginMsg('请填写邮箱和密码', 'err'); return; }
+    this.showLoginMsg('登录中...', '');
+    this.send({type:2, email, password:pwd});
+  },
+  codeLogin() {
+    const email = document.getElementById('c-email').value.trim();
+    const code = document.getElementById('c-code').value.trim();
+    if (!email || !code) { this.showLoginMsg('请填写邮箱和验证码', 'err'); return; }
+    this.showLoginMsg('登录中...', '');
+    this.send({type:4, email, code});
+  },
+  register() {
+    const email = document.getElementById('r-email').value.trim();
+    const name = document.getElementById('r-name').value.trim();
+    const pwd = document.getElementById('r-pwd').value.trim();
+    if (!email || !name || !pwd) { this.showLoginMsg('请填写所有字段', 'err'); return; }
+    this.showLoginMsg('注册中...', '');
+    this.send({type:1, email, name, password:pwd});
+  },
+  sendCode() {
+    const email = document.getElementById('c-email').value.trim();
+    if (!email) { this.showLoginMsg('请先填写邮箱', 'err'); return; }
+    this.codeFlow = 'login';
+    this.showLoginMsg('发送中...', '');
+    this.send({type:3, email});
+  },
+
+  // ── 消息分发 ───────────────────────
+  dispatch(d) {
+    switch (d.type) {
+      case 0: break; // 心跳
+      case 1: // 注册
+        if (d.code === 1) this.showLoginMsg('注册成功！请登录', 'ok');
+        else this.showLoginMsg(d.msg || '注册失败', 'err');
+        break;
+      case 2: case 4: // 登录
+        if (d.code === 1) this.onLoginSuccess(d);
+        else this.showLoginMsg(d.msg || '登录失败', 'err');
+        break;
+      case 3: // 验证码
+        if (this.codeFlow === 'changepwd') {
+          if (d.code === 1) this.notify('验证码已发送');
+          else this.notify(d.msg || '发送失败', 'err');
+        } else {
+          if (d.code === 1) this.showLoginMsg('验证码已发送', 'ok');
+          else this.showLoginMsg(d.msg || '发送失败', 'err');
+        }
+        break;
+      case 5: // 改密
+        if (d.code === 1) { this.closeModal(); this.notify('密码已修改'); }
+        else this.notify(d.msg || '修改失败', 'err');
+        break;
+      case 6: // 退出登录
+        if (d.code === 1) { this.resetToLogin(); this.showLoginMsg('已退出登录', 'ok'); }
+        else this.notify(d.msg || '退出失败', 'err');
+        break;
+      case 7: // 注销账号
+        if (d.code === 1) { this.resetToLogin(); this.showLoginMsg('已注销', 'ok'); }
+        else this.notify(d.msg || '注销失败', 'err');
+        break;
+      case 8: // 好友列表
+        if (d.code === 1) { this.friends = d.friends || []; this.renderNav(); }
+        break;
+      case 9: // 好友申请
+        if (d.code === 2) { this.addUnread(d); this.refreshFriends(); }
+        else if (d.code === 1) { this.closeModal(); this.notify(d.msg || '成功发送申请'); }
+        else this.notify(d.msg || '申请失败', 'err');
+        break;
+      case 10: // 处理好友申请
+        if (d.code === 1) { this.notify(d.msg || '操作成功'); this.refreshFriends(); this.navBack(); }
+        else this.notify(d.msg || '操作失败', 'err');
+        break;
+      case 11: // 拉黑/取消
+        if (d.code === 1) { this.notify(d.msg || '操作成功'); this.refreshFriends(); this.navBack(); }
+        else this.notify(d.msg || '操作失败', 'err');
+        break;
+      case 12: // 删除好友
+        if (d.code === 1) { this.notify(d.msg || '成功删除'); this.refreshFriends(); this.navBack(); }
+        else this.notify(d.msg || '删除失败', 'err');
+        break;
+      case 13: // 私聊
+        if (d.code === 2) this.onFriendPush(d);
+        else if (d.code === 4) this.onFileReady(d);
+        else if (d.code === 3) this.onFileFail();
+        else if (d.code === 1) { /* 文本发送成功，本地已回显 */ }
+        else this.notify(d.msg || '发送失败', 'err');
+        break;
+      case 14: // 私聊历史
+        if (d.code === 1) this.onFriendHistory(d);
+        break;
+      case 15: // 群列表
+        if (d.code === 1) { this.groups = d.msg || []; this.renderNav(); }
+        break;
+      case 16: // 创建群
+        if (d.code === 1) { this.closeModal(); this.notify(d.msg || '成功创建群聊'); this.refreshGroups(); }
+        else this.notify(d.msg || '创建失败', 'err');
+        break;
+      case 17: // 邀请入群
+        if (d.code === 2) { this.addUnread(d); this.refreshGroups(); }
+        else if (d.code === 1) { this.closeModal(); this.notify(d.msg || '邀请成功'); }
+        else this.notify(d.msg || '邀请失败', 'err');
+        break;
+      case 18: // 申请入群
+        if (d.code === 2) this.addUnread(d);
+        else if (d.code === 1) { this.closeModal(); this.notify(d.msg || '入群申请发送成功'); }
+        else this.notify(d.msg || '申请失败', 'err');
+        break;
+      case 19: // 处理入群申请
+        if (d.code === 2) { this.addUnread(d); this.refreshGroups(); }
+        else if (d.code === 1) { this.notify(d.msg || '操作成功'); this.refreshMembers(); }
+        else this.notify(d.msg || '操作失败', 'err');
+        break;
+      case 20: // 群成员
+        if (d.code === 1) this.onMembers(d);
+        else this.notify(d.msg || '获取成员失败', 'err');
+        break;
+      case 21: case 22: // 设置管理 / 踢出
+        if (d.code === 1) { this.notify(d.msg || '操作成功'); this.refreshMembers(); }
+        else this.notify(d.msg || '操作失败', 'err');
+        break;
+      case 23: // 退出群（服务端支持）
+        if (d.code === 1) { this.notify(d.msg || '已退出群聊'); this.refreshGroups(); this.navBack(); }
+        else this.notify(d.msg || '操作失败', 'err');
+        break;
+      case 24: // 解散群
+        if (d.code === 1) { this.notify(d.msg || '已解散群聊'); this.refreshGroups(); this.navBack(); }
+        else this.notify(d.msg || '解散失败', 'err');
+        break;
+      case 25: // 群聊
+        if (d.code === 2) this.onGroupPush(d);
+        else if (d.code === 4) this.onFileReady(d);
+        else if (d.code === 3) this.onFileFail();
+        else if (d.code === 1) { /* 文本发送成功，本地已回显 */ }
+        else this.notify(d.msg || '发送失败', 'err');
+        break;
+      case 26: // 群历史
+        if (d.code === 1) this.onGroupHistory(d);
+        break;
+      case 27: // 拉取文件（pendingFiles）
+        if (d.code === 1) this.onPendingFiles(d);
+        else this.notify(d.msg || '获取文件列表失败', 'err');
+        break;
+      default: console.log('unhandled type:', d.type, d);
+    }
+  },
+
+  // ── 登录成功 ───────────────────────
+  onLoginSuccess(d) {
+    this.user = {id: d.id, name: d.name, email: d.email};
+    // 所有离线消息进入未读，不在任何页面直接打印
+    (d.offline || []).forEach(m => this.addUnread(m));
+    this.showLoginMsg('', '');
+    this.enterMain();
+  },
+
+  enterMain() {
+    document.getElementById('login-overlay').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    document.getElementById('my-name').textContent = this.user.name;
+    document.getElementById('my-avatar').textContent = (this.user.name || '我')[0];
+    this.navStack = [{page:'home'}];
+    this.historyTarget = null;
+    this.historyReadonly = false;
+    this.chatSession = null;
+    this.view = 'placeholder';
+    this.groupCtx = {};
+    this.memberMode = null;
+    this.send({type:8});
+    this.send({type:15});
+    this.renderNav();
+    this.renderMain();
+    this.renderUnreadBadge();
+  },
+
+  resetToLogin() {
+    this.user = null;
+    this.friends = [];
+    this.groups = [];
+    this.unread = [];
+    this.navStack = [];
+    this.historyTarget = null;
+    this.historyReadonly = false;
+    this.chatSession = null;
+    this.view = 'placeholder';
+    this.groupCtx = {};
+    this.memberMode = null;
+    this.codeFlow = null;
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('login-overlay').style.display = 'flex';
+    this.renderUnreadBadge();
+  },
+
+  // ── 未读消息 ───────────────────────
+  formatUnread(m) {
+    switch (m.type) {
+      case 9:  return (m.name || '') + (m.msg || '');
+      case 13: return m.msg_type ? '好友' + (m.name || '') + '发来一个文件'
+                                 : '好友' + (m.name || '') + '发来一条消息';
+      case 17: return (m.msg || '') + (m.group_name || '');
+      case 18: return (m.msg || '') + (m.name || '');
+      case 19: return (m.msg || '');
+      case 25: {
+        const s = m.name || '';
+        return m.msg_type ? s + ' 在群聊' + (m.group_name || '') + '发来一个文件'
+                          : s + ' 在群聊' + (m.group_name || '') + '发来一条消息';
+      }
+      default: return '';
+    }
+  },
+
+  addUnread(m) {
+    const text = this.formatUnread(m);
+    if (!text) return;
+    const entry = {type: m.type, text};
+    if (m.type === 13) { entry.chatType = 'friend'; entry.chatId = m.sid; entry.chatName = m.name; }
+    else if (m.type === 25) { entry.chatType = 'group'; entry.chatId = m.rid; entry.chatName = m.group_name; }
+    this.unread.push(entry);
+    this.renderUnreadBadge();
+    // 若当前正查看未读页，实时刷新
+    if (this.view === 'unread') this.renderMain();
+  },
+
+  markRead(type, id) {
+    this.unread = this.unread.filter(u => !(u.chatType === type && u.chatId === id));
+    this.renderUnreadBadge();
+  },
+
+  renderUnreadBadge() {
+    const b = document.getElementById('unread-badge');
+    const n = this.unread.length;
+    if (n > 0) { b.style.display = 'inline-flex'; b.textContent = '🔔 未读 ' + n; }
+    else { b.style.display = 'none'; }
+  },
+
+  openUnread() {
+    this.closeChat();
+    this.view = 'unread';
+    this.renderMain();
+  },
+  closeUnread() { this.view = 'placeholder'; this.renderMain(); },
+  clearUnread() { this.unread = []; this.renderUnreadBadge(); this.renderMain(); },
+  openUnreadChat(i) {
+    const u = this.unread[i];
+    if (!u || !u.chatType || u.chatId == null) return;
+    this.unread.splice(i, 1);
+    this.renderUnreadBadge();
+    this.openChat(u.chatType, u.chatId, u.chatName || '');
+  },
+
+  unreadIcon(u) {
+    switch (u.type) {
+      case 9: return '👤'; case 13: return '💬'; case 17: return '📨';
+      case 18: return '📝'; case 19: return '✅'; case 25: return '👥';
+      default: return '🔔';
+    }
+  },
+
+  // ── 私聊 / 群聊推送 ─────────────────
+  onFriendPush(d) {
+    const isFile = !!d.msg_type;
+    if (this.chatSession && this.chatSession.type === 'friend' && this.chatSession.id === d.sid) {
+      this.appendChatMsg('friend_' + d.sid, {self:false, txt:d.msg, isFile, senderId:d.sid, senderName:d.name, fileRef:d.msg, downloadable:isFile});
+    } else {
+      this.addUnread(d);
+    }
+  },
+  onGroupPush(d) {
+    const isFile = !!d.msg_type;
+    if (this.chatSession && this.chatSession.type === 'group' && this.chatSession.id === d.rid) {
+      this.appendChatMsg('group_' + d.rid, {self:false, txt:d.msg, isFile, senderId:d.sid, senderName:d.name, fileRef:d.msg, downloadable:isFile});
+    } else {
+      this.addUnread(d);
+    }
+  },
+
+  onFriendHistory(d) {
+    const t = this.historyTarget;
+    if (!t || t.type !== 'friend') return;
+    const key = 'friend_' + t.id;
+    this.messages[key] = (d.msg || []).map(m => ({
+      self: String(m.sender_id) === String(this.user.id),
+      txt: m.content, time: m.time, isFile: m.is_file === 1,
+      senderId: m.sender_id, senderName: t.name, fileRef: m.content, downloadable: m.is_file === 1
+    }));
+    this.renderMessagesEl();
+  },
+  onGroupHistory(d) {
+    const t = this.historyTarget;
+    if (!t || t.type !== 'group') return;
+    const key = 'group_' + t.id;
+    this.messages[key] = (d.msg || []).map(m => ({
+      self: String(m.sender_id) === String(this.user.id),
+      txt: m.content, time: m.time, isFile: m.is_file === 1,
+      senderId: m.sender_id, senderName: m.sender_name, fileRef: m.content, downloadable: m.is_file === 1
+    }));
+    this.renderMessagesEl();
+  },
+
+  onMembers(d) {
+    const members = d.members || [];
+    this.groupCtx.members = members;
+    const me = members.find(m => String(m.id) === String(this.user.id));
+    this.groupCtx.myRole = me ? me.role : -1;
+    if (this.memberMode === 'ops') this.renderNav();
+  },
+
+  // ── 刷新 ───────────────────────────
+  refreshFriends() { this.send({type:8}); },
+  refreshGroups() { this.send({type:15}); },
+  refreshMembers() { this.send({type:20, group_id: this.groupCtx.groupId}); },
+
+  // ── 导航 ───────────────────────────
+  navTo(page, obj) {
+    this.closeChat();
+    const entry = Object.assign({page}, obj || {});
+    this.navStack.push(entry);
+    if (page === 'friendList') this.send({type:8});
+    else if (page === 'groupList') this.send({type:15});
+    else if (page === 'groupMenu') {
+      this.groupCtx = {groupId: entry.g.id, myRole: -1, members: []};
+      this.memberMode = 'menu';
+      this.send({type:20, group_id: entry.g.id});
+    } else if (page === 'memberOps') {
+      this.memberMode = 'ops';
+      this.send({type:20, group_id: this.groupCtx.groupId});
+    }
+    this.renderNav();
+  },
+
+  navBack() {
+    this.closeChat();
+    if (this.navStack.length > 1) this.navStack.pop();
+    this.memberMode = null;
+    this.renderNav();
+  },
+
+  renderNav() {
+    const nav = document.getElementById('sidebar-nav');
+    if (this.navStack.length === 0) this.navStack = [{page:'home'}];
+    const top = this.navStack[this.navStack.length - 1];
+    switch (top.page) {
+      case 'home': this.renderHome(nav); break;
+      case 'friends': this.renderFriends(nav); break;
+      case 'friendList': this.renderFriendList(nav); break;
+      case 'friendMenu': this.renderFriendMenu(nav, top.f); break;
+      case 'groups': this.renderGroups(nav); break;
+      case 'groupList': this.renderGroupList(nav); break;
+      case 'groupMenu': this.renderGroupMenu(nav, top.g); break;
+      case 'memberOps': this.renderMemberOps(nav); break;
+      case 'settings': this.renderSettings(nav); break;
+    }
+  },
+
+  menuItem(icon, label, onclick) {
+    return `<div class="nav-item" onclick="${onclick}"><span class="n-icon">${icon}</span><span class="n-label">${label}</span></div>`;
+  },
+  backItem() {
+    return '<div class="nav-item back" onclick="App.navBack()"><span class="n-icon">←</span><span class="n-label">返回</span></div>';
+  },
+
+  renderHome(nav) {
+    nav.innerHTML =
+      this.menuItem('👤', '好友', "App.navTo('friends')") +
+      this.menuItem('👥', '群聊', "App.navTo('groups')") +
+      this.menuItem('⚙️', '设置', "App.navTo('settings')");
+  },
+  renderFriends(nav) {
+    nav.innerHTML =
+      this.backItem() +
+      this.menuItem('➕', '添加好友', "App.showAddFriend()") +
+      this.menuItem('👤', '好友列表', "App.navTo('friendList')");
+  },
+  renderFriendList(nav) {
+    let html = this.backItem();
+    const pending = this.friends.filter(f => f.status === 0);
+    const others = this.friends.filter(f => f.status !== 0);
+    if (pending.length) {
+      html += '<div class="nav-section-title">待处理申请</div>';
+      pending.forEach(f => {
+        html += `<div class="nav-item" onclick="App.openFriendMenu(${f.id})">
+          <span class="n-label">${this.esc(f.name)}</span>
+          <span class="n-sub">待我处理</span><span class="n-arrow">›</span></div>`;
+      });
+    }
+    html += '<div class="nav-section-title">好友列表</div>';
+    if (this.friends.length === 0) html += '<div class="nav-empty">暂无好友</div>';
+    others.forEach(f => {
+      const rel = f.status === 2 ? '好友' : f.status === 3 ? '已拉黑' : '待对方同意';
+      const online = f.state === 1 ? '在线' : '离线';
+      html += `<div class="nav-item" onclick="App.openFriendMenu(${f.id})">
+        <span class="n-label">${this.esc(f.name)}</span>
+        <span class="n-sub">${rel} · ${online}</span><span class="n-arrow">›</span></div>`;
+    });
+    nav.innerHTML = html;
+  },
+  renderFriendMenu(nav, f) {
+    const jsName = this.escAttr(f.name || '');
+    let html = this.backItem() +
+      `<div class="nav-section-title">${this.esc(f.name)} (${this.esc(f.email)})</div>`;
+    if (f.status === 2) {
+      html += this.menuItem('💬', '私聊', `App.openChat('friend', ${f.id}, '${jsName}')`);
+      html += this.menuItem('📜', '查看聊天记录', `App.openHistory('friend', ${f.id}, '${jsName}')`);
+      html += this.menuItem('🚫', '拉黑', `App.blockFriend(${f.id})`);
+      html += this.menuItem('🗑️', '删除', `App.deleteFriend(${f.id})`);
+    } else if (f.status === 3) {
+      html += this.menuItem('💬', '私聊', `App.openChat('friend', ${f.id}, '${jsName}')`);
+      html += this.menuItem('📜', '查看聊天记录', `App.openHistory('friend', ${f.id}, '${jsName}')`);
+      html += this.menuItem('✅', '取消拉黑', `App.unblockFriend(${f.id})`);
+      html += this.menuItem('🗑️', '删除', `App.deleteFriend(${f.id})`);
+    } else if (f.status === 0) {
+      html += this.menuItem('✅', '同意', `App.acceptFriend(${f.id}, 1)`);
+      html += this.menuItem('❌', '拒绝', `App.acceptFriend(${f.id}, 0)`);
+    } else {
+      html += '<div class="nav-empty">等待对方同意</div>';
+    }
+    nav.innerHTML = html;
+  },
+  renderGroups(nav) {
+    nav.innerHTML =
+      this.backItem() +
+      this.menuItem('👥', '我的群聊', "App.navTo('groupList')") +
+      this.menuItem('➕', '创建群聊', "App.showCreateGroup()") +
+      this.menuItem('📝', '申请入群', "App.showJoinGroup()");
+  },
+  renderGroupList(nav) {
+    let html = this.backItem() + '<div class="nav-section-title">群聊列表</div>';
+    if (this.groups.length === 0) html += '<div class="nav-empty">暂无群聊</div>';
+    this.groups.forEach(g => {
+      html += `<div class="nav-item" onclick="App.openGroupMenu(${g.id})">
+        <span class="n-icon">👥</span><span class="n-label">${this.esc(g.name)}</span><span class="n-arrow">›</span></div>`;
+    });
+    nav.innerHTML = html;
+  },
+  renderGroupMenu(nav, g) {
+    const jsName = this.escAttr(g.name || '');
+    nav.innerHTML =
+      this.backItem() +
+      `<div class="nav-section-title">${this.esc(g.name)} (id: ${g.id})</div>` +
+      this.menuItem('💬', '进入群聊', `App.openChat('group', ${g.id}, '${jsName}')`) +
+      this.menuItem('📜', '查看聊天记录', `App.openHistory('group', ${g.id}, '${jsName}')`) +
+      this.menuItem('📨', '邀请好友进群', `App.inviteClick(${g.id})`) +
+      this.menuItem('👥', '群成员操作', "App.navTo('memberOps')") +
+      this.menuItem('💥', '解散群', `App.dissolveClick(${g.id})`);
+  },
+  renderMemberOps(nav) {
+    const members = this.groupCtx.members || [];
+    const myRole = this.groupCtx.myRole || -1;
+    let html = this.backItem() + '<div class="nav-section-title">群成员操作</div>';
+    if (members.length === 0) html += '<div class="nav-empty">暂无成员</div>';
+    members.forEach(m => {
+      const roleName = m.role === 3 ? '群主' : m.role === 2 ? '管理员' : m.role === 1 ? '成员' : '待审核';
+      const isSelf = String(m.id) === String(this.user.id);
+      let actions = '';
+      if (!isSelf && m.role !== 3) {
+        if (m.role === 0) {
+          if (myRole >= 2) actions = '<button class="act accept" onclick="App.processGroupReq(' + m.id + ',1)">同意</button><button class="act reject" onclick="App.processGroupReq(' + m.id + ',0)">拒绝</button>';
+        } else {
+          if (myRole >= 2) actions += '<button class="act reject" onclick="App.kickMember(' + m.id + ')">踢出</button>';
+          if (myRole === 3) actions += (m.role === 1)
+            ? '<button class="act" onclick="App.setAdmin(' + m.id + ',1)">设为管理员</button>'
+            : '<button class="act" onclick="App.setAdmin(' + m.id + ',0)">撤销管理员</button>';
+        }
+      }
+      html += `<div class="member-row">
+        <span class="n-label">${this.esc(m.name)}</span>
+        <span class="n-sub">${this.esc(m.email)} · ${roleName}</span>
+        <span class="member-actions">${actions}</span></div>`;
+    });
+    nav.innerHTML = html;
+  },
+  renderSettings(nav) {
+    nav.innerHTML =
+      this.backItem() +
+      this.menuItem('🔑', '更改密码', "App.showChangePwd()") +
+      this.menuItem('🗑️', '注销账号', "App.signOut()") +
+      this.menuItem('🚪', '退出登录', "App.exitLogin()");
+  },
+
+  // ── 打开聊天 / 历史 ─────────────────
+  openChat(type, id, name) {
+    this.historyTarget = {type, id, name};
+    this.historyReadonly = false;
+    this.chatSession = {type, id};
+    this.view = 'chat';
+    this.renderMain();
+    if (type === 'friend') this.send({type:14, id, scope:0});
+    else this.send({type:26, group_id: id, scope:0});
+    this.markRead(type, id);
+  },
+  openHistory(type, id, name) {
+    this.historyTarget = {type, id, name};
+    this.historyReadonly = true;
+    this.chatSession = null;
+    this.view = 'chat';
+    this.renderMain();
+    if (type === 'friend') this.send({type:14, id, scope:1});
+    else this.send({type:26, group_id: id, scope:1});
+    this.markRead(type, id);
+  },
+  closeChat() {
+    this.historyTarget = null;
+    this.chatSession = null;
+    this.historyReadonly = false;
+    this.view = 'placeholder';
+    this.renderMain();
+  },
+
+  // ── 主区域渲染 ─────────────────────
+  renderMain() {
+    const main = document.getElementById('main');
+    if (this.view === 'unread') return this.renderUnreadView(main);
+    if (this.view === 'chat' && this.historyTarget) return this.renderChatView(main);
+    main.innerHTML = '<div class="placeholder">选择左侧菜单开始使用</div>';
+  },
+  renderChatView(main) {
+    const t = this.historyTarget;
+    const title = (t.type === 'friend' ? '💬 好友 ' : '👥 群聊 ') + (t.name || '');
+    let inputHtml = '';
+    if (!this.historyReadonly) {
+      inputHtml = `<div class="input-area">
+        <div class="input-toolbar">
+          <button onclick="document.getElementById('file-input').click()">📎 发送文件</button>
+          <button onclick="App.openFiles()">📁 文件列表</button>
+          <input type="file" id="file-input" style="display:none" onchange="App.sendFile(this)">
+        </div>
+        <textarea id="msg-input" placeholder="输入消息，Enter 发送" oninput="App.onMsgInput()" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();App.sendMsg();}"></textarea>
+        <div class="input-bottom"><span id="msg-limit-hint" class="limit-hint"></span><button id="send-btn" onclick="App.sendMsg()">发 送</button></div>
+      </div>`;
+    }
+    main.innerHTML = `<div class="chat-header">
+        <button class="back-btn" onclick="App.closeChat()">← 返回</button>
+        <span>${this.esc(title)}</span>${this.historyReadonly ? '<span class="readonly-tag">历史记录</span>' : ''}
+      </div>
+      <div id="messages" class="messages"></div>${inputHtml}`;
+    this.renderMessagesEl();
+  },
+  renderUnreadView(main) {
+    let html = `<div class="chat-header">
+        <button class="back-btn" onclick="App.closeUnread()">← 返回</button>
+        <span>🔔 未读消息 (${this.unread.length})</span>
+        <button class="clear-btn" onclick="App.clearUnread()">清空</button>
+      </div><div class="unread-list">`;
+    if (this.unread.length === 0) {
+      html += '<div class="placeholder">暂无未读消息</div>';
+    } else {
+      this.unread.forEach((u, i) => {
+        const clickable = (u.chatType === 'friend' || u.chatType === 'group') && u.chatId != null;
+        const onclick = clickable ? `onclick="App.openUnreadChat(${i})"` : '';
+        html += `<div class="unread-item${clickable ? ' clickable' : ''}" ${onclick}>
+          <span class="unread-type">${this.unreadIcon(u)}</span>
+          <span class="unread-text">${this.esc(u.text)}</span></div>`;
+      });
+    }
+    html += '</div>';
+    main.innerHTML = html;
+  },
+
+  renderMessagesEl() {
+    const el = document.getElementById('messages');
+    if (!el) return;
+    el.innerHTML = '';
+    const t = this.historyTarget;
+    if (!t) return;
+    const key = (t.type === 'friend' ? 'friend_' : 'group_') + t.id;
+    (this.messages[key] || []).forEach(m => this.appendMsgEl(m, false));
+    el.scrollTop = el.scrollHeight;
+  },
+  appendChatMsg(key, entry) {
+    if (!this.messages[key]) this.messages[key] = [];
+    this.messages[key].push(entry);
+    this.appendMsgEl(entry);
+  },
+  appendMsgEl(m, scroll) {
+    const el = document.getElementById('messages');
+    if (!el) return;
+    el.insertAdjacentHTML('beforeend', this.bubbleHtml(m));
+    if (scroll !== false) el.scrollTop = el.scrollHeight;
+  },
+  bubbleHtml(m) {
+    const isSelf = m.self;
+    const name = m.senderName || (isSelf ? (this.user && this.user.name) : '');
+    const avatarChar = (isSelf ? ((this.user && this.user.name) || '我') : (name || '?'))[0] || '?';
+    let content;
+    if (m.isFile) {
+      const fileLabel = '📎 ' + this.esc(m.txt || m.fileRef || '文件');
+      if (m.downloadable) {
+        content = `<div class="m-file-name">${fileLabel}</div>
+          <div class="m-file" onclick="App.downloadFile('${this.escAttr(m.fileRef || '')}')">⬇ 点击下载</div>`;
+      } else {
+        content = `<div class="m-file-name">${fileLabel}</div><div class="m-file-sent">已发送</div>`;
+      }
+    } else {
+      // 先 esc 转义，再把换行转 <br>，避免 HTML 把 \n 折叠成空格
+      content = `<div>${this.esc(m.txt).replace(/\r\n|\r|\n/g, '<br>')}</div>`;
+    }
+    return `<div class="msg-row${isSelf ? ' self' : ''}">
+      <div class="m-avatar" style="background:${isSelf ? '#12b7f5' : this.avatarColor(m.senderId || 0)}">${this.esc(avatarChar)}</div>
+      <div class="m-body"><div class="m-bubble">${content}</div><div class="m-time">${this.esc(m.time || '')}</div></div>
+    </div>`;
+  },
+
+  // ── 发送消息 / 文件 ─────────────────
+  utf8ByteLen(s) {
+    let bytes = 0;
+    for (let i = 0; i < s.length; i++) {
+      const c = s.codePointAt(i);
+      if (c > 0xFFFF) { bytes += 4; i++; }
+      else if (c > 0x7FF) bytes += 3;
+      else if (c > 0x7F) bytes += 2;
+      else bytes += 1;
+    }
+    return bytes;
+  },
+  onMsgInput() {
+    const input = document.getElementById('msg-input');
+    const hint = document.getElementById('msg-limit-hint');
+    if (!input || !hint) return;
+    const bytes = this.utf8ByteLen(input.value);
+    const btn = document.getElementById('send-btn');
+    if (bytes > 65535) {
+      hint.textContent = '内容过长（' + bytes + ' 字节，上限 65535）';
+      if (btn) btn.disabled = true;
+    } else {
+      hint.textContent = '';
+      if (btn) btn.disabled = false;
+    }
+  },
+  sendMsg() {
+    const t = this.historyTarget;
+    if (!t || this.historyReadonly) return;
+    const input = document.getElementById('msg-input');
+    const txt = input.value.trim();
+    if (!txt) return;
+    if (this.utf8ByteLen(txt) > 65535) { this.onMsgInput(); return; }
+    input.value = '';
+    if (t.type === 'friend') this.send({type:13, rid: t.id, msg: txt, msg_type: false});
+    else this.send({type:25, rid: t.id, msg: txt, msg_type: false});
+    this.appendChatMsg((t.type === 'friend' ? 'friend_' : 'group_') + t.id,
+      {self:true, txt, time:new Date().toLocaleTimeString(), isFile:false, senderId:this.user.id, senderName:this.user.name});
+  },
+  sendFile(input) {
+    const t = this.historyTarget;
+    if (!t || this.historyReadonly || !input.files || !input.files[0]) return;
+    const file = input.files[0];
+    input.value = '';
+    if (this._sendingFile) { this.alertError('有文件正在发送，请稍候'); return; }
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) { this.alertError('未连接，正在重连中'); return; }
+    this._sendingFile = true;
+    this._pendingFile = { type: t.type, rid: t.id, file, name: file.name };
+    this.notify('正在发送 ' + file.name + '（' + (file.size / 1024 / 1024).toFixed(1) + ' MB）...');
+    // 先发文件消息 JSON（无 file_data），服务端建 file_id 后回 code:4 + ref，再走 8001 上传字节
+    if (t.type === 'friend') this.send({type:13, rid: t.id, msg: file.name, msg_type: true});
+    else this.send({type:25, rid: t.id, msg: file.name, msg_type: true});
+  },
+  // ── 文件传输（8001 二进制协议，经 transit @FILE| 标记路由）──────
+  buildFileHeader(cmd, filename, size, offset) {
+    const fn = new TextEncoder().encode(filename);
+    const ab = new ArrayBuffer(28 + fn.length);
+    const dv = new DataView(ab);
+    dv.setUint8(0, 0x46); dv.setUint8(1, 0x49); dv.setUint8(2, 0x4C); dv.setUint8(3, 0x45); // "FILE"
+    dv.setUint8(4, cmd);                            // 1 上传 / 2 下载
+    dv.setUint8(5, 0);                              // flags
+    dv.setUint8(6, 0);                              // reserved
+    dv.setUint8(7, 1);                              // version
+    dv.setUint32(8, fn.length, false);              // filename_len 大端
+    dv.setBigUint64(12, BigInt(size || 0), false);  // file_size 大端
+    dv.setBigUint64(20, BigInt(offset || 0), false);// offset 大端
+    new Uint8Array(ab, 28, fn.length).set(fn);
+    return ab;
+  },
+
+  parseFileHeader(ab) {
+    const dv = new DataView(ab);
+    return {
+      magic: String.fromCharCode(dv.getUint8(0), dv.getUint8(1), dv.getUint8(2), dv.getUint8(3)),
+      cmd: dv.getUint8(4),
+      status: dv.getUint8(5),
+      offset: dv.getBigUint64(8, false),
+      total: dv.getBigUint64(16, false),
+    };
+  },
+
+  // transit 下发的 @FILE|R| / @FILE|E| 标记
+  onFileMarker(txt) {
+    if (txt === '@FILE|R|') {
+      this._fileActive = true;
+      this._fileChunks = [];
+      return;
+    }
+    if (txt === '@FILE|E|') {
+      this._fileActive = false;
+      const buf = this.concatChunks(this._fileChunks);
+      this._fileChunks = [];
+      const op = this._fileOp;
+      this._fileOp = null;
+      if (op === 'upload') this.onUploadDone(buf);
+      else if (op === 'download') this.onDownloadDone(buf);
+      return;
+    }
+  },
+
+  // transit 转发的 8001 二进制字节
+  onFileBinary(ab) {
+    if (this._fileActive) {
+      this._fileChunks.push(new Uint8Array(ab));
+    }
+  },
+
+  concatChunks(chunks) {
+    let total = 0;
+    chunks.forEach(c => total += c.length);
+    const out = new Uint8Array(total);
+    let off = 0;
+    chunks.forEach(c => { out.set(c, off); off += c.length; });
+    return out.buffer;
+  },
+
+  // 上传完成：解析 24B 响应头，标记已发送
+  onUploadDone(buf) {
+    const p = this._pendingFile;
+    if (buf.byteLength < 24) {
+      this.alertError('上传响应异常');
+      this._pendingFile = null; this._sendingFile = false;
+      return;
+    }
+    const h = this.parseFileHeader(buf);
+    if (h.status !== 0) {
+      this.alertError('文件上传失败（状态码 ' + h.status + '）');
+    } else if (p) {
+      this.appendChatMsg((p.type === 'friend' ? 'friend_' : 'group_') + p.rid,
+        {self:true, txt:p.name, time:new Date().toLocaleTimeString(), isFile:true,
+         senderId:this.user.id, senderName:this.user.name, downloadable:false});
+      this.notify('文件已发送：' + p.name);
+    }
+    this._pendingFile = null;
+    this._sendingFile = false;
+  },
+
+  // 下载完成：解析 24B 响应头，取出文件字节并保存
+  onDownloadDone(buf) {
+    if (buf.byteLength < 24) {
+      this.alertError('下载响应异常');
+      return;
+    }
+    const h = this.parseFileHeader(buf);
+    if (h.status !== 0) {
+      this.alertError('文件下载失败（状态码 ' + h.status + '）');
+      return;
+    }
+    const data = buf.slice(24);
+    const name = this._dlName || 'download';
+    this._dlName = null;
+    const blob = new Blob([data]);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    this.notify('文件下载完成：' + name);
+  },
+
+  // 文件发送成功（code:4）：拿到 ref，开始上传字节到 8001
+  onFileReady(d) {
+    const p = this._pendingFile;
+    if (!p) return;
+    p.ref = d.msg;  // ref = "<file_id>_<文件名>"
+    this.uploadFileBytes(p);
+  },
+
+  // 文件发送失败（code:3，具体原因已由 code:0 提示过）：仅清理
+  onFileFail() {
+    this._pendingFile = null;
+    this._sendingFile = false;
+  },
+
+  // 实际字节上传：@FILE|U| + [28B头 + ref] + 文件分片
+  async uploadFileBytes(p) {
+    this._fileOp = 'upload';
+    const header = this.buildFileHeader(1, p.ref, p.file.size, 0);
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      this.alertError('未连接，正在重连中');
+      this._pendingFile = null; this._sendingFile = false; this._fileOp = null;
+      return;
+    }
+    this.ws.send('@FILE|U|');
+    this.ws.send(header);
+    const CH = 1024 * 1024;  // 1MB 分片
+    for (let off = 0; off < p.file.size; off += CH) {
+      const buf = await p.file.slice(off, off + CH).arrayBuffer();
+      this.ws.send(buf);
+    }
+  },
+
+  // 下载文件：@FILE|D| + [28B头 + ref]；ref 去掉 "<file_id>_" 前缀得原名
+  downloadFile(ref) {
+    if (!ref) return;
+    if (this._fileOp) { this.alertError('已有文件传输进行中，请稍候'); return; }
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) { this.alertError('未连接，正在重连中'); return; }
+    const s = String(ref);
+    const pos = s.indexOf('_');
+    const name = pos >= 0 ? s.substr(pos + 1) : s;
+    this._fileOp = 'download';
+    this._dlName = name;
+    this.notify('正在下载 ' + name + ' ...');
+    this.ws.send('@FILE|D|');
+    this.ws.send(this.buildFileHeader(2, s, 0, 0));
+  },
+
+  // type 27（pendingFiles）：拉取当前会话文件列表
+  openFiles() {
+    const t = this.historyTarget;
+    if (!t || this.historyReadonly) return;
+    if (t.type === 'friend') this.send({type:27, rid: t.id, is_group: false});
+    else this.send({type:27, rid: t.id, is_group: true});
+  },
+  onPendingFiles(d) {
+    const files = d.msg || [];
+    if (files.length === 0) { this.alertInfo('暂无文件记录'); return; }
+    const rows = files.map(f => {
+      const tag = f.upload_pending ? '<span style="color:#faad14">（上传未完成）</span>' : '';
+      return `<div class="invite-friend" style="display:flex;align-items:center;justify-content:space-between">
+        <span>📎 ${this.esc(f.name)} ${tag}</span>
+        <button class="btn2" onclick="App.downloadFile('${this.escAttr(f.ref)}')">下载</button>
+      </div>`;
+    }).join('');
+    this.showModal('文件列表', rows, null, true);
+  },
+  // ── 好友操作 ───────────────────────
+  openFriendMenu(id) {
+    const f = this.friends.find(x => x.id === id);
+    if (!f) return;
+    this.navTo('friendMenu', {f});
+  },
+  acceptFriend(id, agree) { this.send({type:10, id, agree}); },
+  blockFriend(id) { if (confirm('确定拉黑该好友？')) this.send({type:11, id, block:true}); },
+  unblockFriend(id) { if (confirm('确定取消拉黑？')) this.send({type:11, id, block:false}); },
+  deleteFriend(id) { if (confirm('确定删除该好友？')) this.send({type:12, id}); },
+
+  // ── 群操作 ─────────────────────────
+  openGroupMenu(id) {
+    const g = this.groups.find(x => x.id === id);
+    if (!g) return;
+    this.navTo('groupMenu', {g});
+  },
+  inviteClick(gid) {
+    if ((this.groupCtx.myRole || -1) < 2) { this.alertError('无权限'); return; }
+    this.showInviteGroup(gid);
+  },
+  dissolveClick(gid) {
+    if ((this.groupCtx.myRole || -1) !== 3) { this.alertError('无权限'); return; }
+    if (confirm('确定解散该群？此操作不可恢复！')) this.send({type:24, group_id: gid});
+  },
+  processGroupReq(id, agree) { this.send({type:19, group_id: this.groupCtx.groupId, id, agree}); },
+  kickMember(id) { this.send({type:22, group_id: this.groupCtx.groupId, id}); },
+  setAdmin(id, admin) { this.send({type:21, group_id: this.groupCtx.groupId, id, admin}); },
+
+  // ── 模态框：输入 ───────────────────
+  showAddFriend() {
+    this.showModal('添加好友',
+      '<div class="field"><input id="add-email" placeholder="对方邮箱"></div>',
+      () => {
+        const email = document.getElementById('add-email').value.trim();
+        if (!email) { this.alertError('请输入对方邮箱'); return; }
+        this.send({type:9, email, my_email: this.user.email, name: this.user.name});
+      });
+  },
+  showCreateGroup() {
+    this.showModal('创建群聊',
+      '<div class="field"><input id="gc-name" placeholder="群名称"></div>',
+      () => {
+        const name = document.getElementById('gc-name').value.trim();
+        if (!name) { this.alertError('请输入群名称'); return; }
+        this.send({type:16, name});
+      });
+  },
+  showJoinGroup() {
+    this.showModal('申请入群',
+      '<div class="field"><input id="join-gid" placeholder="群 ID"></div>',
+      () => {
+        const gid = document.getElementById('join-gid').value.trim();
+        if (!gid) { this.alertError('请输入群 ID'); return; }
+        this.send({type:18, group_id: parseInt(gid), email: this.user.email, name: this.user.name});
+      });
+  },
+  showInviteGroup(gid) {
+    const friends = (this.friends || []).filter(f => f.status >= 2);
+    if (friends.length === 0) { this.alertError('暂无好友可邀请'); return; }
+    const list = friends.map(f =>
+      `<div class="invite-friend" onclick="App.inviteFriend(${gid}, ${f.id})">${this.esc(f.name)} (${this.esc(f.email)})</div>`).join('');
+    this.showModal('邀请好友入群', list, null, true);
+  },
+  inviteFriend(gid, fid) { this.send({type:17, group_id: gid, id: fid}); this.closeModal(); },
+
+  showChangePwd() {
+    this.showModal('更改密码',
+      '<div class="field"><input id="cp-pwd" type="password" placeholder="新密码"></div>' +
+      '<div class="field" style="display:flex;gap:8px"><input id="cp-code" placeholder="验证码" style="flex:1"><button type="button" class="btn2" onclick="App.sendChangePwdCode()">获取验证码</button></div>',
+      () => {
+        const pwd = document.getElementById('cp-pwd').value.trim();
+        const code = document.getElementById('cp-code').value.trim();
+        if (!pwd || !code) { this.alertError('请填写新密码和验证码'); return; }
+        this.send({type:5, email: this.user.email, code, password: pwd});
+      });
+  },
+  sendChangePwdCode() {
+    this.codeFlow = 'changepwd';
+    this.send({type:3, email: this.user.email});
+  },
+
+  // ── 设置 ───────────────────────────
+  signOut() { if (confirm('确定注销账号？此操作不可恢复！')) this.send({type:7}); },
+  exitLogin() { if (confirm('确定退出登录？')) this.send({type:6}); },
+
+  // ── 通知 ───────────────────────────
+  notify(msg, cls) {
+    if (cls === 'err') { this.alertError(msg); return; }
+    this.alertInfo(msg);
+  },
+  alertError(msg) { this.alertBox('⚠️ 错误', msg, '#cf1322'); },
+  alertInfo(msg) { this.alertBox('提示', msg, '#52c41a'); },
+  alertBox(title, msg, color) {
+    this.closeModal();
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.id = 'modal';
+    overlay.innerHTML = `<div class="modal-box"><h3>${title}</h3><div style="margin-bottom:12px;color:${color};word-break:break-all">${this.esc(msg)}</div><div class="btns"><button class="ok" id="modal-alert-ok">确定</button></div></div>`;
+    document.body.appendChild(overlay);
+    document.getElementById('modal-alert-ok').onclick = () => this.closeModal();
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) this.closeModal(); });
+  },
+
+  // ── 通用模态框 ─────────────────────
+  showModal(title, body, onOk, hideOk) {
+    this.closeModal();
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.id = 'modal';
+    const btns = hideOk ? '' : '<button class="cancel" onclick="App.closeModal()">取消</button><button class="ok" id="modal-ok">确定</button>';
+    overlay.innerHTML = `<div class="modal-box"><h3>${title}</h3>${body}<div class="btns">${btns}</div></div>`;
+    document.body.appendChild(overlay);
+    if (!hideOk) document.getElementById('modal-ok').onclick = onOk;
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) this.closeModal(); });
+  },
+  closeModal() {
+    const m = document.getElementById('modal');
+    if (m) m.remove();
+  },
+
+  // ── 工具 ───────────────────────────
+  showLoginMsg(msg, cls) {
+    const el = document.getElementById('login-msg');
+    el.textContent = msg;
+    el.className = 'msg ' + (cls || '');
+  },
+  esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); },
+  escAttr(s) { return String(s == null ? '' : s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); },
+  avatarColor(id) {
+    const colors = ['#f56a00','#7265e6','#ffbf00','#00a2ae','#87d068','#108ee9','#f5222d','#722ed1'];
+    return colors[Math.abs(+(id || 0)) % colors.length];
+  },
+};
+
+// ── 初始化 ───────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('#login-box .tabs button').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('#login-box .tabs button').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      const tab = this.dataset.tab;
+      document.getElementById('form-login').style.display = tab === 'login' ? '' : 'none';
+      document.getElementById('form-code').style.display = tab === 'code' ? '' : 'none';
+      document.getElementById('form-register').style.display = tab === 'register' ? '' : 'none';
+    });
+  });
+  document.getElementById('ws-url').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') App.connect();
+  });
+});
+</script>
+</body>
+</html>
