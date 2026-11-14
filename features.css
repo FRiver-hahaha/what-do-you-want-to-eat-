@@ -530,3 +530,617 @@ textarea:focus-visible,
   .inference-card::before,
   .inference-card::after { animation: none !important; }
 }
+/* ---- User avatar upload ---- */
+#avatarInitial.has-photo,
+#personalAvatarPreview.has-photo {
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  color: transparent;
+}
+
+.avatar-upload-row {
+  display: flex;
+  margin-top: 10px;
+}
+
+.avatar-upload-button {
+  padding: 7px 12px;
+  border: 1px solid rgba(31, 38, 57, 0.12);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.avatar-upload-button:hover {
+  border-color: var(--accent-ink);
+  color: var(--accent-ink);
+}
+#avatarInitial {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+}
+/* Light base behind the avatar so contain mode never shows a dark block */
+.user-avatar-button {
+  background: #f5f5f7;
+  color: #333333;
+}
+
+.user-avatar-button:hover {
+  background: #ececf0;
+}
+
+.personal-avatar-preview > span {
+  background: #f5f5f7;
+  color: #333333;
+}
+/* Avatar display: img with contain inside a round light frame */
+.user-avatar-button {
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: #f5f5f7;
+  box-shadow: 0 4px 12px rgba(39, 49, 45, 0.16);
+  color: #333333;
+}
+
+#avatarInitial {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #f5f5f7;
+  color: #333333;
+}
+
+#avatarImage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  display: none;
+}
+
+#avatarInitial.has-photo #avatarImage {
+  display: block;
+}
+
+#avatarInitial.has-photo #avatarInitialText {
+  opacity: 0;
+}
+/* ---- Expanded food feed: staggered entrance ---- */
+@keyframes food-feed-in {
+  0% { opacity: 0; transform: translateY(12px) scale(0.985); }
+  65% { opacity: 1; transform: translateY(-2px) scale(1.002); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.expanded-menu.open .masonry-card {
+  animation: food-feed-in 420ms cubic-bezier(0.22, 1.2, 0.36, 1) backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .expanded-menu.open .masonry-card { animation: none !important; }
+}
+/* ---- Trend card: enlarged average + interactive chart ---- */
+.trend-average {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.trend-average-label {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.trend-average-value {
+  color: #1f2639;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.trend-selected {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 8px;
+  padding-left: 4px;
+}
+
+.trend-selected-date {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.trend-selected-value {
+  position: relative;
+  display: inline-block;
+  min-width: 52px;
+  height: 44px;
+  overflow: hidden;
+  color: #1f2639;
+  font-size: 38px;
+  font-weight: 700;
+  line-height: 44px;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.trend-selected-value .roll-old,
+.trend-selected-value .roll-new {
+  position: absolute;
+  inset: 0;
+}
+
+.trend-chart {
+  cursor: ew-resize;
+  touch-action: pan-y;
+}
+
+.chart-label {
+  fill: #333333;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.chart-label.active {
+  fill: var(--accent-ink);
+  font-weight: 700;
+}
+
+.chart-value-labels text {
+  fill: var(--text-muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.trend-dot.selected {
+  fill: var(--accent-ink);
+  stroke: #ffffff;
+  stroke-width: 3;
+}
+
+@keyframes roll-out-up {
+  to { transform: translateY(-100%); opacity: 0; }
+}
+
+@keyframes roll-in-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes roll-out-down {
+  to { transform: translateY(100%); opacity: 0; }
+}
+
+@keyframes roll-in-down {
+  from { transform: translateY(-100%); }
+  to { transform: translateY(0); }
+}
+
+.trend-selected-value.roll-up .roll-old {
+  animation: roll-out-up 380ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.trend-selected-value.roll-up .roll-new {
+  animation: roll-in-up 380ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.trend-selected-value.roll-down .roll-old {
+  animation: roll-out-down 380ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.trend-selected-value.roll-down .roll-new {
+  animation: roll-in-down 380ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trend-selected-value.roll-up .roll-old,
+  .trend-selected-value.roll-up .roll-new,
+  .trend-selected-value.roll-down .roll-old,
+  .trend-selected-value.roll-down .roll-new { animation: none !important; }
+}
+/* ---- Root page (today): rhythm and type polish ---- */
+#view-today .conversation {
+  padding: 12px 8px 24px;
+}
+
+#view-today .message + .message {
+  margin-top: 20px;
+}
+
+#view-today .message-bubble {
+  padding: 18px 22px;
+  line-height: 1.7;
+}
+
+#view-today .message-bubble p {
+  font-size: 15px;
+  line-height: 1.7;
+  letter-spacing: -0.01em;
+}
+
+#view-today .message-meta {
+  margin-bottom: 10px;
+}
+
+#view-today .quick-prompts {
+  gap: 10px;
+  margin-top: 24px;
+}
+
+#view-today .quick-prompts button {
+  min-height: 38px;
+  padding: 0 14px;
+  font-size: 12.5px;
+}
+
+@keyframes today-halo-breathe {
+  from { opacity: 0.32; }
+  to { opacity: 0.66; }
+}
+
+#view-today .inference-card::after {
+  animation: guess-halo-glow-spin 5s linear infinite, today-halo-breathe 3.2s ease-in-out infinite alternate;
+}
+/* ---- Report page: unified glass cards, type scale and single accent ---- */
+#view-report {
+  --accent: #f66b81;
+  --accent-ink: #f66b81;
+  --accent-hover: #e85a72;
+  --accent-soft: #ffe6ea;
+}
+
+#view-report .overview-score,
+#view-report .trend-card,
+#view-report .detail-nutrition,
+#view-report .insight-card {
+  background: rgba(255, 255, 255, 0.58);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: blur(20px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(31, 38, 57, 0.08);
+  color: var(--text);
+}
+
+#view-report .report-overview,
+#view-report .report-detail-grid {
+  align-items: stretch;
+  gap: 16px;
+}
+
+#view-report .overview-score h3,
+#view-report .trend-card h3,
+#view-report .detail-nutrition h3,
+#view-report .insight-card h3 {
+  color: #1f2639;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+#view-report .large-score strong {
+  color: #1f2639;
+  font-size: 32px;
+  line-height: 40px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+#view-report .large-score span {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+#view-report .trend-average-value {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+#view-report .trend-average-label {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* Insight card: white glass with green/blue accents */
+#view-report .insight-card {
+  color: var(--text);
+}
+
+#view-report .insight-card > .section-kicker {
+  display: inline-flex;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: #e8f5ec;
+  color: #2f7d4f;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+#view-report .insight-card h3 {
+  margin-top: 8px;
+}
+
+#view-report .insight-list strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+#view-report .insight-list p {
+  color: var(--text-secondary);
+}
+
+#view-report .insight-marker {
+  background: #e8f5ec;
+  color: #2f7d4f;
+}
+
+#view-report .insight-marker.warm {
+  background: #e8f0fb;
+  color: #3a6ea5;
+}
+
+#view-report .health-disclaimer {
+  color: var(--text-muted);
+}
+
+/* Single pink accent */
+#view-report .overview-score h3,
+#view-report .trend-dot.selected,
+#view-report .chart-label.active {
+  color: #f66b81;
+  fill: #f66b81;
+}
+
+#view-report .nutrition-track i {
+  background: #f66b81;
+}
+
+#view-report .trend-line {
+  stroke: #f66b81;
+}
+
+#view-report .trend-area {
+  fill: rgba(246, 107, 129, 0.12);
+}
+/* ---- Shop & profile: unified glass cards + pink accent ---- */
+#view-shop,
+#view-profile {
+  --accent: #f66b81;
+  --accent-ink: #f66b81;
+  --accent-hover: #e85a72;
+  --accent-soft: #ffe6ea;
+}
+
+.card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.identity-tag {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #e8f5ec;
+  color: #2f7d4f;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+#view-shop .points-balance-card,
+#view-shop .points-rules-card,
+#view-shop .weekly-reward-card,
+#view-profile .settings-card,
+#view-profile .health-snapshot {
+  background: rgba(255, 255, 255, 0.58);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: blur(20px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(31, 38, 57, 0.08);
+  color: var(--text);
+}
+
+#view-shop .points-balance-card .section-kicker,
+#view-profile .health-snapshot .section-kicker {
+  color: #1f2639;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+#view-shop .points-rules-card h3,
+#view-shop .weekly-reward-card h3,
+#view-profile .form-heading h3 {
+  color: #1f2639;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+#view-shop .points-number strong {
+  color: #1f2639;
+  font-size: 52px;
+  font-weight: 700;
+}
+
+#view-shop .points-number span,
+#view-shop .points-meta,
+#view-shop .points-reset-note {
+  color: var(--text-muted);
+}
+
+#view-shop .points-rule strong {
+  color: #f66b81;
+  font-weight: 700;
+}
+
+#view-shop .weekly-bonus {
+  color: #f66b81;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+#view-shop .points-hero,
+#view-shop .theme-grid {
+  align-items: stretch;
+  gap: 16px;
+}
+
+#view-shop .theme-card {
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.58);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(31, 38, 57, 0.08);
+}
+
+#view-shop .theme-card-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
+#view-shop .theme-card.selected {
+  border-color: #f66b81;
+  box-shadow: 0 10px 30px rgba(31, 38, 57, 0.08), 0 0 0 1px #f66b81;
+}
+
+#view-shop .theme-action {
+  background: #f66b81;
+  color: #ffffff;
+  border: 0;
+  border-radius: 10px;
+}
+
+#view-shop .theme-action:hover {
+  background: var(--accent-hover);
+}
+
+#view-shop .theme-action.applied {
+  background: #ffffff;
+  color: #f66b81;
+  box-shadow: inset 0 0 0 1px #f66b81;
+}
+
+#view-shop .theme-action:disabled {
+  background: rgba(31, 38, 57, 0.06);
+  color: var(--text-muted);
+}
+
+#view-shop .theme-price {
+  color: var(--text-muted);
+}
+
+#view-shop .checkin-button {
+  background: #f66b81;
+  color: #ffffff;
+}
+
+#view-shop .checkin-button:hover {
+  background: var(--accent-hover);
+}
+
+#view-profile .form-section + .form-section {
+  margin-top: 20px;
+  padding-top: 20px;
+}
+
+#view-profile .option-grid button.selected {
+  background: #f66b81;
+  box-shadow: none;
+  color: #ffffff;
+}
+
+#view-profile input[type="range"] {
+  accent-color: #f66b81;
+}
+
+#view-profile input[type="range"]::-webkit-slider-thumb {
+  background: #f66b81;
+}
+
+#view-profile input[type="range"]::-moz-range-thumb {
+  background: #f66b81;
+}
+
+#view-profile .form-heading output {
+  color: #f66b81;
+}
+
+#view-profile .health-snapshot > p {
+  color: var(--text-secondary);
+}
+
+#view-profile .snapshot-metrics > div {
+  color: var(--text-muted);
+}
+
+#view-profile .snapshot-metrics strong {
+  color: var(--text);
+}
+
+#view-profile .snapshot-note {
+  color: var(--text-muted);
+  box-shadow: 0 -1px 0 rgba(31, 38, 57, 0.06);
+}
+
+#view-profile .health-snapshot h3 {
+  color: #1f2639;
+}
+/* ---- Profile: equal-height cards + unified leaderboard rows ---- */
+#view-profile .profile-layout {
+  align-items: stretch;
+}
+
+#view-profile .settings-card {
+  display: flex;
+  flex-direction: column;
+}
+
+#view-profile .form-section {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  padding: 16px 0;
+}
+
+#view-profile .form-section + .form-section {
+  margin-top: 0;
+  padding-top: 16px;
+}
+
+#view-profile .form-actions {
+  margin-top: auto;
+  padding-top: 16px;
+}
+
+#view-profile .health-snapshot {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+}
+
+#view-profile .health-snapshot .snapshot-metrics {
+  flex: 1;
+}
+
+.leaderboard-row {
+  min-height: 52px;
+  padding: 6px 8px;
+}

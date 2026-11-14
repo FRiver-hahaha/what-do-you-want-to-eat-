@@ -418,7 +418,8 @@ function renderReport() {
   document.getElementById("detailScoreStatus").textContent = status;
   document.getElementById("adjustmentInsight").textContent = adjustment;
   animateNumber(document.getElementById("snapshotScore"), score);
-  document.getElementById("avatarInitial").textContent = (profile.name || "我").trim().slice(0, 1);
+  const initialText = document.getElementById("avatarInitialText");
+  if (initialText) initialText.textContent = (profile.name || "我").trim().slice(0, 1);
   document.getElementById("snapshotAge").textContent = `${profile.age} 岁`;
   document.getElementById("snapshotBody").textContent = `${profile.height} cm · ${profile.weight} kg`;
   document.getElementById("profileHeadline").textContent = `${profile.goal}，${profile.activity}状态`;
@@ -443,13 +444,19 @@ function renderReport() {
   if (document.getElementById("view-shop").classList.contains("active")) renderShop();
 }
 
+let trendData = null;
+let trendIndex = 6;
+
 function renderTrend(score) {
+  const labels = ["周四", "周五", "周六", "周日", "周一", "周二", "今天"];
   const values = [74, 80, 77, 83, 79, 86, score];
   const points = values.map((value, index) => {
     const x = 20 + index * 73.3;
-    const y = 158 - (value - 60) * 3.2;
+    const y = 260 - value * 2.2;
     return [Number(x.toFixed(1)), Number(Math.max(28, y).toFixed(1))];
   });
+  trendData = { labels, values, points };
+  trendIndex = values.length - 1;
   const trendLine = document.getElementById("trendLine");
   const trendArea = document.getElementById("trendArea");
   trendLine.setAttribute("points", points.map(point => point.join(",")).join(" "));
@@ -459,8 +466,102 @@ function renderTrend(score) {
   void trendLine.getBoundingClientRect();
   trendLine.style.animation = "";
   trendArea.style.animation = "";
-  document.getElementById("trendDots").innerHTML = points.map((point, index) => `<circle class="trend-dot${index === points.length - 1 ? " current" : ""}" cx="${point[0]}" cy="${point[1]}" r="${index === points.length - 1 ? 5 : 3.5}"></circle>`).join("");
-  animateNumber(document.getElementById("trendAverage"), Math.round(values.reduce((sum, value) => sum + value, 0) / values.length), { prefix: "均值 " });
+  document.getElementById("trendDots").innerHTML = points.map((point, index) => `<circle class="trend-dot${index === trendIndex ? " selected" : ""}" data-index="${index}" cx="${point[0]}" cy="${point[1]}" r="${index === trendIndex ? 6 : 3.5}"></circle>`).join("");
+  document.querySelectorAll(".chart-label").forEach((label, index) => label.classList.toggle("active", index === trendIndex));
+  animateNumber(document.getElementById("trendAverageValue"), Math.round(values.reduce((sum, value) => sum + value, 0) / values.length));
+  setTrendIndex(trendIndex, false);
+}
+
+function setTrendIndex(index, animate = true) {
+  if (!trendData) return;
+  const clamped = Math.max(0, Math.min(trendData.values.length - 1, index));
+  trendIndex = clamped;
+  document.querySelectorAll("#trendDots .trend-dot").forEach((dot, position) => {
+    const selected = position === clamped;
+    dot.classList.toggle("selected", selected);
+    dot.setAttribute("r", selected ? "6" : "3.5");
+  });
+  document.querySelectorAll(".chart-label").forEach((label, position) => label.classList.toggle("active", position === clamped));
+  const dateEl = document.getElementById("trendSelectedDate");
+  if (dateEl) dateEl.textContent = trendData.labels[clamped];
+  rollTrendNumber(trendData.values[clamped], animate);
+}
+
+function rollTrendNumber(value, animate = true) {
+  const el = document.getElementById("trendSelectedValue");
+  if (!el) return;
+  const from = Number(el.dataset.value ?? value);
+  el.dataset.value = String(value);
+  if (!animate || from === value) {
+    el.innerHTML = `<span class="roll-new">${value}</span>`;
+    el.classList.remove("roll-up", "roll-down");
+    return;
+  }
+  const direction = value > from ? "up" : "down";
+  el.innerHTML = `<span class="roll-old">${from}</span><span class="roll-new">${value}</span>`;
+  el.classList.remove("roll-up", "roll-down");
+  void el.offsetWidth;
+  el.classList.add(direction === "up" ? "roll-up" : "roll-down");
+  clearTimeout(el._rollTimer);
+  el._rollTimer = setTimeout(() => {
+    el.innerHTML = `<span class="roll-new">${value}</span>`;
+    el.classList.remove("roll-up", "roll-down");
+  }, 420);
+}
+
+const trendChart = document.getElementById("healthTrendChart");
+if (trendChart) {
+  let dragging = false;
+  const selectNearest = event => {
+    if (!trendData) return;
+    const rect = trendChart.getBoundingClientRect();
+    const scaleX = rect.width / 480;
+    const scaleY = rect.height / 200;
+    const ctm = trendChart.getScreenCTM?.();
+    const toScreen = (x, y) => {
+      if (ctm) {
+        const point = trendChart.createSVGPoint();
+        point.x = x;
+        point.y = y;
+        const result = point.matrixTransform(ctm);
+        return { x: result.x, y: result.y };
+      }
+      return { x: rect.left + x * scaleX, y: rect.top + y * scaleY };
+    };
+    let nearest = -1;
+    let best = Infinity;
+    trendData.points.forEach((point, index) => {
+      const screen = toScreen(point[0], point[1]);
+      const distance = Math.hypot(screen.x - event.clientX, screen.y - event.clientY);
+      if (distance < best) {
+        best = distance;
+        nearest = index;
+      }
+    });
+    const radius = 22;
+    const target = dragging || best <= radius ? nearest : trendData.values.length - 1;
+    if (target !== trendIndex) setTrendIndex(target, true);
+  };
+  trendChart.addEventListener("pointerdown", event => {
+    dragging = true;
+    trendChart.setPointerCapture?.(event.pointerId);
+    selectNearest(event);
+  });
+  trendChart.addEventListener("pointermove", event => {
+    if (event.pointerType === "touch" && !dragging) return;
+    selectNearest(event);
+  });
+  const endDrag = () => {
+    if (dragging && trendData) setTrendIndex(trendIndex, true);
+    dragging = false;
+  };
+  trendChart.addEventListener("pointerup", endDrag);
+  trendChart.addEventListener("pointercancel", endDrag);
+  trendChart.addEventListener("pointerleave", event => {
+    if (event.pointerType && event.pointerType !== "mouse") return;
+    if (trendData) setTrendIndex(trendData.values.length - 1, true);
+  });
+  trendChart.style.touchAction = "pan-y";
 }
 
 function renderMeals() {
@@ -577,6 +678,7 @@ function appendMasonryCycle() {
     card.className = "masonry-card";
     card.dataset.foodId = food.id;
     card.style.setProperty("--match", "0");
+    card.style.animationDelay = `${Math.min(index + masonryCycle * 3, 20) * 26}ms`;
     requestAnimationFrame(() => card.style.setProperty("--match", match));
     card.innerHTML = `<span class="masonry-image-wrap"><img src="${food.image}" alt="${food.name}" style="height:${imageHeight}px" loading="lazy"><span class="masonry-add">${icon("plus")}</span></span><span class="masonry-copy"><small>${food.category}</small><strong>${food.name}</strong><span><span>${food.calories} 千卡</span><span>${food.protein} g 蛋白</span></span><span class="search-result-match">匹配 ${match}%</span></span>`;
     columns[columnIndex].appendChild(card);
@@ -625,6 +727,7 @@ function renderMasonryResults(list, query) {
     card.className = "masonry-card";
     card.dataset.foodId = food.id;
     card.style.setProperty("--match", "0");
+    card.style.animationDelay = `${Math.min(index, 12) * 26}ms`;
     requestAnimationFrame(() => card.style.setProperty("--match", item.match));
     card.innerHTML = `<span class="masonry-image-wrap"><img src="${food.image}" alt="${escapeHtml(food.name)}" style="height:${imageHeights[index % imageHeights.length]}px" loading="lazy"><span class="masonry-add">${icon("plus")}</span></span><span class="masonry-copy"><small>${escapeHtml(food.category)}</small><strong>${escapeHtml(food.name)}</strong><span><span>${food.calories} 千卡</span><span>蛋白 ${food.protein} g</span></span><span class="search-result-match">匹配 ${item.match}%</span></span>`;
     columns[index % columns.length].appendChild(card);
@@ -776,7 +879,7 @@ function applyChampionCover(champion) {
   }
 }
 
-function readCoverFile(file) {
+function readCoverFile(file, type = "image/jpeg") {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -787,7 +890,7 @@ function readCoverFile(file) {
         canvas.width = Math.round(image.width * scale);
         canvas.height = Math.round(image.height * scale);
         canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL("image/jpeg", 0.82));
+        resolve(canvas.toDataURL(type, 0.82));
       };
       image.onerror = reject;
       image.src = reader.result;
@@ -1381,6 +1484,46 @@ document.getElementById("closeUserInfo").addEventListener("click", () => element
 document.getElementById("cancelPersonal").addEventListener("click", () => elements.userInfoDialog.close());
 document.getElementById("personalForm").addEventListener("submit", savePersonalInfo);
 ["nameInput", "heightInput", "weightInput"].forEach(id => document.getElementById(id).addEventListener("input", updatePersonalPreview));
+
+const userAvatarKey = "eat-user-avatar";
+function applyUserAvatar(src) {
+  const value = src !== undefined ? src : (localStorage.getItem(userAvatarKey) || "");
+  const initial = document.getElementById("avatarInitial");
+  const image = document.getElementById("avatarImage");
+  if (initial && image) {
+    if (value) {
+      image.src = value;
+      image.hidden = false;
+      initial.classList.add("has-photo");
+    } else {
+      image.removeAttribute("src");
+      image.hidden = true;
+      initial.classList.remove("has-photo");
+    }
+  }
+  const preview = document.getElementById("personalAvatarPreview");
+  if (preview) {
+    if (value) {
+      preview.classList.add("has-photo");
+      preview.style.backgroundImage = `url("${value}")`;
+    } else {
+      preview.classList.remove("has-photo");
+      preview.style.backgroundImage = "";
+    }
+  }
+}
+document.getElementById("avatarUploadButton").addEventListener("click", () => document.getElementById("avatarUploadInput").click());
+document.getElementById("avatarUploadInput").addEventListener("change", event => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  readCoverFile(file, "image/png").then(src => {
+    localStorage.setItem(userAvatarKey, src);
+    applyUserAvatar(src);
+    showToast("头像已更新");
+  }).catch(() => showToast("头像读取失败，请换一张试试"));
+  event.target.value = "";
+});
+applyUserAvatar();
 elements.userInfoDialog.addEventListener("click", event => {
   if (event.target === elements.userInfoDialog) {
     const rect = elements.userInfoDialog.getBoundingClientRect();

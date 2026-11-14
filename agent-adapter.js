@@ -1,5 +1,5 @@
 (() => {
-  const BASE = (localStorage.getItem("eat-agent-base") || "http://127.0.0.1:8787").replace(/\/$/, "");
+  const BASE = (localStorage.getItem("eat-agent-base") || `http://${location.hostname || "127.0.0.1"}:8787`).replace(/\/$/, "");
   const STORE = {
     mode: "eat-agent-mode",
     model: "eat-agent-model",
@@ -19,6 +19,18 @@
     tone: localStorage.getItem(STORE.tone) || "normal",
     access: localStorage.getItem(STORE.access) || "manual",
     expertId: localStorage.getItem(STORE.expert) || "",
+    expertIds: (() => {
+      const raw = localStorage.getItem(STORE.expert) || "";
+      if (!raw) return [];
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed.filter(item => typeof item === "string");
+        if (typeof parsed === "string" && parsed) return [parsed];
+        return [];
+      } catch {
+        return [raw];
+      }
+    })(),
     sessionId: localStorage.getItem(STORE.session) || `web_${Date.now().toString(36)}`,
     userId: localStorage.getItem(STORE.userId) || "u_demo",
     models: [],
@@ -469,15 +481,15 @@
   }
 
   function updateExpertLabel() {
-    const button = document.getElementById("agentExpertButton");
-    if (!button) return;
-    const selected = selectedExperts();
-    button.textContent = selected.length === 0
-      ? "专家"
-      : selected.length === 1
-        ? (selected[0].display_name || selected[0].name)
-        : `专家 ${selected.length}`;
-    button.classList.toggle("has-expert", selected.length > 0);
+    const label = document.getElementById("profileModelLabel");
+    if (label) {
+      const selected = selectedExperts();
+      label.textContent = selected.length === 0
+        ? "Skill"
+        : selected.length === 1
+          ? (selected[0].display_name || selected[0].name)
+          : `Skill ${selected.length}`;
+    }
     updateExpertChips();
   }
 
@@ -586,7 +598,7 @@
       <form method="dialog" class="agent-dialog-body">
         <header><div><span class="section-kicker">需要确认</span><h2>执行这项操作？</h2></div></header>
         <p id="agentConfirmText" class="agent-muted"></p>
-        <div id="agentConfirmTools" class="agent-confirm-tools"></div>
+
         <footer>
           <button value="cancel" class="button secondary-button" type="submit">取消</button>
           <button value="confirm" class="button primary-button" type="submit">确认执行</button>
@@ -649,6 +661,7 @@
     expertMenu.className = "agent-expert-menu";
     expertMenu.innerHTML = `<div class="agent-expert-head">选择专家</div><div id="agentExpertList" class="agent-expert-list"></div>`;
     document.body.append(confirmDialog, marketDialog, accessDialog, contextPanel, expertMenu);
+    positionMarketIndicator();
     $("#agentSkillClose")?.addEventListener("click", () => marketDialog.close());
     $("#agentMarketSearch")?.addEventListener("input", () => {
       clearTimeout(state.marketTimer);
@@ -657,9 +670,20 @@
     $("#agentMarketTabs")?.addEventListener("click", event => {
       const button = event.target.closest("button[data-category]");
       if (!button) return;
-      $("#agentMarketTabs").querySelectorAll("button").forEach(item => item.classList.toggle("active", item === button));
+      const tabs = [...$("#agentMarketTabs").querySelectorAll("button")];
+      const oldIndex = tabs.findIndex(item => item.classList.contains("active"));
+      const newIndex = tabs.indexOf(button);
+      state.marketDirection = newIndex >= oldIndex ? 1 : -1;
+      const list = $("#agentSkillList");
+      if (list && list.dataset.loaded === "1") {
+        list.style.setProperty("--leave-x", state.marketDirection > 0 ? "-8px" : "8px");
+        list.classList.remove("market-enter");
+        list.classList.add("market-leave");
+      }
+      tabs.forEach(item => item.classList.toggle("active", item === button));
+      positionMarketIndicator();
       state.marketCategory = button.dataset.category || "";
-      openMarket(true);
+      openMarket();
     });
     $("#agentMarketImport")?.addEventListener("click", () => {
 
@@ -702,8 +726,7 @@
         state.modelId = preferred.id;
         localStorage.setItem(STORE.model, state.modelId);
       }
-      updateModelLabel();
-      renderModelMenu();
+      updateExpertLabel();
     } catch {
       toast("模型列表获取失败");
     }
@@ -721,9 +744,13 @@
       updateExpertLabel();
       loadExperts().then(() => updateExpertLabel());
       refreshContextBadge();
-    } catch {
+    } catch (error) {
       state.ready = false;
-      updateConnection("本地模式", "offline");
+      const hint = location.protocol === "file:"
+        ? "请改用 http://127.0.0.1:4173 打开"
+        : (error && error.message ? error.message : "连接失败");
+      updateConnection(`本地模式 · ${hint}`, "offline");
+      if (location.protocol === "file:") toast("请通过 http://127.0.0.1:4173 打开页面，直接双击 HTML 无法连接 Agent");
     }
   }
 
@@ -920,7 +947,7 @@ bubble.classList.add("is-streaming");
           const dialog = $("#agentConfirmDialog");
           const textNode = $("#agentConfirmText");
           const toolsNode = $("#agentConfirmTools");
-          if (textNode) textNode.textContent = "会修改你的数据，确认后生效。";
+          if (textNode) textNode.textContent = "该操作会修改你的健康档案数据，确认后立即生效。";
           if (toolsNode) toolsNode.innerHTML = (data.confirmed_tools || []).map(tool => `<span>${escapeHtml(tool)}</span>`).join("");
           if (dialog && !dialog.open) dialog.showModal();
           status.textContent = "等待你的确认";
@@ -945,15 +972,17 @@ bubble.classList.add("is-streaming");
       article.classList.remove("typing-message");
       bubble.classList.remove("is-streaming");
     } catch (error) {
+      console.error("[agent] send failed", error);
       removeNode(article);
       removeNode(userArticle);
       state.ready = false;
       updateConnection("本地模式", "offline");
-      toast("Agent 不可用，已切回本地分析");
+      toast(`Agent 不可用，已切回本地分析${error && error.message ? `：${error.message}` : ""}`);
       window.eatAgent.fallback = true;
       if (text) {
         window.eatLocal?.sendPrompt?.(text);
       }
+      setTimeout(() => { loadMeta(); }, 3000);
     } finally {
       state.sending = false;
     }
@@ -971,13 +1000,13 @@ bubble.classList.add("is-streaming");
     if (label) label.textContent = currentModelName();
   }
 
-  function ensureModelMenu() {
-    let menu = document.getElementById("agentModelMenu");
+  function ensureSkillMenu() {
+    let menu = document.getElementById("agentSkillMenu");
     if (menu) return menu;
     menu = document.createElement("div");
-    menu.id = "agentModelMenu";
+    menu.id = "agentSkillMenu";
     menu.className = "agent-model-menu";
-    menu.innerHTML = `<div class="agent-model-menu-head">选择模型</div><div id="agentModelList"></div>`;
+    menu.innerHTML = `<div class="agent-model-menu-head">选择 Skill</div><div id="agentSkillList"></div>`;
     document.body.append(menu);
     document.addEventListener("click", event => {
       if (menu.contains(event.target) || event.target.closest("#profileShortcut")) return;
@@ -1039,39 +1068,43 @@ bubble.classList.add("is-streaming");
     sync();
   }
 
-  function renderModelMenu() {
-    const menu = ensureModelMenu();
-    const list = menu.querySelector("#agentModelList");
+  async function renderSkillMenu() {
+    const menu = ensureSkillMenu();
+    const list = menu.querySelector("#agentSkillList");
     if (!list) return;
-    list.innerHTML = state.models.length
-      ? state.models.map(model => {
-        const real = model.real_model || model.model || model.id;
-        const detail = [real, model.available ? "" : "未配置 Key"].filter(Boolean).join(" · ");
-        return `<button type="button" class="agent-model-option ${model.id === state.modelId ? "active" : ""}" data-model-id="${escapeHtml(model.id)}" ${model.available ? "" : "disabled"}><span class="agent-model-name">${escapeHtml(model.name)}</span><small class="agent-model-meta">${escapeHtml(detail)}</small></button>`;
-      }).join("")
-      : `<p class="agent-muted">暂无可用模型</p>`;
-    list.querySelectorAll("[data-model-id]").forEach(button => {
+    list.innerHTML = `<p class="agent-muted">加载中…</p>`;
+    const experts = (await loadExperts()).filter(skill => skill.id !== "page-designer");
+    list.innerHTML = `
+      <button type="button" class="agent-model-option ${state.expertIds.length ? "" : "active"}" data-skill=""><span class="agent-model-name">自动选择</span><small class="agent-model-meta">按消息匹配最合适的 Skill</small></button>
+      ${experts.map(skill => `<button type="button" class="agent-model-option ${state.expertIds.includes(skill.id) ? "active" : ""}" data-skill="${escapeHtml(skill.id)}"><span class="agent-model-name">${escapeHtml(skill.display_name || skill.name)}</span><small class="agent-model-meta">${escapeHtml(skill.description || "")}${skill.source === "user" ? " · 已安装" : ""}</small></button>`).join("")}
+    `;
+    list.querySelectorAll("[data-skill]").forEach(button => {
       button.addEventListener("click", () => {
-        if (button.disabled) return;
-        state.modelId = button.dataset.modelId;
-        localStorage.setItem(STORE.model, state.modelId);
-        updateModelLabel();
-        renderModelMenu();
+        toggleExpert(button.dataset.skill || "");
+        renderSkillMenu();
         menu.classList.remove("open");
-        toast(`已切换模型：${button.textContent}`);
       });
     });
   }
 
-  function openModelMenu() {
-    const menu = ensureModelMenu();
-    renderModelMenu();
+  function openSkillMenu() {
+    const menu = ensureSkillMenu();
     const button = document.getElementById("profileShortcut");
     if (!button) return;
     const rect = button.getBoundingClientRect();
     menu.style.left = `${Math.max(12, rect.left)}px`;
     menu.style.bottom = `${window.innerHeight - rect.top + 8}px`;
     menu.classList.add("open");
+    renderSkillMenu();
+  }
+
+  function toggleSkillMenu() {
+    const menu = ensureSkillMenu();
+    if (menu.classList.contains("open")) {
+      menu.classList.remove("open");
+      return;
+    }
+    openSkillMenu();
   }
 
   function formatHistoryTime(timestamp) {
@@ -1242,7 +1275,7 @@ bubble.classList.add("is-streaming");
     const users = [...document.querySelectorAll("#conversation .user-message")];
     rails.innerHTML = users.map((node, index) => {
       const text = node.querySelector(".message-bubble")?.textContent?.trim() || "";
-      return `<button type="button" class="message-rail" data-rail-index="${index}"><span>${escapeHtml(text.slice(0, 80))}</span></button>`;
+      return `<button type="button" class="message-rail" data-rail-index="${index}"><span class="message-rail-card">${escapeHtml(text.slice(0, 80))}</span></button>`;
     }).join("");
     rails.querySelectorAll("[data-rail-index]").forEach(button => {
       button.addEventListener("click", () => {
@@ -1273,6 +1306,21 @@ bubble.classList.add("is-streaming");
     });
   }
 
+  function positionMarketIndicator() {
+    const tabs = document.getElementById("agentMarketTabs");
+    if (!tabs) return;
+    let indicator = tabs.querySelector(".agent-market-indicator");
+    if (!indicator) {
+      indicator = document.createElement("span");
+      indicator.className = "agent-market-indicator";
+      tabs.prepend(indicator);
+    }
+    const active = tabs.querySelector("button.active") || tabs.querySelector("button");
+    if (!active) return;
+    indicator.style.width = `${active.offsetWidth}px`;
+    indicator.style.transform = `translateX(${active.offsetLeft}px)`;
+  }
+
   async function openMarket(force = false) {
     const dialog = $("#agentSkillDialog");
     const list = $("#agentSkillList");
@@ -1280,6 +1328,7 @@ bubble.classList.add("is-streaming");
     const hint = $("#agentSkillHint");
     if (!dialog || !list) return;
     if (!dialog.open) dialog.showModal();
+    positionMarketIndicator();
     if (force || !list.dataset.loaded) {
       list.innerHTML = `<p class="agent-muted">加载中…</p>`;
       if (installedList) installedList.innerHTML = `<p class="agent-muted">加载中…</p>`;
@@ -1318,6 +1367,16 @@ bubble.classList.add("is-streaming");
             </article>
           `;
         }).join("");
+      }
+      if (state.marketDirection) {
+        const dir = state.marketDirection;
+        list.classList.remove("market-leave");
+        list.classList.remove("market-enter");
+        list.style.setProperty("--enter-x", dir > 0 ? "16px" : "-16px");
+        void list.offsetWidth;
+        list.classList.add("market-enter");
+        setTimeout(() => list.classList.remove("market-enter"), 260);
+        state.marketDirection = 0;
       }
       list.querySelectorAll("[data-install]").forEach(button => {
         button.addEventListener("click", () => installSkill(button.dataset.install));
@@ -1442,9 +1501,7 @@ bubble.classList.add("is-streaming");
   document.getElementById("profileShortcut")?.addEventListener("click", event => {
     event.preventDefault();
     event.stopImmediatePropagation();
-    const menu = document.getElementById("agentModelMenu");
-    if (menu?.classList.contains("open")) menu.classList.remove("open");
-    else openModelMenu();
+    toggleSkillMenu();
   }, true);
 
   document.getElementById("agentHistoryEntry")?.addEventListener("click", event => {
