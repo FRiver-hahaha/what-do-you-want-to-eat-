@@ -1281,6 +1281,20 @@ async function saveSpendRange() {
   loadAgentMenu();
 }
 
+function syncProfileFromAgent(patch) {
+  if (!patch || typeof patch !== "object") return;
+  profile = { ...profile, ...patch };
+  if (elements.userInfoDialog?.open) {
+    const fields = { spendMinInput: "spend_min", spendMaxInput: "spend_max", heightInput: "height", weightInput: "weight", ageInput: "age" };
+    Object.entries(fields).forEach(([id, key]) => {
+      const node = document.getElementById(id);
+      if (node && profile[key] != null) node.value = profile[key];
+    });
+    updatePersonalPreview();
+  }
+  loadAgentMenu();
+}
+
 function savePersonalInfo(event) {
   event.preventDefault();
   const form = document.getElementById("personalForm");
@@ -1319,6 +1333,11 @@ function switchView(view) {
   activeView = view;
 }
 
+function userAvatarMarkup() {
+  const src = localStorage.getItem("eat-user-avatar") || "";
+  return src ? `<div class="user-avatar" aria-hidden="true"><img src="${escapeHtml(src)}" alt=""></div>` : `<div class="user-avatar" aria-hidden="true">我</div>`;
+}
+
 function appendUserMessage(text) {
   const article = document.createElement("article");
   article.className = "message user-message";
@@ -1328,6 +1347,7 @@ function appendUserMessage(text) {
   paragraph.textContent = text;
   bubble.appendChild(paragraph);
   article.appendChild(bubble);
+  article.insertAdjacentHTML("beforeend", userAvatarMarkup());
   elements.conversation.insertBefore(article, document.getElementById("quickPrompts"));
 }
 
@@ -1363,7 +1383,7 @@ function appendAgentReply(text) {
 function appendPhotoMessage(src) {
   const article = document.createElement("article");
   article.className = "message user-message";
-  article.innerHTML = `<div class="message-bubble photo-bubble"><img src="${src}" alt="上传的饭菜照片"></div>`;
+  article.innerHTML = `<div class="message-bubble photo-bubble"><img src="${src}" alt="上传的饭菜照片"></div>${userAvatarMarkup()}`;
   elements.conversation.insertBefore(article, document.getElementById("quickPrompts"));
   elements.conversation.scrollTo({ top: elements.conversation.scrollHeight, behavior: "smooth" });
 }
@@ -1818,6 +1838,9 @@ function applyUserAvatar(src) {
       preview.style.backgroundImage = "";
     }
   }
+  document.querySelectorAll("#conversation .user-avatar").forEach(node => {
+    node.innerHTML = value ? `<img src="${value}" alt="">` : "我";
+  });
 }
 document.getElementById("avatarUploadButton").addEventListener("click", () => document.getElementById("avatarUploadInput").click());
 document.getElementById("avatarUploadInput").addEventListener("change", event => {
@@ -1978,6 +2001,7 @@ window.eatLocal = {
   sendPrompt,
   recordMeal,
   applyMealAction,
+  syncProfileFromAgent,
   getHealthAnalysis,
   showToast
 };

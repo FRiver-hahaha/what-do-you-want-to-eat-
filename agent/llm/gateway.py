@@ -111,7 +111,7 @@ class RuleProvider:
     ) -> LLMResult:
         user_index = self._last_user_index(messages)
         if user_index < 0:
-            return LLMResult(content="你好，我可以帮你查饮食记录、推荐今天吃什么，或分析本周健康情况。", finish_reason="stop")
+            return LLMResult(content="你好，我是饭饭，可以帮你查饮食记录、推荐今天吃什么，或分析本周健康情况。", finish_reason="stop")
         tool_messages = [message for message in messages[user_index + 1:] if message.get("role") == "tool"]
         if tool_messages:
             return LLMResult(content=self._compose_final(messages), finish_reason="stop")
@@ -398,7 +398,7 @@ class RuleProvider:
         if knowledge:
             return "根据知识库：" + knowledge[:600]
         if any(word in user_text for word in ["你好", "hi", "hello", "嗨"]):
-            return "你好，我是今天你吃了吗的 Agent。你可以问我：今天吃了什么、今天该吃什么、本周健康情况，或让我按实时菜单配一餐。"
+            return "你好，我是饭饭。你可以问我：今天吃了什么、今天该吃什么、本周健康情况，或让我按实时菜单配一餐。"
         if any(word in user_text for word in ["skill", "技能"]):
             return "内置技能包括健康专家、饮食专家、营养师、页面设计师、猜餐和配餐。工作模式下还可以从 Skill 市场安装或导入本地技能。"
         return (

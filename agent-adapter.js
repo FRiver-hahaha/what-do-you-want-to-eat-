@@ -755,6 +755,13 @@
     }
   }
 
+  function userAvatarMarkup() {
+    const src = localStorage.getItem("eat-user-avatar") || "";
+    return src
+      ? `<div class="user-avatar" aria-hidden="true"><img src="${escapeHtml(src)}" alt=""></div>`
+      : `<div class="user-avatar" aria-hidden="true">我</div>`;
+  }
+
   function appendUser(text, images = []) {
     const conversation = document.getElementById("conversation");
     if (!conversation) return null;
@@ -779,6 +786,7 @@
       bubble.appendChild(media);
     }
     article.appendChild(bubble);
+    article.insertAdjacentHTML("beforeend", userAvatarMarkup());
     const anchor = document.getElementById("quickPrompts");
     conversation.insertBefore(article, anchor || null);
     conversation.scrollTo({ top: conversation.scrollHeight, behavior: "smooth" });
@@ -964,6 +972,7 @@ bubble.classList.add("is-streaming");
           if (data.need_confirm) status.textContent = "等待你的确认";
           else status.textContent = data.ok ? "已完成查询" : "查询失败，继续整理";
           if (data.name === "update_health_profile" && data.ok) syncLocalProfile(data.data?.profile);
+          if (data.name === "update_spend_level" && data.ok) syncLocalProfile(data.data?.profile);
           if (data.name === "record_meal" && data.ok) {
             const call = pendingToolCalls.get(data.id);
             if (call) syncLocalMeal(call.arguments);
@@ -1101,8 +1110,17 @@ bubble.classList.add("is-streaming");
     ["name", "goal", "activity", "note", "gender", "diet_style"].forEach(field => {
       if (profile[field] != null) next[field] = String(profile[field]);
     });
+    ["spend_min", "spend_max"].forEach(field => {
+      const value = Number(profile[field]);
+      if (profile[field] != null && Number.isFinite(value)) next[field] = Math.round(value);
+    });
     localStorage.setItem(key, JSON.stringify(next));
-    toast("档案已更新，刷新页面后档案页同步显示");
+    if (typeof window.eatLocal?.syncProfileFromAgent === "function") {
+      window.eatLocal.syncProfileFromAgent(next);
+      toast("档案已更新，设置页已同步");
+    } else {
+      toast("档案已更新，刷新页面后档案页同步显示");
+    }
   }
 
   function mountToneSetting() {
@@ -1248,7 +1266,12 @@ bubble.classList.add("is-streaming");
       listNode.innerHTML = `<p class="agent-muted">${keyword ? "没有匹配的历史对话" : "还没有历史对话"}</p>`;
       return;
     }
-    listNode.innerHTML = items.map(session => `<button type="button" class="agent-history-item ${session.id === state.sessionId ? "active" : ""}" data-session-id="${escapeHtml(session.id)}"><strong>${escapeHtml(session.title || "未命名对话")}</strong><time>${formatHistoryTime(session.time)}</time></button>`).join("");
+    listNode.innerHTML = items.map(session => {
+      const messages = session.messages || [];
+      const last = [...messages].reverse().find(message => String(message.text || "").trim());
+      const preview = last ? String(last.text).replace(/\s+/g, " ").slice(0, 60) : "还没有消息";
+      return `<button type="button" class="agent-history-item ${session.id === state.sessionId ? "active" : ""}" data-session-id="${escapeHtml(session.id)}"><span class="agent-history-copy"><strong>${escapeHtml(session.title || "未命名对话")}</strong><em class="agent-history-preview">${escapeHtml(preview)}</em></span><time>${formatHistoryTime(session.time)}</time></button>`;
+    }).join("");
     listNode.querySelectorAll("[data-session-id]").forEach(button => {
       button.addEventListener("click", () => openHistorySession(button.dataset.sessionId));
     });
@@ -1267,7 +1290,7 @@ bubble.classList.add("is-streaming");
         const article = document.createElement("article");
         if (message.role === "user") {
           article.className = "message user-message";
-          article.innerHTML = `<div class="message-bubble"><p>${escapeHtml(message.text)}</p></div>`;
+          article.innerHTML = `<div class="message-bubble"><p>${escapeHtml(message.text)}</p></div>${userAvatarMarkup()}`;
         } else {
           article.className = "message agent-message";
           article.innerHTML = `<div class="agent-avatar"><svg class="icon"><use href="#icon-utensils"></use></svg></div><div class="message-content"><div class="message-meta"><strong>饭饭</strong><span>历史回复</span></div><div class="message-bubble"><p>${escapeHtml(message.text)}</p></div></div>`;

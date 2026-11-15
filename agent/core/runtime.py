@@ -171,6 +171,7 @@ class AgentRuntime:
                 summary_block=summary,
                 has_images=bool(images),
                 access_level=access_level,
+                first_turn=not history and not summary,
             )
 
             yield AgentEvent(
@@ -332,7 +333,7 @@ class AgentRuntime:
                         self.planner.mark(plan, name, "ok" if tool_result.ok else "error")
                     result_data: dict[str, Any] = {}
                     if tool_result.ok and isinstance(tool_result.data, dict):
-                        if name == "update_health_profile":
+                        if name in ("update_health_profile", "update_spend_level"):
                             result_data["profile"] = tool_result.data.get("profile", {})
                         if name in ("delete_meal", "update_meal"):
                             result_data["meal_action"] = tool_result.data.get("meal_action") or {}

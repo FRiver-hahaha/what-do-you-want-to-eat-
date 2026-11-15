@@ -41,9 +41,9 @@
 .inference-track i { display: block; height: 100%; border-radius: inherit; background: var(--accent); transition: width 300ms var(--ease); }
 .inference-evidence { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
 .inference-evidence span { padding: 4px 7px; border-radius: 6px; background: rgba(39, 49, 45, 0.04); color: var(--text-muted); font-size: 10px; }
-.inference-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 8px; padding-top: 8px; box-shadow: 0 -1px 0 rgba(56, 70, 62, 0.06); }
-.inference-footer > span { max-width: 360px; color: var(--text-muted); font-size: 11px; line-height: 18px; }
-.inference-actions { display: flex; gap: 8px; }
+.inference-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 8px; padding: 8px 12px; border-radius: 12px; box-shadow: none; }
+.inference-footer > span { max-width: none; flex: 1 1 auto; min-width: 0; color: var(--text-muted); font-size: 11px; line-height: 18px; }
+.inference-actions { display: flex; gap: 8px; align-self: center; }
 .inference-secondary-actions { display: flex; gap: 12px; margin-top: 12px; }
 .inference-secondary-actions button { padding: 0; background: transparent; color: var(--text-muted); font-size: 11px; }
 .inference-secondary-actions button:hover { color: var(--accent-ink); }
@@ -106,7 +106,7 @@ body[data-theme="sky"] .aurora-sage { background: radial-gradient(ellipse, rgba(
 body[data-theme="sky"] .aurora-sky { background: radial-gradient(ellipse, rgba(190, 211, 226, 0.64), rgba(240, 244, 246, 0) 74%); }
 body[data-theme="sky"] .aurora-peach { background: radial-gradient(ellipse, rgba(215, 227, 236, 0.5), rgba(240, 244, 246, 0) 74%); }
 @media (max-width: 1280px) {
-  .inference-footer { align-items: flex-start; flex-direction: column; }
+
   .inference-footer > span { max-width: none; }
   .theme-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
@@ -120,7 +120,8 @@ body[data-theme="sky"] .aurora-peach { background: radial-gradient(ellipse, rgba
   .inference-heading { flex-direction: column; gap: 4px; }
   .inference-body { grid-template-columns: 1fr; }
   .inference-visual { height: 160px; }
-  .inference-actions { flex-wrap: wrap; }
+  .inference-actions { flex-wrap: wrap; align-self: flex-end; }
+  .inference-footer { align-items: flex-start; flex-direction: column; }
   .theme-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .weekly-reward-card { align-items: flex-start; flex-direction: column; gap: 12px; }
 }
@@ -1330,3 +1331,59 @@ textarea:focus-visible,
 .random-picker-meta > .food-price { background: rgba(255, 111, 145, 0.12); color: var(--accent-ink); }
 .random-picker-meta > .food-group { padding: 4px 8px; font-size: 11px; font-weight: 600; }
 .random-picker-meta > .food-group.daily { background: var(--accent-soft); color: var(--accent-ink); }
+/* left sidebar: keep the two menu cards fully visible, record list scrolls below */
+.food-module { flex: 0 0 auto; }
+.sidebar-bottom {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 150px;
+  flex-direction: column;
+  overflow: hidden;
+  margin-top: 16px;
+}
+.sidebar-bottom .today-card {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 12px;
+}
+.sidebar-bottom .details-heading { flex: 0 0 auto; }
+.sidebar-bottom .meal-timeline {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(31, 38, 57, 0.18) transparent;
+}
+.sidebar-bottom .meal-timeline::-webkit-scrollbar { width: 4px; }
+.sidebar-bottom .meal-timeline::-webkit-scrollbar-thumb { border-radius: 2px; background: rgba(31, 38, 57, 0.18); }
+.app-shell.left-collapsed .sidebar-bottom { flex: 0 0 auto; min-height: 0; overflow: visible; }
+/* user message: round avatar + light blue bubble */
+.user-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  margin-top: 2px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: rgba(108, 140, 255, 0.16);
+  color: #4f6bd8;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: var(--shadow-small);
+}
+.user-avatar img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.user-message .message-bubble {
+  min-width: 0;
+  background: #e6edff;
+  border: 1px solid rgba(108, 140, 255, 0.22);
+  color: #1f2639;
+  box-shadow: var(--shadow-small);
+}
+.user-message .message-bubble p { color: #1f2639; }

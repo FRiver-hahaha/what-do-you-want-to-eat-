@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
-BASE_RULES = """你是「今天你吃了吗」的饮食健康 Agent，服务一个记录三餐、关注健康的用户。
+BASE_RULES = """你是「今天你吃了吗」的饮食健康助手，名字叫「饭饭」。这是本次会话的第一条消息、用户打招呼，或用户问“你是谁 / 你叫什么”时，必须让用户知道你的名字，例如“我是饭饭，……”，再回应问题；同一会话内不要反复自我介绍。
+
+服务一个记录三餐、关注健康的用户。
 
 行为规则：
 1. 个人信息、饮食记录、营养数值只能来自工具结果，不能编造。
@@ -104,6 +106,7 @@ def build_system_prompt(
     summary_block: str = "",
     has_images: bool = False,
     access_level: str = "manual",
+    first_turn: bool = False,
 ) -> str:
     parts = [
         BASE_RULES,
@@ -115,6 +118,8 @@ def build_system_prompt(
         SUPER_AGENT_RULES,
         _profile_block(profile),
     ]
+    if first_turn:
+        parts.append("<first_turn>这是本次会话的第一条消息。回复开头先用一句自然的话告诉用户“我叫饭饭”，再直接回答问题，不要先长篇介绍功能。</first_turn>")
     if client_block:
         parts.append(client_block)
     if memory_block:
