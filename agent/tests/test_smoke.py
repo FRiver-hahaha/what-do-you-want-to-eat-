@@ -638,15 +638,15 @@ class TestMenu(unittest.TestCase):
         self.assertTrue(all(food["group"] == "other" for food in result.data["other"]))
         self.assertIn("日常菜", result.summary)
 
-    def test_random_pick_ratio_near_sixty(self) -> None:
+    def test_random_pick_ratio_near_seventy(self) -> None:
         groups = {
             "daily": [{"name": "daily", "price": 25}],
             "other": [{"name": "other", "price": 60}],
         }
         picks = [pick_random(groups, seed=index) for index in range(600)]
         ratio = sum(1 for item in picks if item["group"] == "daily") / len(picks)
-        self.assertGreater(ratio, 0.5)
-        self.assertLess(ratio, 0.7)
+        self.assertGreater(ratio, 0.64)
+        self.assertLess(ratio, 0.76)
         self.assertIsNone(pick_random({"daily": [], "other": []})["food"])
 
     def test_import_menu_drives_grouping(self) -> None:

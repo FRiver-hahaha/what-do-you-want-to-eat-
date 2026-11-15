@@ -173,7 +173,7 @@ def build_menu_tools() -> list[ToolSpec]:
         ),
         ToolSpec(
             name="pick_random_food",
-            description="按 60% 日常菜、40% 其他菜品抽一道菜，仅工作模式可用",
+            description="按 70% 日常菜、30% 其他菜品抽一道菜，仅工作模式可用",
             parameters=_schema(
                 {
                     "meal_type": {"type": "string", "enum": ["早餐", "午餐", "晚餐", "加餐", ""]},

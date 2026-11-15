@@ -16,6 +16,8 @@ const defaultProfile = {
   activity: "久坐",
   waterTarget: 1800,
   sleep: 7,
+  spend_min: 20,
+  spend_max: 35,
   note: "下午容易口渴，晚餐不宜过饱"
 };
 
@@ -25,22 +27,22 @@ const defaultMeals = [
 ];
 
 const foods = [
-  { id: "lemon-chicken", name: "柠檬鸡胸能量碗", category: "高蛋白 · 清爽", description: "烤鸡胸、牛油果、藜麦与时令蔬菜", calories: 460, protein: 38, fiber: 9, veggies: 320, water: 250, nature: "recommend", keywords: "鸡胸 沙拉 碗 轻食 蛋白", image: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=82" },
-  { id: "tomato-beef", name: "番茄牛腩盖饭", category: "热乎 · 饱腹", description: "番茄牛腩、杂粮米饭与焯拌时蔬", calories: 620, protein: 32, fiber: 7, veggies: 180, water: 180, nature: "recommend", keywords: "米饭 饭 牛肉 牛腩 盖饭 番茄", image: "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=600&q=82" },
-  { id: "mushroom-soup", name: "菌菇鸡汤面", category: "清淡 · 汤食", description: "清鸡汤、三种菌菇、细面与小青菜", calories: 430, protein: 24, fiber: 6, veggies: 160, water: 450, nature: "recommend", keywords: "面 汤 菌菇 鸡汤 清淡", image: "https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=600&q=82" },
-  { id: "shrimp-pasta", name: "蒜香虾仁意面", category: "高蛋白 · 换口味", description: "虾仁、樱桃番茄与全麦意面", calories: 560, protein: 35, fiber: 8, veggies: 140, water: 160, nature: "recommend", keywords: "面 意面 虾 海鲜 番茄", image: "https://images.unsplash.com/photo-1563379926898-05f4575a45d8?auto=format&fit=crop&w=600&q=82" },
-  { id: "vegetable-rice", name: "时蔬豆腐拌饭", category: "植物蛋白 · 多蔬菜", description: "香煎豆腐、烤南瓜、西兰花与杂粮饭", calories: 410, protein: 22, fiber: 12, veggies: 360, water: 180, nature: "recommend", keywords: "米饭 饭 豆腐 素食 拌饭 蔬菜", image: "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=600&q=82" },
-  { id: "pepper-chicken", name: "藤椒鸡丝拌面", category: "微辣 · 快手", description: "嫩鸡丝、黄瓜丝与荞麦面", calories: 520, protein: 30, fiber: 7, veggies: 140, water: 180, nature: "recommend", keywords: "面 鸡丝 辣 荞麦 凉面", image: "https://images.unsplash.com/photo-1473093295043-cdd812d0e601?auto=format&fit=crop&w=600&q=82" },
-  { id: "tomato-egg-rice", name: "番茄鸡蛋盖饭", category: "家常 · 顺口", description: "番茄炒蛋、杂粮米饭与小份青菜", calories: 480, protein: 18, fiber: 5, veggies: 160, water: 150, nature: "recommend", keywords: "米饭 饭 番茄 鸡蛋 盖饭 家常", image: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=82" },
-  { id: "salmon-quinoa", name: "三文鱼藜麦碗", category: "高蛋白 · 优质脂肪", description: "烤三文鱼、藜麦、牛油果与羽衣甘蓝", calories: 520, protein: 34, fiber: 8, veggies: 240, water: 200, nature: "recommend", keywords: "三文鱼 鱼 藜麦 沙拉 轻食", image: "https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=600&q=82" },
-  { id: "steamed-fish-rice", name: "清蒸鲈鱼配米饭", category: "清淡 · 蒸食", description: "清蒸鲈鱼、杂粮米饭与白灼菜心", calories: 470, protein: 33, fiber: 4, veggies: 200, water: 200, nature: "recommend", keywords: "米饭 饭 鱼 清蒸 少油", image: "https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=600&q=82" },
-  { id: "chicken-salad", name: "鸡胸蔬菜沙拉", category: "低脂 · 高纤维", description: "煎鸡胸、混合生菜、番茄与油醋汁", calories: 380, protein: 32, fiber: 10, veggies: 300, water: 220, nature: "recommend", keywords: "沙拉 蔬菜 鸡胸 轻食 减脂", image: "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=600&q=82" },
-  { id: "yangzhou-fried-rice", name: "扬州炒饭", category: "热乎 · 放纵", description: "火腿、虾仁、鸡蛋与香米炒饭", calories: 680, protein: 20, fiber: 3, veggies: 90, water: 100, nature: "indulge", keywords: "米饭 饭 炒饭 火腿 虾仁", image: "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=600&q=82" },
-  { id: "beef-fried-rice", name: "牛肉炒饭", category: "热乎 · 放纵", description: "黑椒牛肉、香米与葱花", calories: 720, protein: 26, fiber: 2, veggies: 60, water: 100, nature: "indulge", keywords: "米饭 饭 炒饭 牛肉 黑椒", image: "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=600&q=82" },
-  { id: "fried-chicken-burger", name: "炸鸡汉堡", category: "快餐 · 放纵", description: "脆皮炸鸡、芝士与汉堡面包", calories: 780, protein: 30, fiber: 2, veggies: 40, water: 80, nature: "indulge", keywords: "炸鸡 汉堡 快餐 薯条", image: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=600&q=82" },
-  { id: "cheese-cake", name: "芝士蛋糕", category: "甜点 · 放纵", description: "浓郁芝士、饼干底与莓果", calories: 420, protein: 8, fiber: 1, veggies: 0, water: 40, nature: "indulge", keywords: "甜点 蛋糕 芝士 甜品", image: "https://images.unsplash.com/photo-1551024506-0bccd828d307?auto=format&fit=crop&w=600&q=82" },
-  { id: "bubble-tea", name: "珍珠奶茶", category: "饮品 · 放纵", description: "红茶、奶盖与黑糖珍珠", calories: 460, protein: 4, fiber: 0, veggies: 0, water: 100, nature: "indulge", keywords: "奶茶 饮料 甜 珍珠 黑糖", image: "https://images.unsplash.com/photo-1544145945-f90425340c7e?auto=format&fit=crop&w=600&q=82" },
-  { id: "malatang", name: "麻辣烫", category: "热辣 · 放纵", description: "自选蔬菜、丸子与麻辣汤底", calories: 640, protein: 24, fiber: 6, veggies: 260, water: 300, nature: "indulge", keywords: "麻辣烫 辣 火锅 丸子 汤", image: "https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=600&q=82" }
+  { id: "lemon-chicken", name: "柠檬鸡胸能量碗", category: "高蛋白 · 清爽", description: "烤鸡胸、牛油果、藜麦与时令蔬菜", calories: 460, protein: 38, fiber: 9, veggies: 320, water: 250, price: 30, nature: "recommend", keywords: "鸡胸 沙拉 碗 轻食 蛋白", image: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=82" },
+  { id: "tomato-beef", name: "番茄牛腩盖饭", category: "热乎 · 饱腹", description: "番茄牛腩、杂粮米饭与焯拌时蔬", calories: 620, protein: 32, fiber: 7, veggies: 180, water: 180, price: 28, nature: "recommend", keywords: "米饭 饭 牛肉 牛腩 盖饭 番茄", image: "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=600&q=82" },
+  { id: "mushroom-soup", name: "菌菇鸡汤面", category: "清淡 · 汤食", description: "清鸡汤、三种菌菇、细面与小青菜", calories: 430, protein: 24, fiber: 6, veggies: 160, water: 450, price: 24, nature: "recommend", keywords: "面 汤 菌菇 鸡汤 清淡", image: "https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=600&q=82" },
+  { id: "shrimp-pasta", name: "蒜香虾仁意面", category: "高蛋白 · 换口味", description: "虾仁、樱桃番茄与全麦意面", calories: 560, protein: 35, fiber: 8, veggies: 140, water: 160, price: 36, nature: "recommend", keywords: "面 意面 虾 海鲜 番茄", image: "https://images.unsplash.com/photo-1563379926898-05f4575a45d8?auto=format&fit=crop&w=600&q=82" },
+  { id: "vegetable-rice", name: "时蔬豆腐拌饭", category: "植物蛋白 · 多蔬菜", description: "香煎豆腐、烤南瓜、西兰花与杂粮饭", calories: 410, protein: 22, fiber: 12, veggies: 360, water: 180, price: 25, nature: "recommend", keywords: "米饭 饭 豆腐 素食 拌饭 蔬菜", image: "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=600&q=82" },
+  { id: "pepper-chicken", name: "藤椒鸡丝拌面", category: "微辣 · 快手", description: "嫩鸡丝、黄瓜丝与荞麦面", calories: 520, protein: 30, fiber: 7, veggies: 140, water: 180, price: 26, nature: "recommend", keywords: "面 鸡丝 辣 荞麦 凉面", image: "https://images.unsplash.com/photo-1473093295043-cdd812d0e601?auto=format&fit=crop&w=600&q=82" },
+  { id: "tomato-egg-rice", name: "番茄鸡蛋盖饭", category: "家常 · 顺口", description: "番茄炒蛋、杂粮米饭与小份青菜", calories: 480, protein: 18, fiber: 5, veggies: 160, water: 150, price: 20, nature: "recommend", keywords: "米饭 饭 番茄 鸡蛋 盖饭 家常", image: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=82" },
+  { id: "salmon-quinoa", name: "三文鱼藜麦碗", category: "高蛋白 · 优质脂肪", description: "烤三文鱼、藜麦、牛油果与羽衣甘蓝", calories: 520, protein: 34, fiber: 8, veggies: 240, water: 200, price: 42, nature: "recommend", keywords: "三文鱼 鱼 藜麦 沙拉 轻食", image: "https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=600&q=82" },
+  { id: "steamed-fish-rice", name: "清蒸鲈鱼配米饭", category: "清淡 · 蒸食", description: "清蒸鲈鱼、杂粮米饭与白灼菜心", calories: 470, protein: 33, fiber: 4, veggies: 200, water: 200, price: 34, nature: "recommend", keywords: "米饭 饭 鱼 清蒸 少油", image: "https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=600&q=82" },
+  { id: "chicken-salad", name: "鸡胸蔬菜沙拉", category: "低脂 · 高纤维", description: "煎鸡胸、混合生菜、番茄与油醋汁", calories: 380, protein: 32, fiber: 10, veggies: 300, water: 220, price: 28, nature: "recommend", keywords: "沙拉 蔬菜 鸡胸 轻食 减脂", image: "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=600&q=82" },
+  { id: "yangzhou-fried-rice", name: "扬州炒饭", category: "热乎 · 放纵", description: "火腿、虾仁、鸡蛋与香米炒饭", calories: 680, protein: 20, fiber: 3, veggies: 90, water: 100, price: 22, nature: "indulge", keywords: "米饭 饭 炒饭 火腿 虾仁", image: "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=600&q=82" },
+  { id: "beef-fried-rice", name: "牛肉炒饭", category: "热乎 · 放纵", description: "黑椒牛肉、香米与葱花", calories: 720, protein: 26, fiber: 2, veggies: 60, water: 100, price: 26, nature: "indulge", keywords: "米饭 饭 炒饭 牛肉 黑椒", image: "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=600&q=82" },
+  { id: "fried-chicken-burger", name: "炸鸡汉堡", category: "快餐 · 放纵", description: "脆皮炸鸡、芝士与汉堡面包", calories: 780, protein: 30, fiber: 2, veggies: 40, water: 80, price: 32, nature: "indulge", keywords: "炸鸡 汉堡 快餐 薯条", image: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=600&q=82" },
+  { id: "cheese-cake", name: "芝士蛋糕", category: "甜点 · 放纵", description: "浓郁芝士、饼干底与莓果", calories: 420, protein: 8, fiber: 1, veggies: 0, water: 40, price: 18, nature: "indulge", keywords: "甜点 蛋糕 芝士 甜品", image: "https://images.unsplash.com/photo-1551024506-0bccd828d307?auto=format&fit=crop&w=600&q=82" },
+  { id: "bubble-tea", name: "珍珠奶茶", category: "饮品 · 放纵", description: "红茶、奶盖与黑糖珍珠", calories: 460, protein: 4, fiber: 0, veggies: 0, water: 100, price: 16, nature: "indulge", keywords: "奶茶 饮料 甜 珍珠 黑糖", image: "https://images.unsplash.com/photo-1544145945-f90425340c7e?auto=format&fit=crop&w=600&q=82" },
+  { id: "malatang", name: "麻辣烫", category: "热辣 · 放纵", description: "自选蔬菜、丸子与麻辣汤底", calories: 640, protein: 24, fiber: 6, veggies: 260, water: 300, price: 30, nature: "indulge", keywords: "麻辣烫 辣 火锅 丸子 汤", image: "https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=600&q=82" }
 ];
 
 const seedHistory = [
@@ -121,6 +123,10 @@ let coverDraftSrc = "";
 let randomFoodId = "";
 let randomReturnView = "today";
 let searchTimer;
+let editingMealIndex = -1;
+let deletingMealIndex = -1;
+
+const MEAL_TYPES = ["早餐", "午餐", "下午茶", "晚餐", "加餐"];
 
 const elements = {
   appShell: document.getElementById("appShell"),
@@ -564,17 +570,139 @@ if (trendChart) {
   trendChart.style.touchAction = "pan-y";
 }
 
+function renderMealRow(meal, index) {
+  if (meal.pending) {
+    return `<div class="meal-item pending"><time>${escapeHtml(meal.time)}</time><span class="timeline-dot">${icon("check")}</span><div><strong>${escapeHtml(meal.type)}</strong><p>${escapeHtml(meal.text)}</p></div></div>`;
+  }
+  if (index === editingMealIndex) {
+    return `<div class="meal-item completed editing" data-meal-index="${index}"><time>${escapeHtml(meal.time)}</time><span class="timeline-dot">${icon("check")}</span><div class="meal-edit"><select class="meal-edit-type" aria-label="餐次">${MEAL_TYPES.map(type => `<option value="${type}"${type === meal.type ? " selected" : ""}>${type}</option>`).join("")}</select><input class="meal-edit-text" type="text" value="${escapeHtml(meal.text)}" aria-label="记录内容"><div class="meal-edit-actions"><button type="button" class="meal-edit-save" data-meal-action="save">保存</button><button type="button" class="meal-edit-cancel" data-meal-action="cancel">取消</button></div></div></div>`;
+  }
+  const confirming = index === deletingMealIndex;
+  const actions = confirming
+    ? `<button type="button" class="meal-action danger" data-meal-action="confirm-delete">删除</button><button type="button" class="meal-action" data-meal-action="cancel">取消</button>`
+    : `<button type="button" class="meal-action" data-meal-action="edit" aria-label="修改" title="修改">${icon("pencil")}</button><button type="button" class="meal-action" data-meal-action="delete" aria-label="删除" title="删除">${icon("trash")}</button>`;
+  return `<div class="meal-item completed${confirming ? " confirming" : ""}" data-meal-index="${index}"><time>${escapeHtml(meal.time)}</time><span class="timeline-dot">${icon("check")}</span><div><strong>${escapeHtml(meal.type)}</strong><p>${escapeHtml(meal.text)}</p>${confirming ? '<small class="meal-delete-hint">确定删除这条记录？</small>' : ""}</div><div class="meal-actions${confirming ? " is-visible" : ""}">${actions}</div></div>`;
+}
+
 function renderMeals() {
   const slots = ["早餐", "午餐", "晚餐"];
-  const remaining = [...meals];
+  const indexed = meals.map((meal, index) => ({ meal, index }));
   const rows = slots.map(type => {
-    const index = remaining.findIndex(meal => meal.type === type);
-    const meal = index >= 0 ? remaining.splice(index, 1)[0] : null;
-    return meal || { type, time: type === "晚餐" ? "晚间" : "待记录", text: type === "晚餐" ? "还没有记录晚餐" : "可以随时补充", pending: true };
+    const pos = indexed.findIndex(entry => entry.meal.type === type);
+    if (pos >= 0) return indexed.splice(pos, 1)[0];
+    return { meal: { type, time: type === "晚餐" ? "晚间" : "待记录", text: type === "晚餐" ? "还没有记录晚餐" : "可以随时补充", pending: true }, index: -1 };
   });
-  rows.push(...remaining);
-  elements.mealTimeline.innerHTML = rows.map(meal => `<div class="meal-item ${meal.pending ? "pending" : "completed"}"><time>${escapeHtml(meal.time)}</time><span class="timeline-dot">${icon("check")}</span><div><strong>${escapeHtml(meal.type)}</strong><p>${escapeHtml(meal.text)}</p></div></div>`).join("");
+  rows.push(...indexed);
+  elements.mealTimeline.innerHTML = rows.map(row => renderMealRow(row.meal, row.index)).join("");
 }
+
+function deleteMealAt(index) {
+  const meal = meals[index];
+  if (!meal) return;
+  meals.splice(index, 1);
+  saveStored(storageKeys.meals, meals);
+  editingMealIndex = -1;
+  deletingMealIndex = -1;
+  renderMeals();
+  renderReport();
+  showToast(`已删除${meal.type}记录`);
+}
+
+function updateMealAt(index, type, text) {
+  const meal = meals[index];
+  if (!meal) return;
+  const nextText = String(text || "").trim();
+  if (!nextText) {
+    showToast("请填写吃了什么");
+    return;
+  }
+  const nextType = MEAL_TYPES.includes(type) ? type : meal.type;
+  meals[index] = { ...meal, type: nextType, text: nextText, ...analyzeMealText(nextText) };
+  saveStored(storageKeys.meals, meals);
+  editingMealIndex = -1;
+  renderMeals();
+  renderReport();
+  showToast("记录已更新");
+}
+
+function applyMealAction(action) {
+  if (!action || typeof action !== "object") return;
+  const type = String(action.type || "");
+  const needle = String(action.text || "").trim();
+  let index = -1;
+  for (let i = meals.length - 1; i >= 0; i -= 1) {
+    if (meals[i].type !== type) continue;
+    if (needle && !String(meals[i].text || "").includes(needle)) continue;
+    index = i;
+    break;
+  }
+  if (index < 0) {
+    showToast(`没有找到${type}记录`);
+    return;
+  }
+  if (action.action === "delete") {
+    meals.splice(index, 1);
+    showToast(`已删除${type}记录`);
+  } else {
+    const next = { ...meals[index] };
+    if (action.new_type) next.type = action.new_type;
+    if (action.new_text) {
+      next.text = action.new_text;
+      Object.assign(next, analyzeMealText(action.new_text));
+    }
+    meals[index] = next;
+    showToast(`已更新${type}记录`);
+  }
+  saveStored(storageKeys.meals, meals);
+  editingMealIndex = -1;
+  deletingMealIndex = -1;
+  renderMeals();
+  renderReport();
+}
+
+elements.mealTimeline?.addEventListener("click", event => {
+  const button = event.target.closest("[data-meal-action]");
+  const row = event.target.closest("[data-meal-index]");
+  if (!button || !row) return;
+  const index = Number(row.dataset.mealIndex);
+  if (!Number.isInteger(index) || index < 0) return;
+  const action = button.dataset.mealAction;
+  if (action === "edit") {
+    editingMealIndex = index;
+    deletingMealIndex = -1;
+    renderMeals();
+    requestAnimationFrame(() => {
+      const input = elements.mealTimeline.querySelector(".meal-item.editing .meal-edit-text");
+      input?.focus();
+      input?.select?.();
+    });
+  } else if (action === "delete") {
+    deletingMealIndex = index;
+    editingMealIndex = -1;
+    renderMeals();
+  } else if (action === "cancel") {
+    editingMealIndex = -1;
+    deletingMealIndex = -1;
+    renderMeals();
+  } else if (action === "confirm-delete") {
+    deleteMealAt(index);
+  } else if (action === "save") {
+    updateMealAt(index, row.querySelector(".meal-edit-type")?.value || "", row.querySelector(".meal-edit-text")?.value || "");
+  }
+});
+
+elements.mealTimeline?.addEventListener("keydown", event => {
+  const row = event.target.closest(".meal-item.editing[data-meal-index]");
+  if (!row) return;
+  const index = Number(row.dataset.mealIndex);
+  if (event.key === "Enter") {
+    event.preventDefault();
+    updateMealAt(index, row.querySelector(".meal-edit-type")?.value || "", row.querySelector(".meal-edit-text")?.value || "");
+  } else if (event.key === "Escape") {
+    editingMealIndex = -1;
+    renderMeals();
+  }
+});
 
 function renderLeaderboard(currentScore = getHealthAnalysis().score) {
   const weeklyAverage = getWeeklyAverage();
@@ -637,6 +765,115 @@ function renderHistory() {
   elements.historyList.innerHTML = filtered.length ? filtered.map(item => `<div class="history-row"><time datetime="${item.date}">${item.date.slice(5).replace("-", "/")}</time><span>${item.meals} 餐</span><span class="history-summary" title="${escapeHtml(item.summary)}">${escapeHtml(item.summary)}</span><strong class="history-score">${item.score} 分</strong></div>`).join("") : `<div class="history-empty">这个时间范围还没有饮食记录</div>`;
 }
 
+const DEFAULT_SPEND_RANGE = { min: 20, max: 35 };
+let menuGroups = null;
+
+function agentBase() {
+  return (localStorage.getItem("eat-agent-base") || `http://${location.hostname || "127.0.0.1"}:8787`).replace(/\/$/, "");
+}
+
+function spendRange() {
+  const min = Number(profile.spend_min);
+  const max = Number(profile.spend_max);
+  if (Number.isFinite(min) && Number.isFinite(max) && min >= 0 && max >= min) return { min, max };
+  return { ...DEFAULT_SPEND_RANGE };
+}
+
+function classifyFood(food) {
+  const range = spendRange();
+  const tolerance = Math.max(2, Math.max(1, range.max - range.min) * 0.25);
+  const price = Number(food?.price);
+  if (!Number.isFinite(price) || price <= 0) {
+    return { group: "other", priceGap: null, reason: "未标注价格" };
+  }
+  if (price >= range.min && price <= range.max) return { group: "daily", priceGap: 0, reason: "在消费区间内" };
+  if (price < range.min && price >= range.min - tolerance) return { group: "daily", priceGap: Math.round((range.min - price) * 10) / 10, reason: "略低于消费区间" };
+  if (price > range.max && price <= range.max + tolerance) return { group: "daily", priceGap: Math.round((price - range.max) * 10) / 10, reason: "略高于消费区间" };
+  return {
+    group: "other",
+    priceGap: price < range.min ? Math.round((range.min - price) * 10) / 10 : Math.round((price - range.max) * 10) / 10,
+    reason: "偏离消费区间"
+  };
+}
+
+function decorateFood(food) {
+  const local = classifyFood(food);
+  const price = Number(food?.price);
+  return {
+    ...food,
+    price: Number.isFinite(price) && price > 0 ? price : null,
+    group: food?.group === "daily" || food?.group === "other" ? food.group : local.group,
+    price_gap: food?.price_gap ?? local.priceGap,
+    price_reason: food?.price_reason || local.reason
+  };
+}
+
+function foodGroupOf(food) {
+  if (food?.group === "daily" || food?.group === "other") return food.group;
+  return classifyFood(food).group;
+}
+
+function groupLabelOf(food) {
+  return foodGroupOf(food) === "daily" ? "日常菜" : "其他菜品";
+}
+
+function priceLabelOf(food) {
+  const price = Number(food?.price);
+  return Number.isFinite(price) && price > 0 ? `¥${price}` : "待定价";
+}
+
+function rebuildLocalGroups() {
+  const decorated = foods.map(food => decorateFood({ ...food, group: foodGroupOf(food) }));
+  foods.splice(0, foods.length, ...decorated);
+  menuGroups = {
+    daily: decorated.filter(food => food.group === "daily"),
+    other: decorated.filter(food => food.group === "other"),
+    spend: spendRange(),
+    menuPrice: null,
+    source: "local"
+  };
+}
+
+function applyAgentMenu(data) {
+  if (!data) return;
+  const daily = (data.daily || []).map(decorateFood);
+  const other = (data.other || []).map(decorateFood);
+  const all = Array.isArray(data.foods) && data.foods.length ? data.foods.map(decorateFood) : [...daily, ...other];
+  if (all.length) foods.splice(0, foods.length, ...all);
+  const level = data.spend_level || {};
+  menuGroups = {
+    daily,
+    other,
+    spend: Number.isFinite(Number(level.min)) && Number.isFinite(Number(level.max)) ? { min: Number(level.min), max: Number(level.max) } : spendRange(),
+    menuPrice: data.menu_price && Number(data.menu_price.max) > 0 ? data.menu_price : null,
+    source: data.source || "agent"
+  };
+  renderFoodMenus();
+}
+
+async function loadAgentMenu() {
+  rebuildLocalGroups();
+  renderFoodMenus();
+  try {
+    const response = await fetch(`${agentBase()}/api/menu?mode=work&user_id=u_demo`);
+    if (!response.ok) return;
+    const payload = await response.json();
+    if (payload && payload.ok && payload.data) applyAgentMenu(payload.data);
+  } catch {
+    // 保持本地消费区间分组
+  }
+}
+
+function updateMenuHeader() {
+  const range = menuGroups?.spend || spendRange();
+  const daily = menuGroups?.daily.length || 0;
+  const other = menuGroups?.other.length || 0;
+  const note = document.querySelector(".food-module-header small");
+  if (note) note.textContent = `日常 ${daily} · 其他 ${other} · ¥${range.min}–${range.max}/餐`;
+  const kicker = document.querySelector("#expandedMenu .section-kicker");
+  if (kicker) kicker.textContent = `全部食物 · 日常 ${daily} / 其他 ${other} · ¥${range.min}–${range.max}/餐`;
+}
+
 let foodPage = 0;
 const foodPageSize = 2;
 
@@ -645,7 +882,7 @@ function renderSidebarFoodPage(direction = 0) {
   const start = foodPage * foodPageSize;
   const pageFoods = foods.slice(start, start + foodPageSize);
   const list = document.getElementById("sidebarFoodList");
-  list.innerHTML = pageFoods.map(food => `<button class="sidebar-food-item" type="button" data-food-id="${food.id}"><img src="${food.image}" alt="${food.name}" loading="lazy"><span class="sidebar-food-copy"><small>${food.category}</small><strong>${food.name}</strong><span><span>${food.calories} 千卡</span><span>蛋白质 ${food.protein} g</span></span></span></button>`).join("");
+  list.innerHTML = pageFoods.map(food => `<button class="sidebar-food-item" type="button" data-food-id="${food.id}"><img src="${food.image}" alt="${food.name}" loading="lazy"><span class="sidebar-food-copy"><small><span>${food.category}</span><em class="food-group ${foodGroupOf(food)}">${groupLabelOf(food)}</em></small><strong>${food.name}</strong><span class="sidebar-food-meta"><span>${food.calories} 千卡</span><span>${food.protein} g 蛋白</span><span class="food-price">${priceLabelOf(food)}</span></span></span></button>`).join("");
   list.classList.remove("page-forward", "page-back");
   if (direction) {
     void list.offsetWidth;
@@ -680,7 +917,7 @@ function appendMasonryCycle() {
     card.style.setProperty("--match", "0");
     card.style.animationDelay = `${Math.min(index + masonryCycle * 3, 20) * 26}ms`;
     requestAnimationFrame(() => card.style.setProperty("--match", match));
-    card.innerHTML = `<span class="masonry-image-wrap"><img src="${food.image}" alt="${food.name}" style="height:${imageHeight}px" loading="lazy"><span class="masonry-add">${icon("plus")}</span></span><span class="masonry-copy"><small>${food.category}</small><strong>${food.name}</strong><span><span>${food.calories} 千卡</span><span>${food.protein} g 蛋白</span></span><span class="search-result-match">匹配 ${match}%</span></span>`;
+    card.innerHTML = `<span class="masonry-image-wrap"><img src="${food.image}" alt="${food.name}" style="height:${imageHeight}px" loading="lazy"><span class="masonry-add">${icon("plus")}</span></span><span class="masonry-copy"><small><span>${food.category}</span><em class="food-group ${foodGroupOf(food)}">${groupLabelOf(food)}</em></small><strong>${food.name}</strong><span><span>${food.calories} 千卡</span><span>${food.protein} g 蛋白</span><span class="food-price">${priceLabelOf(food)}</span></span><span class="search-result-match">匹配 ${match}%</span></span>`;
     columns[columnIndex].appendChild(card);
   });
   masonryCycle += 1;
@@ -729,13 +966,14 @@ function renderMasonryResults(list, query) {
     card.style.setProperty("--match", "0");
     card.style.animationDelay = `${Math.min(index, 12) * 26}ms`;
     requestAnimationFrame(() => card.style.setProperty("--match", item.match));
-    card.innerHTML = `<span class="masonry-image-wrap"><img src="${food.image}" alt="${escapeHtml(food.name)}" style="height:${imageHeights[index % imageHeights.length]}px" loading="lazy"><span class="masonry-add">${icon("plus")}</span></span><span class="masonry-copy"><small>${escapeHtml(food.category)}</small><strong>${escapeHtml(food.name)}</strong><span><span>${food.calories} 千卡</span><span>蛋白 ${food.protein} g</span></span><span class="search-result-match">匹配 ${item.match}%</span></span>`;
+    card.innerHTML = `<span class="masonry-image-wrap"><img src="${food.image}" alt="${escapeHtml(food.name)}" style="height:${imageHeights[index % imageHeights.length]}px" loading="lazy"><span class="masonry-add">${icon("plus")}</span></span><span class="masonry-copy"><small><span>${escapeHtml(food.category)}</span><em class="food-group ${foodGroupOf(food)}">${groupLabelOf(food)}</em></small><strong>${escapeHtml(food.name)}</strong><span><span>${food.calories} 千卡</span><span>${food.protein} g 蛋白</span><span class="food-price">${priceLabelOf(food)}</span></span><span class="search-result-match">匹配 ${item.match}%</span></span>`;
     columns[index % columns.length].appendChild(card);
   });
   document.getElementById("foodFeedProgress").textContent = `${list.length} 张卡片`;
 }
 
 function renderFoodMenus() {
+  updateMenuHeader();
   renderSidebarFoodPage();
   renderMasonryFeed();
 }
@@ -794,7 +1032,7 @@ function renderFoodSearch(query) {
   box.innerHTML = ["recommend", "indulge"].map(nature => {
     const items = list.filter(item => item.food.nature === nature);
     if (!items.length) return "";
-    return `<div class="food-search-group"><h4>${groupNames[nature]}</h4>${items.map(item => `<button class="search-result" type="button" data-food-id="${item.food.id}" style="--match:${item.match}"><img src="${item.food.image}" alt="${escapeHtml(item.food.name)}" loading="lazy"><span class="search-result-copy"><small>${escapeHtml(item.food.category)}</small><strong>${escapeHtml(item.food.name)}</strong><span>${item.food.calories} 千卡 · 蛋白 ${item.food.protein} g</span></span><span class="search-result-match">匹配 ${item.match}%</span></button>`).join("")}</div>`;
+    return `<div class="food-search-group"><h4>${groupNames[nature]}</h4>${items.map(item => `<button class="search-result" type="button" data-food-id="${item.food.id}" style="--match:${item.match}"><img src="${item.food.image}" alt="${escapeHtml(item.food.name)}" loading="lazy"><span class="search-result-copy"><small><span>${escapeHtml(item.food.category)}</span><em class="food-group ${foodGroupOf(item.food)}">${groupLabelOf(item.food)}</em></small><strong>${escapeHtml(item.food.name)}</strong><span>${item.food.calories} 千卡 · 蛋白 ${item.food.protein} g · <em class="food-price">${priceLabelOf(item.food)}</em></span></span><span class="search-result-match">匹配 ${item.match}%</span></button>`).join("")}</div>`;
   }).join("");
   box.classList.add("open");
   box.querySelectorAll(".search-result").forEach(card => {
@@ -812,15 +1050,45 @@ function clearFoodSearch() {
 
 let randomHistory = [];
 
-function pickRandomFood(excludeId) {
+function pickLocalRandom(excludeId) {
   const pool = excludeId ? foods.filter(food => food.id !== excludeId) : foods.slice();
   if (!pool.length) return foods[0];
-  const fresh = pool.filter(food => !randomHistory.includes(food.id));
-  const candidates = fresh.length ? fresh : pool;
+  const daily = pool.filter(food => foodGroupOf(food) === "daily");
+  const other = pool.filter(food => foodGroupOf(food) === "other");
+  const preferDaily = Math.random() < 0.7;
+  let target = preferDaily ? daily : other;
+  if (!target.length) target = preferDaily ? other : daily;
+  if (!target.length) target = pool;
+  const fresh = target.filter(food => !randomHistory.includes(food.id));
+  const candidates = fresh.length ? fresh : target;
   const food = candidates[Math.floor(Math.random() * candidates.length)];
   randomHistory.push(food.id);
   if (randomHistory.length > 6) randomHistory.shift();
   return food;
+}
+
+async function pickRandomFood(excludeId) {
+  try {
+    const response = await fetch(`${agentBase()}/api/menu/random`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: "u_demo", mode: "work", seed: Math.floor(Math.random() * 100000) })
+    });
+    if (response.ok) {
+      const payload = await response.json();
+      const remote = payload && payload.ok ? payload.data?.food : null;
+      if (remote && remote.id !== excludeId) {
+        const local = foods.find(food => food.id === remote.id);
+        const merged = decorateFood({ ...(local || {}), ...remote });
+        randomHistory.push(merged.id);
+        if (randomHistory.length > 6) randomHistory.shift();
+        return merged;
+      }
+    }
+  } catch {
+    // 后端不可用时走本地 70/30
+  }
+  return pickLocalRandom(excludeId);
 }
 
 function renderRandomPicker(food) {
@@ -836,16 +1104,24 @@ function renderRandomPicker(food) {
   document.getElementById("randomDesc").textContent = food.description;
   document.getElementById("randomCalories").textContent = `${food.calories} 千卡`;
   document.getElementById("randomProtein").textContent = `蛋白 ${food.protein} g`;
+  const priceNode = document.getElementById("randomPrice");
+  if (priceNode) priceNode.textContent = priceLabelOf(food);
+  const groupNode = document.getElementById("randomGroup");
+  if (groupNode) {
+    groupNode.textContent = groupLabelOf(food);
+    groupNode.className = `food-group ${foodGroupOf(food)}`;
+  }
   document.getElementById("randomMatch").textContent = `匹配 ${match}%`;
 }
 
-function openRandomPicker(excludeId) {
+async function openRandomPicker(excludeId) {
   randomReturnView = activeView;
-  const food = pickRandomFood(excludeId);
-  renderRandomPicker(food);
   const picker = document.getElementById("randomPicker");
+  document.getElementById("randomCategory").textContent = "随机一道 · 正在挑选";
   picker.classList.add("open");
   picker.setAttribute("aria-hidden", "false");
+  const food = await pickRandomFood(excludeId);
+  if (food) renderRandomPicker(food);
 }
 
 function closeRandomPicker() {
@@ -960,6 +1236,10 @@ function openUserInfo() {
   document.getElementById("heightInput").value = profile.height;
   document.getElementById("weightInput").value = profile.weight;
   document.getElementById("ageInput").value = profile.age;
+  const spendMin = document.getElementById("spendMinInput");
+  const spendMax = document.getElementById("spendMaxInput");
+  if (spendMin) spendMin.value = profile.spend_min ?? 20;
+  if (spendMax) spendMax.value = profile.spend_max ?? 35;
   updatePersonalPreview();
   elements.userInfoDialog.showModal();
 }
@@ -972,6 +1252,33 @@ function updatePersonalPreview() {
   document.getElementById("personalAvatarPreview").textContent = name.slice(0, 1);
   document.getElementById("personalPreviewName").textContent = name;
   document.getElementById("bmiValue").textContent = bmi;
+}
+
+async function saveSpendRange() {
+  const min = Number(document.getElementById("spendMinInput").value);
+  const max = Number(document.getElementById("spendMaxInput").value);
+  if (!Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max < min) {
+    showToast("请填写有效区间，最高不小于最低");
+    return;
+  }
+  const stored = JSON.parse(localStorage.getItem("eat-health-profile-v2") || "{}");
+  stored.spend_min = min;
+  stored.spend_max = max;
+  localStorage.setItem("eat-health-profile-v2", JSON.stringify(stored));
+  profile.spend_min = min;
+  profile.spend_max = max;
+  try {
+    const response = await fetch(`${agentBase()}/api/profile/spend`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: "u_demo", mode: "work", spend_min: min, spend_max: max })
+    });
+    if (!response.ok) throw new Error("failed");
+    showToast("每餐消费区间已保存");
+  } catch {
+    showToast("已在本地保存，连接 Agent 后生效");
+  }
+  loadAgentMenu();
 }
 
 function savePersonalInfo(event) {
@@ -1074,8 +1381,8 @@ function analyzeMealText(text) {
 }
 
 function determineMealType(text) {
-  const explicit = mealOrder.find(type => text.includes(type)) || (/下午茶|零食|奶茶|咖啡/.test(text) ? "加餐" : null);
-  if (explicit && !meals.some(meal => meal.type === explicit)) return explicit;
+  const explicit = ["早餐", "午餐", "下午茶", "晚餐", "加餐"].find(type => text.includes(type)) || (/下午茶|点心|零食|奶茶|咖啡/.test(text) ? "下午茶" : null);
+  if (explicit) return explicit;
   return mealOrder.find(type => !meals.some(meal => meal.type === type)) || "加餐";
 }
 
@@ -1524,6 +1831,7 @@ document.getElementById("avatarUploadInput").addEventListener("change", event =>
   event.target.value = "";
 });
 applyUserAvatar();
+document.getElementById("spendSaveButton").addEventListener("click", saveSpendRange);
 elements.userInfoDialog.addEventListener("click", event => {
   if (event.target === elements.userInfoDialog) {
     const rect = elements.userInfoDialog.getBoundingClientRect();
@@ -1656,7 +1964,7 @@ document.addEventListener("visibilitychange", () => {
 ensurePointsState();
 applyTheme(pointsState.selected || "aurora");
 initDates();
-renderFoodMenus();
+loadAgentMenu();
 renderMeals();
 renderReport();
 renderHistory();
@@ -1669,6 +1977,7 @@ if (window.innerWidth <= 820) setSidebarCollapsed(true);
 window.eatLocal = {
   sendPrompt,
   recordMeal,
+  applyMealAction,
   getHealthAnalysis,
   showToast
 };

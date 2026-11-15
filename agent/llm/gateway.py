@@ -208,7 +208,7 @@ class RuleProvider:
             add("get_health_profile", {})
             return calls
 
-        if any(word in text for word in ["记录", "早餐吃", "午餐吃", "晚餐吃", "加餐"]):
+        if any(word in text for word in ["记录", "早餐吃", "早上吃", "午餐吃", "中午吃", "下午茶", "晚餐吃", "晚上吃", "加餐"]):
             return calls
 
         if any(word in text for word in ["推荐", "吃什么", "吃啥", "该吃", "饿", "午餐", "晚餐", "早餐"]):
@@ -233,7 +233,9 @@ class RuleProvider:
             return "午餐"
         if "晚餐" in text or "晚上" in text:
             return "晚餐"
-        if "加餐" in text or "下午茶" in text:
+        if "下午茶" in text or "点心" in text or "奶茶" in text or "零食" in text:
+            return "下午茶"
+        if "加餐" in text:
             return "加餐"
         return ""
 

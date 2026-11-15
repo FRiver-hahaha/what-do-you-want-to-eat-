@@ -8,6 +8,24 @@ from agent.core.frontend import merge_profile
 from agent.tools.base import ToolContext, ToolResult, ToolSpec
 
 NUTRITION_FIELDS = {"protein", "fiber", "veggies", "water"}
+MEAL_TYPES = ("早餐", "午餐", "下午茶", "晚餐", "加餐")
+
+
+def _meal_type(value: Any, default: str = "") -> str:
+    text = str(value or "").strip()
+    if text in MEAL_TYPES:
+        return text
+    if "下午茶" in text:
+        return "下午茶"
+    if "早餐" in text:
+        return "早餐"
+    if "午餐" in text:
+        return "午餐"
+    if "晚餐" in text:
+        return "晚餐"
+    if "加餐" in text:
+        return "加餐"
+    return default
 
 
 def _schema(properties: dict[str, Any], required: list[str] | None = None) -> dict[str, Any]:
@@ -181,7 +199,7 @@ def _record_meal(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
         items = [item for item in text.replace("、", ",").split(",") if item.strip()] or [text]
     if not items:
         return ToolResult(ok=False, summary="缺少要记录的食物", error="missing_items")
-    meal_type = str(args.get("type") or "加餐")
+    meal_type = _meal_type(args.get("type"), "加餐")
     meal_date = str(args.get("date") or "")
     raw_key = f"{ctx.session_id}:{meal_date}:{meal_type}:{text or '|'.join(items)}"
     idempotency_key = hashlib.sha1(raw_key.encode("utf-8")).hexdigest()[:16]
@@ -197,6 +215,49 @@ def _record_meal(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
     }
     data = ctx.service.record_meal(ctx.user_id, payload, idempotency_key)
     return ToolResult(ok=True, summary=f"已记录{meal_type}：{payload['text']}", data=data)
+
+
+def _meal_action(args: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
+    return {
+        "type": _meal_type(args.get("type")),
+        "text": str(args.get("text") or "").strip(),
+        "date": str(args.get("date") or ""),
+    }
+
+
+def _delete_meal(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
+    target = _meal_action(args, ctx)
+    if not target["type"]:
+        return ToolResult(ok=False, summary="需要指明要删除的餐次", error="missing_type")
+    action = {"action": "delete", **target}
+    hint = f"（内容含「{target['text']}」）" if target["text"] else ""
+    return ToolResult(
+        ok=True,
+        summary=f"已删除{target['type']}记录{hint}",
+        data={"meal_action": action, "source": "frontend"},
+    )
+
+
+def _update_meal(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
+    target = _meal_action(args, ctx)
+    if not target["type"]:
+        return ToolResult(ok=False, summary="需要指明要修改的餐次", error="missing_type")
+    new_type = _meal_type(args.get("new_type"))
+    new_text = str(args.get("new_text") or "").strip()
+    if not new_type and not new_text:
+        return ToolResult(ok=False, summary="需要提供新的餐次或新的内容", error="missing_changes")
+    action = {
+        "action": "update",
+        **target,
+        "new_type": new_type,
+        "new_text": new_text,
+    }
+    parts = [part for part in (new_type, new_text) if part]
+    return ToolResult(
+        ok=True,
+        summary=f"已把{target['type']}记录更新为：{'、'.join(parts)}",
+        data={"meal_action": action, "source": "frontend"},
+    )
 
 
 def _update_health_profile(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
@@ -321,7 +382,7 @@ def build_diet_tools() -> list[ToolSpec]:
         ),
         ToolSpec(
             name="update_health_profile",
-            description="更新当前用户的健康档案：称呼、性别、身高、体重、年龄、健康目标、活动量、饮水目标、睡眠、饮食风格、过敏与忌口、备注，必须经用户确认后执行",
+            description="更新当前用户的健康档案：称呼、性别、身高、体重、年龄、健康目标、活动量、饮水目标、睡眠、饮食风格、过敏与忌口、备注。用户明确要求修改时直接调用，手动审批下系统会发起确认",
             parameters=_schema(
                 {
                     "name": {"type": "string", "description": "称呼，最多 20 字"},
@@ -349,10 +410,10 @@ def build_diet_tools() -> list[ToolSpec]:
         ),
         ToolSpec(
             name="record_meal",
-            description="把一餐写入当前用户的饮食记录，必须经用户确认后执行",
+            description="把用户说出的食物写入指定餐次的饮食记录（早餐、午餐、下午茶、晚餐、加餐），不要求菜品来自菜单。用户明确说出吃了什么时直接调用，不要只用文字询问",
             parameters=_schema(
                 {
-                    "type": {"type": "string", "enum": ["早餐", "午餐", "晚餐", "加餐"]},
+                    "type": {"type": "string", "enum": ["早餐", "午餐", "下午茶", "晚餐", "加餐"]},
                     "text": {"type": "string", "description": "前端输入框中的原始餐次文本"},
                     "items": {"type": "array", "items": {"type": "string"}, "description": "食物名称列表"},
                     "date": {"type": "string", "description": "日期 YYYY-MM-DD，默认今天"},
@@ -364,6 +425,42 @@ def build_diet_tools() -> list[ToolSpec]:
                 required=["type"],
             ),
             handler=_record_meal,
+            category="write",
+            modes=("work",),
+            require_confirm=True,
+            tags=("meal", "write"),
+        ),
+        ToolSpec(
+            name="delete_meal",
+            description="删除已写入的一条饮食记录。用户说“删掉午餐”“把下午茶删了”时直接调用；一次只删除指定餐次里最近的一条",
+            parameters=_schema(
+                {
+                    "type": {"type": "string", "enum": ["早餐", "午餐", "下午茶", "晚餐", "加餐"]},
+                    "text": {"type": "string", "description": "可选，原记录内容片段，用于区分同一餐次的多条记录"},
+                    "date": {"type": "string", "description": "日期 YYYY-MM-DD，默认今天"},
+                },
+                required=["type"],
+            ),
+            handler=_delete_meal,
+            category="write",
+            modes=("work",),
+            require_confirm=True,
+            tags=("meal", "write"),
+        ),
+        ToolSpec(
+            name="update_meal",
+            description="修改已写入的一条饮食记录，可改餐次和内容。用户说“午餐改成牛肉面”“下午茶挪到加餐”时直接调用",
+            parameters=_schema(
+                {
+                    "type": {"type": "string", "enum": ["早餐", "午餐", "下午茶", "晚餐", "加餐"], "description": "要修改的旧餐次"},
+                    "text": {"type": "string", "description": "可选，原记录内容片段，用于定位同餐次的多条记录"},
+                    "new_type": {"type": "string", "enum": ["早餐", "午餐", "下午茶", "晚餐", "加餐"], "description": "新的餐次，不改餐次可不填"},
+                    "new_text": {"type": "string", "description": "修改后的完整内容，不改内容可不填"},
+                    "date": {"type": "string", "description": "日期 YYYY-MM-DD，默认今天"},
+                },
+                required=["type"],
+            ),
+            handler=_update_meal,
             category="write",
             modes=("work",),
             require_confirm=True,

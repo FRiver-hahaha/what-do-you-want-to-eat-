@@ -142,13 +142,13 @@ AgentApp
 - Watchdog：长时间无事件的 Worker 发出 `watchdog` 事件并标记 stalled。
 - 安全：注入检测、图片校验、输出密钥与手机号过滤、写操作确认。
 - 模型降级：无 Key 或网络失败时自动切换 `rule-fallback`，并发出提示。
-- 工具隔离：按模式、类别、来源三重过滤；写工具必须确认。
+- 工具隔离：按模式、类别、来源三重过滤；手动审批下写工具需确认，完全访问下直接执行。
 - MCP：Agent 作为 Client，饮食数据服务作为 Server，stdio + JSON-RPC 2.0。
 - Skill：内置技能、语气技能、专家组合、市场安装与导入。
 - RAG：内置知识文档，BM25 + 哈希向量混合检索，回答带引用事件。
 - 记忆：自动识别过敏、忌口、偏好与目标，可查询、可删除。
 - 审计：每次工具调用写入 `tool_audit`。
-- 前端接入：SSE、Markdown、逐字流式、图片输入、确认弹窗、市场、专家、权限抽屉与离线降级。
+- 前端接入：SSE、Markdown、逐字流式、图片输入、确认弹窗、市场、专家、权限抽屉、菜单分组与参考价、70/30 随机与离线降级。
 
 ### 4.3 模型与人格
 
@@ -170,7 +170,7 @@ AgentApp
 - 压缩把全部未压缩对话写成简略摘要，压缩后对话消息段归零。
 - 达到 1MB 时直接返回 `context_limit`，不执行本轮工具与档案查询，并提示新开对话。
 - 图片最多 10 张，单张原图 ≤2MB，支持剪贴板粘贴；同一会话可在指代时复用上一轮图片。
-- 工作权限两档：手动审批与完全访问；记录早、中、晚饭始终需要确认。
+- 工作权限两档：手动审批与完全访问；完全访问下写操作直接执行，只有签到必须由用户手动完成。
 
 ## 5. 技术栈
 
@@ -303,8 +303,10 @@ python -m http.server 4173 --bind 127.0.0.1
 | 健康档案、饮食记录、营养缺口、周统计、好友排名 | 允许 | 允许 |
 | 知识库检索与引用 | 允许 | 允许 |
 | 实时菜单 `get_menu` | 禁止 | 允许 |
-| 写入饮食 `record_meal` | 禁止 | 允许，需确认 |
-| 更新健康档案 `update_health_profile` | 禁止 | 允许，需确认 |
+| 写入饮食 `record_meal` | 禁止 | 允许，手动审批需确认 |
+| 删除饮食 `delete_meal` | 禁止 | 允许，手动审批需确认 |
+| 修改饮食 `update_meal` | 禁止 | 允许，手动审批需确认 |
+| 更新健康档案 `update_health_profile` | 禁止 | 允许，手动审批需确认 |
 | 导入 SKILL.md（Agent 命令） | 禁止 | 允许，需确认 |
 | 安装市场技能 | 禁止 | 允许，需确认 |
 | 启用/停用技能 | 禁止 | 允许 |
@@ -315,11 +317,11 @@ python -m http.server 4173 --bind 127.0.0.1
 | `access_level` | 行为 |
 | --- | --- |
 | `manual`（默认） | 所有写操作都需要用户确认 |
-| `full` | 除 `record_meal` 外，写操作直接执行；记录三餐始终需要确认 |
+| `full` | 写操作（记录、删除、修改饮食与档案、技能安装）直接执行；只有签到必须由用户手动完成 |
 
 - 签到没有对应工具，Agent 不能自动签到。
-- 系统提示词明确禁止自动上报早、中、晚饭。
-- `record_meal` 在 `ALWAYS_CONFIRM_TOOLS` 中，即使 `full` 也返回 `confirm_required`。
+- 权限只决定「是否弹确认」，不改变工具可用性：`qa` 模式仍然没有写工具。
+- 完全访问下 `record_meal`、`delete_meal`、`update_meal` 不再返回 `confirm_required`。
 - 客户端在切到工作模式或再次点击「工作」时弹出权限抽屉，选择结果存 `localStorage["eat-agent-access"]`。
 
 权限三处同时生效：
@@ -363,10 +365,12 @@ Skill 再收窄一次：技能只能使用 `allowed-tools` 与模式工具集的
 | `get_friend_ranking` | read | 两种 | 好友健康均分排行榜 |
 | `get_menu` | local | work | 实时菜单，按消费水平分为 `daily` / `other` 两组，每道菜带 `price`、`group`、`price_gap` |
 | `import_menu` | local | work | 导入当前菜单及每道菜金额，需确认，导入后菜单以导入数据为准 |
-| `pick_random_food` | local | work | 60% 从日常菜、40% 从其他菜品随机抽取，支持 `seed` |
-| `update_spend_level` | write | work | 修改每餐消费水平区间 `spend_min` / `spend_max`（元），需确认 |
-| `record_meal` | write | work | 写入饮食记录，需确认 |
-| `update_health_profile` | write | work | 称呼、性别、身高、体重、年龄、目标、活动量、饮水、睡眠、饮食风格、过敏、忌口、备注、消费水平区间，需确认 |
+| `pick_random_food` | local | work | 70% 从日常菜、30% 从其他菜品随机抽取，支持 `seed` |
+| `update_spend_level` | write | work | 修改每餐消费水平区间 `spend_min` / `spend_max`（元），手动审批需确认 |
+| `record_meal` | write | work | 写入饮食记录，支持早餐、午餐、下午茶、晚餐、加餐；手动审批需确认 |
+| `delete_meal` | write | work | 删除指定餐次最近一条记录，可用 `text` 定位；手动审批需确认 |
+| `update_meal` | write | work | 修改指定餐次记录的餐次或内容；手动审批需确认 |
+| `update_health_profile` | write | work | 称呼、性别、身高、体重、年龄、目标、活动量、饮水、睡眠、饮食风格、过敏、忌口、备注、消费水平区间，手动审批需确认 |
 | `export_health_report` | local | work | 生成档案 + 今日缺口 + 近 N 天记录 + 本周趋势的 Markdown/TXT 报告，返回 `download_url` |
 | `export_skill` | local | work | 把已安装技能或市场技能的 SKILL.md 导出为文件，返回 `download_url` |
 | `list_skills` | read | 两种 | 列出可用技能 |
@@ -379,7 +383,7 @@ Skill 再收窄一次：技能只能使用 `allowed-tools` 与模式工具集的
 隔离机制：
 
 - 模式隔离：问答模式看不到写工具与本地菜单工具。
-- 技能隔离：`allowed-tools` 再收窄；`update_health_profile`、`export_health_report`、`export_skill` 为基础工具，不因专家技能收窄而消失。
+- 技能隔离：`allowed-tools` 再收窄；`update_health_profile`、`delete_meal`、`update_meal`、`export_health_report`、`export_skill` 为基础工具，不因专家技能收窄而消失。
 - 执行隔离：每个工具在独立线程池任务中执行，超时转结构化失败。
 - 结果隔离：按 `MAX_TOOL_RESULT_CHARS` 截断，避免原始 JSON 撑爆上下文。
 - 身份隔离：模型不能传 `user_id` / `session_id`，注册中心强制注入当前用户。
@@ -499,7 +503,7 @@ Agent 父进程
 | 日常菜 | 价格落在 `[spend_min, spend_max]` 内，或与区间边界差距不超过 `max(2, 区间宽度 × 0.25)` |
 | 其他菜品 | 价格超出容差范围，或没有金额；按偏离区间距离从远到近排序 |
 | 分组返回 | `GET /api/menu` 返回 `daily`、`other`、`counts`、`spend_level`，每道菜带 `group`、`price_gap`、`price_reason` |
-| 随机 | `POST /api/menu/random` 与 `pick_random_food`：60% 日常菜、40% 其他菜品；某一组为空时回退另一组 |
+| 随机 | `POST /api/menu/random` 与 `pick_random_food`：70% 日常菜、30% 其他菜品；某一组为空时回退另一组 |
 | 导入 | `POST /api/menu/import` 保存菜品与金额，计算菜单金额区间 `menu_price`；导入后 `get_menu` 以导入菜单为准 |
 
 容差示例：区间 20–35 时容差 3.75，16.25–38.75 元算日常菜；42 元的三文鱼归入其他菜品。
@@ -559,7 +563,7 @@ Agent 父进程
 - 注入检测：命中指令覆盖、越权查询等标记时提高风险等级并提示。
 - 图片校验：数量、类型、大小与 dataURL 前缀。
 - 输出过滤：密钥与手机号在返回前替换。
-- 写操作确认：`record_meal`、`update_health_profile`、`install_skill`、`import_skill` 必须二次确认。
+- 写操作确认：`record_meal`、`delete_meal`、`update_meal`、`update_health_profile`、`install_skill`、`import_skill` 在手动审批下必须二次确认，完全访问下直接执行。
 - 身份隔离：用户与会话由注册中心注入。
 - 审计：`tool_audit` 记录工具名、参数、结果与时间。
 - 密钥：只放环境变量或被忽略的 `.env`，不写入仓库、不回显明文。
@@ -616,7 +620,7 @@ Agent 父进程
 | DELETE | `/api/memory/{id}?user_id=` | 删除记忆 |
 | GET | `/api/menu?mode=&user_id=&meal_type=` | 菜单分组：`daily` / `other`、每道菜价格与分组，需工作模式 |
 | POST | `/api/menu/import` | 导入菜单与每道菜金额，需工作模式 |
-| POST | `/api/menu/random` | 60% 日常菜 / 40% 其他菜品随机抽取，需工作模式 |
+| POST | `/api/menu/random` | 70% 日常菜 / 30% 其他菜品随机抽取，需工作模式 |
 | GET | `/api/profile/spend?user_id=` | 读取每餐消费水平区间 |
 | POST | `/api/profile/spend` | 修改消费水平区间，需工作模式 |
 | POST | `/api/rag/search` | 知识检索，返回 `plan`（纠错、补全、缓存状态） |
@@ -730,7 +734,7 @@ data: {"text":"今天"}
 5. 用户确认后带 `confirmed_tools` 重发同一请求。
 6. 工具执行并返回结果。
 
-完全访问下，除 `record_meal` 外的写工具自动确认；`record_meal` 始终走上述流程。
+完全访问下，写工具（记录、删除、修改饮食、更新档案、技能安装）自动确认；手动审批下仍走上述流程。
 
 ### 9.5 错误与降级
 
@@ -877,7 +881,7 @@ data: {"text":"今天"}
 
 | 项 | 对齐方式 |
 | --- | --- |
-| 菜品数量与字段 | 16 道菜，字段与 `app.js foods` 一致 |
+| 菜品数量与字段 | 16 道菜，字段与 `app.js foods` 一致，`price` 为参考价（元） |
 | 推荐 / 放纵分组 | `search_foods` 支持 `nature` |
 | 匹配度 | 与 `getFoodMatch` 同源，区间 20–98 |
 | 档案字段 | 兼容 `waterTarget`、数字 `sleep`，保留服务端别名 |
@@ -900,7 +904,9 @@ data: {"text":"今天"}
 | 消费水平 | `profile.spend_min` / `spend_max`，单位元/餐，默认 20–35 |
 | 菜单分组 | `GET /api/menu` 的 `daily` / `other`，每道菜带 `price`、`group`、`price_gap` |
 | 菜单导入 | 菜品补 `price` 后 `POST /api/menu/import`，返回 `menu_price` 区间 |
-| 随机选菜 | `POST /api/menu/random` 返回 `food.group`，60/40 比例由 Agent 决定 |
+| 随机选菜 | `POST /api/menu/random` 返回 `food.group`，70/30 比例由 Agent 决定；前端失败时回退本地 70/30 |
+| 菜单展示 | 侧栏、瀑布流、搜索与随机弹窗均显示参考价与「日常菜 / 其他菜品」标签 |
+| 记录编辑 | 左栏每条已记录餐次支持行内改餐次与内容、二次确认删除；`delete_meal` / `update_meal` 的 `meal_action` 由前端落地 |
 | 模式提示 | 白色轻 tooltip，无底部黑框 |
 
 契约可通过 `GET /api/frontend/contract` 获取。
@@ -919,8 +925,8 @@ data: {"text":"今天"}
 | 猜餐名称 / 理由 / 匹配度 / 进度 | `#guessName` / `#guessReason` / `#guessMatch` / `#guessBar` |
 | 猜餐接受 / 再猜 | `#acceptGuess` / `#nextGuess` |
 | 菜品搜索 / 结果 | `#foodSearchInput` / `#foodSearchResults` |
-| 左侧食物 / 中央瀑布流 | `#sidebarFoodList` / `#expandedMenuList` |
-| 随机选菜层 | `#randomPicker` |
+| 左侧食物 / 中央瀑布流 | `#sidebarFoodList` / `#expandedMenuList`，卡片含 `.food-group` 与 `.food-price` |
+| 随机选菜层 | `#randomPicker`，含 `#randomPrice` / `#randomGroup` |
 | 档案表单 | `#profileForm`、`[data-option-group]`、`#waterRange`、`#sleepRange` |
 | 报告 / 历史 | `#reportSummary` / `#scoreValue` / `#mealTimeline` / `#historyList` |
 | 排行榜 | `#leaderboardList` / `#championName` |
@@ -934,7 +940,7 @@ data: {"text":"今天"}
 - 1MB 是产品层窗口；模型单次真实窗口仍为 64K，依靠自动压缩衔接。
 - 图片只用于当前轮，历史不存图片；缓存重启失效。
 - 服务端 `PATCH /health-profile` 尚未实现，mock 写入重启后丢失。
-- 前端尚未提供消费水平输入、菜品金额字段、日常/其他分组展示与 Agent 随机接口调用；Agent 侧已提供 `/api/profile/spend`、`/api/menu`、`/api/menu/import`、`/api/menu/random`，接入前前端仍走本地随机与本地菜单。
+- 前端离线时用本地 16 道菜的参考价按同一容差规则分组，与 Agent 导入菜单的金额可能不一致；连接 Agent 后以 `GET /api/menu` 为准。
 - 前端档案页保存后需要刷新才能看到 Agent 写入的新值。
 
 ## 13. 验证与验收
@@ -956,9 +962,9 @@ python -m unittest agent.tests.test_smoke
 | RAG | 中文检索、入库、统计、错字纠正、常见词与通用短语不改写、指代补全、缓存复用、低置信度不写缓存 |
 | Runtime | 工具调用、记录查询、猜餐、工作模式菜单、RAG 引用、模式隔离、client_context |
 | Skills | 内置技能、匹配、工具范围、语气、专家组合、基础工具不被收窄 |
-| Tools | 模式隔离、读工具、菜品字段、写入确认、前端契约 |
+| Tools | 模式隔离、读工具、菜品字段、写入确认、五餐次记录、删除与修改指令、前端契约 |
 | Export | 报告生成、技能导出、模式权限、下载路由与路径穿越防护 |
-| Menu | 消费水平默认值与区间交换、日常/其他分组、60/40 随机、菜单导入覆盖、消费水平确认写入、HTTP 接口与模式拦截 |
+| Menu | 消费水平默认值与区间交换、日常/其他分组、70/30 随机、菜单导入覆盖、消费水平确认写入、HTTP 接口与模式拦截 |
 | SuperAgent | Router / Worker 事件、状态 |
 | Planner | 复杂度判断、重规划 |
 | Context | 追加、全量摘要压缩、摘要字段 |
@@ -979,7 +985,7 @@ python -m unittest agent.tests.test_smoke
 | 专家组合 | `meta.skills` 与 `skill` 事件均包含医学与健身专家 |
 | 图片缓存 | 上传识别 → 指代追问命中 `image_source: cache` → 无关问题不复用 |
 | 上下文 | 窗口 1000000；压缩后消息段 0；达上限返回 `context_limit` |
-| 权限 | `full` 下更新档案自动执行；`full` 下记录午餐仍需确认；`manual` 下更新需确认 |
+| 权限 | `full` 下更新档案与记录午餐都自动执行；`manual` 下均需确认 |
 | 市场 | 4 个社区精选；安装、已安装、卸载通过 |
 | 导入 | 问答模式手动导入 200；市场安装问答模式 403 |
 
@@ -996,7 +1002,7 @@ python -m unittest agent.tests.test_smoke
 | 场景 | 结果 |
 | --- | --- |
 | 菜单分组 | 默认 20–35 元/餐下 mock 午餐 14 道：日常菜 13 道、其他菜品 1 道（三文鱼 42 元），每道菜带 `price`、`group`、`price_gap` |
-| 随机 | `POST /api/menu/random` 返回 `food` 与 `group`，600 次采样日常菜占比约 0.63 |
+| 随机 | `POST /api/menu/random` 返回 `food` 与 `group`，200 次采样日常菜占比 0.73（目标 70%） |
 | 消费水平写入 | 工作模式“把每餐消费水平改成 25 到 40 元”先 `confirm_required`，带 `confirmed_tools` 重发写入成功，再读为 25–40 |
 | 菜单导入 | 导入 26 元与 88 元两道菜，`menu_price` 为 26–88，`get_menu` 切换为导入菜单，分组为 1 日常 / 1 其他 |
 | 菜单推荐 | 工作模式“午餐按我的消费水平推荐几道菜”调用 `get_menu`，回答按 25–40 元区间给出日常菜候选 |
@@ -1004,6 +1010,17 @@ python -m unittest agent.tests.test_smoke
 | 档案写入 | 工作模式首次触发 `confirm_required`，带 `confirmed_tools` 重发写入 68kg，后续查询读到 68.0kg |
 | 报告导出 | “帮我下载健康报告”调用 `export_health_report`，返回 `download_url`，下载 200 且带 attachment |
 | 技能导出 | “把营养师技能导出成文件”调用 `export_skill`，SKILL.md 可下载 |
+
+2026-11-15 前端接入与记录编辑实测：
+
+| 场景 | 结果 |
+| --- | --- |
+| 菜单接口 | `GET /api/menu?mode=work&meal_type=午餐` 返回 14 道：日常 13 / 其他 1，`spend_level` 20–35，首道菜带 `price: 30`、`group: daily` |
+| 随机比例 | `POST /api/menu/random` 200 次：日常 146 / 其他 54，占比 0.73 |
+| 前端分组 | 侧栏、五列瀑布流、搜索结果与随机弹窗显示「日常菜 / 其他菜品」标签与 `¥` 参考价；后端不可用时用本地参考价按同一容差规则分组 |
+| 前端随机 | 优先调用 Agent；失败或抽到上一道时回退本地 70/30，并避开最近 6 次 |
+| 记录编辑 | 左栏每条记录悬停出现修改/删除；修改可换餐次与内容，删除需二次确认 |
+| 对话编辑 | `full` 下“删掉午餐”调用 `delete_meal` 直接执行；“午餐改成牛肉面”先查记录再 `update_meal`，`meal_action` 已透传前端 |
 
 ### 13.3 环境限制
 
@@ -1014,8 +1031,8 @@ python -m unittest agent.tests.test_smoke
 
 ### 13.4 回归清单
 
-- 问答模式看不到 `get_menu`、`record_meal`、`update_health_profile`。
-- 工作模式写操作必须确认；`full` 下 `record_meal` 仍确认。
+- 问答模式看不到 `get_menu`、`record_meal`、`delete_meal`、`update_meal`、`update_health_profile`。
+- 手动审批下写操作必须确认；`full` 下记录/删除/修改饮食与更新档案直接执行。
 - 语气切换后回答风格变化。
 - 专家多选后 `skill_ids` 生效，输入框显示标识。
 - 图片最多 10 张，粘贴可用，追问可复用。
@@ -1077,7 +1094,7 @@ python -m unittest agent.tests.test_smoke
 | 一直降级到本地规则 | 看 stderr 的 `[agent-llm]` 或 `meta.llm.last_error`；确认 Key、代理与出站网络 |
 | 出现 `hit restricted [127.0.0.1:7897]` | 请求走了系统代理；确认 `proxy_mode=direct`，或显式设置 `EAT_LLM_PROXY` |
 | 图片无法识别 | 确认模型声明 `vision`；检查 `notice` 与 `image_source` |
-| 写操作不执行 | 确认模式为 `work`、已带 `confirmed_tools`；`record_meal` 在 `full` 下仍需确认 |
+| 写操作不执行 | 确认模式为 `work`；手动审批下需带 `confirmed_tools`，完全访问下检查工具是否被技能白名单过滤 |
 | 上下文百分比不下降 | 压缩后消息段归零，但摘要计入系统段；长对话下降明显，短对话不明显 |
 | 档案写入后又变回旧值 | 检查是否被 `client_context` 覆盖；Agent 已写字段应被锁定 |
 | 前端没有工具栏 | 检查 `agent-adapter.js` 语法与浏览器控制台；确认 Agent 服务在线 |

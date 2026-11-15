@@ -5,7 +5,7 @@ from typing import Any, Iterable
 
 DEFAULT_SPEND_MIN = 20
 DEFAULT_SPEND_MAX = 35
-DAILY_RATIO = 0.6
+DAILY_RATIO = 0.7
 BAND_TOLERANCE_MIN = 2.0
 
 

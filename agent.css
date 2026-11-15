@@ -2083,3 +2083,108 @@
   transform: translate(0, -50%);
   transition: opacity 160ms ease-out, transform 240ms cubic-bezier(0.22, 1, 0.36, 1), visibility 0s;
 }
+/* ---- History panel: warm glass items + pink active ---- */
+.agent-history-list {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(246, 107, 129, 0.55) transparent;
+}
+
+.agent-history-list::-webkit-scrollbar { width: 6px; }
+.agent-history-list::-webkit-scrollbar-track { background: transparent; }
+.agent-history-list::-webkit-scrollbar-thumb { border-radius: 3px; background: rgba(246, 107, 129, 0.55); }
+
+.agent-history-item {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(255, 241, 244, 0.88));
+  border: 1px solid rgba(246, 107, 129, 0.25);
+  border-radius: 14px;
+  box-shadow: 0 4px 12px rgba(31, 38, 57, 0.10);
+  color: #1f2639;
+}
+
+.agent-history-item:hover {
+  background: rgba(255, 238, 241, 0.95);
+  border-color: rgba(246, 107, 129, 0.4);
+}
+
+.agent-history-item strong {
+  color: #1f2639;
+  font-weight: 700;
+}
+
+.agent-history-item time {
+  color: rgba(31, 38, 57, 0.6);
+}
+
+.agent-history-item.active {
+  background: linear-gradient(135deg, #f66b81, #fa8ba0);
+  border-color: transparent;
+  box-shadow: 0 6px 16px rgba(246, 107, 129, 0.35);
+}
+
+.agent-history-item.active strong,
+.agent-history-item.active time {
+  color: #ffffff;
+}
+/* ---- History panel: neutral warm-grey items (no pink) ---- */
+.agent-history-list {
+  scrollbar-color: #A79C8C transparent;
+}
+
+.agent-history-list::-webkit-scrollbar-thumb {
+  background: #A79C8C;
+}
+
+.agent-history-item {
+  background: #8C8171;
+  border: 1px solid rgba(31, 38, 57, 0.08);
+  border-radius: 14px;
+  box-shadow: 0 4px 12px rgba(31, 38, 57, 0.10);
+  color: #ffffff;
+}
+
+.agent-history-item:hover {
+  background: #6E6558;
+  border-color: rgba(31, 38, 57, 0.12);
+}
+
+.agent-history-item strong {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.agent-history-item time {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.agent-history-item.active {
+  background: #1F2639;
+  border-color: transparent;
+  box-shadow: 0 6px 16px rgba(31, 38, 57, 0.18);
+}
+
+.agent-history-item.active strong,
+.agent-history-item.active time {
+  color: #ffffff;
+}
+/* ---- Message rails: dark ink bars ---- */
+.message-rail {
+  background: #1f2639;
+  box-shadow: none;
+}
+
+.message-rail:hover {
+  width: 10px;
+  height: 2px;
+  padding: 0;
+  border-radius: 1px;
+  background: #000000;
+  box-shadow: none;
+}
+/* ---- Message rails: hover grows to ~2x length ---- */
+.message-rail {
+  transition: width 220ms cubic-bezier(0.22, 1, 0.36, 1), background-color 160ms ease-out;
+}
+
+.message-rail:hover {
+  width: 20px;
+}

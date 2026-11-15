@@ -320,8 +320,7 @@ class AgentRuntime:
                         user_id=user_id,
                         session_id=session_id,
                         mode=mode,
-                        confirmed=name in confirmed_tools
-                        or (access_level == "full" and name not in ALWAYS_CONFIRM_TOOLS),
+                        confirmed=name in confirmed_tools or access_level == "full",
                         service=self.service,
                         gateway=self.gateway,
                         skills=self.skills,
@@ -335,6 +334,8 @@ class AgentRuntime:
                     if tool_result.ok and isinstance(tool_result.data, dict):
                         if name == "update_health_profile":
                             result_data["profile"] = tool_result.data.get("profile", {})
+                        if name in ("delete_meal", "update_meal"):
+                            result_data["meal_action"] = tool_result.data.get("meal_action") or {}
                         if tool_result.data.get("download_url"):
                             for key in ("filename", "download_url", "format", "bytes", "days", "records", "id", "display_name"):
                                 if key in tool_result.data:

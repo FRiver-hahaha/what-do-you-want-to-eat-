@@ -12,7 +12,7 @@ BUILTIN_DIR = Path(__file__).resolve().parent / "builtin"
 
 TONE_CATEGORY = "tone"
 DEFAULT_TONE = "normal"
-BASE_TOOL_NAMES = {"update_health_profile", "export_health_report", "export_skill", "update_spend_level", "import_menu"}
+BASE_TOOL_NAMES = {"update_health_profile", "export_health_report", "export_skill", "update_spend_level", "import_menu", "delete_meal", "update_meal"}
 TONE_ALIASES = {
     "normal": "tone-normal",
     "gentle": "tone-gentle",

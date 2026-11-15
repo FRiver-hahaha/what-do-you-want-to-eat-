@@ -826,6 +826,8 @@
   const CONFIRM_COPY = {
     update_health_profile: "确认后会立即更新你的健康档案。",
     record_meal: "确认后会把这一餐写入今天的饮食记录。",
+    delete_meal: "确认后会删除这条饮食记录。",
+    update_meal: "确认后会修改这条饮食记录。",
     install_skill: "确认后会把该技能安装到本地并启用。",
     import_skill: "确认后会把这份 SKILL.md 导入为本地技能。",
     enable_skill: "确认后会调整该技能的启用状态。"
@@ -891,6 +893,8 @@
     get_weekly_stats: "正在汇总本周数据",
     get_friend_ranking: "正在读取好友排名",
     record_meal: "正在准备写入饮食记录",
+    delete_meal: "正在删除饮食记录",
+    update_meal: "正在修改饮食记录",
     list_skills: "正在读取技能列表",
     install_skill: "正在安装技能",
     import_skill: "正在导入技能",
@@ -919,6 +923,7 @@ bubble.classList.add("is-streaming");
     clearComposer();
     const citations = [];
     const downloads = [];
+    const pendingToolCalls = new Map();
     recordHistory("user", text || "请分析图片");
 
     try {
@@ -953,11 +958,20 @@ bubble.classList.add("is-streaming");
         } else if (event === "skill") {
           status.textContent = `技能：${data.display_name || data.id}`;
         } else if (event === "tool_call") {
+          pendingToolCalls.set(data.id, { name: data.name, arguments: data.arguments || {} });
           status.textContent = TOOL_LABELS[data.name] || `正在执行 ${data.name}`;
         } else if (event === "tool_result") {
           if (data.need_confirm) status.textContent = "等待你的确认";
           else status.textContent = data.ok ? "已完成查询" : "查询失败，继续整理";
           if (data.name === "update_health_profile" && data.ok) syncLocalProfile(data.data?.profile);
+          if (data.name === "record_meal" && data.ok) {
+            const call = pendingToolCalls.get(data.id);
+            if (call) syncLocalMeal(call.arguments);
+          }
+          if ((data.name === "delete_meal" || data.name === "update_meal") && data.ok) {
+            window.eatLocal?.applyMealAction?.(data.data?.meal_action);
+          }
+          if (!data.need_confirm) pendingToolCalls.delete(data.id);
           if (data.ok && data.data && data.data.download_url) downloads.push(data.data);
         } else if (event === "token") {
           answerText += data.text || "";
@@ -1048,6 +1062,25 @@ bubble.classList.add("is-streaming");
       menu.classList.remove("open");
     });
     return menu;
+  }
+
+  function syncLocalMeal(args) {
+    const local = window.eatLocal;
+    if (!local || typeof local.recordMeal !== "function" || !args) return;
+    const items = Array.isArray(args.items) ? args.items.filter(item => String(item).trim()) : [];
+    const text = String(args.text || items.join("、")).trim();
+    if (!text) return;
+    const type = String(args.type || "加餐");
+    let meals = [];
+    try { meals = JSON.parse(localStorage.getItem("eat-health-meals-v2") || "[]"); } catch { meals = []; }
+    const last = Array.isArray(meals) ? meals[meals.length - 1] : null;
+    if (last && last.type === type && last.text === text) return;
+    const nutrition = {};
+    ["protein", "fiber", "veggies", "water"].forEach(field => {
+      const value = Number(args[field]);
+      if (args[field] != null && args[field] !== "" && !Number.isNaN(value)) nutrition[field] = value;
+    });
+    local.recordMeal(text, nutrition, type);
   }
 
   function syncLocalProfile(profile) {

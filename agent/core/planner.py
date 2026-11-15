@@ -71,7 +71,21 @@ class Planner:
                 ],
                 note="图片只在本轮上下文中使用",
             )
-        if any(word in text for word in ["记录", "早餐吃", "午餐吃", "晚餐吃", "加餐"]):
+        if any(word in text for word in ["早餐", "午餐", "下午茶", "晚餐", "加餐", "饮食记录", "记录"]) and any(
+            word in text for word in ["删除", "删掉", "删了", "撤销", "改成", "改为", "修改", "换成", "挪到"]
+        ):
+            return Plan(
+                task_type="meal_edit",
+                complexity="simple",
+                needs_confirmation=True,
+                steps=[
+                    _step("确认要操作的餐次与记录"),
+                    _step("删除或修改该条饮食记录", "update_meal"),
+                    _step("复述修改结果"),
+                ],
+                note=mode if mode == "work" else "需要工作模式",
+            )
+        if any(word in text for word in ["记录", "早餐吃", "早上吃", "午餐吃", "中午吃", "下午茶", "晚餐吃", "晚上吃", "加餐"]):
             return Plan(
                 task_type="meal_log",
                 complexity="complex",
