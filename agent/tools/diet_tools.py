@@ -14,23 +14,23 @@ def _schema(properties: dict[str, Any], required: list[str] | None = None) -> di
     return {"type": "object", "properties": properties, "required": required or []}
 
 
-def _client_state(ctx: ToolContext) -> dict[str, Any]:
+def client_state(ctx: ToolContext) -> dict[str, Any]:
     if ctx.service is None or ctx.service.mode != "mock":
         return {}
     value = ctx.client_context or {}
     return value if isinstance(value, dict) else {}
 
 
-def _merged_profile(ctx: ToolContext) -> dict[str, Any]:
+def merged_profile(ctx: ToolContext) -> dict[str, Any]:
     data = ctx.service.get_profile(ctx.user_id)
-    client_profile = _client_state(ctx).get("profile")
+    client_profile = client_state(ctx).get("profile")
     return merge_profile(data, client_profile)
 
 
-def _merged_gap(ctx: ToolContext) -> dict[str, Any]:
-    profile = _merged_profile(ctx)
+def merged_gap(ctx: ToolContext) -> dict[str, Any]:
+    profile = merged_profile(ctx)
     data = ctx.service.get_nutrition_gap(ctx.user_id)
-    client_today = _client_state(ctx).get("today")
+    client_today = client_state(ctx).get("today")
     nutrition = client_today.get("nutrition") if isinstance(client_today, dict) else None
     if isinstance(nutrition, dict):
         intake = {}
@@ -49,7 +49,7 @@ def _merged_gap(ctx: ToolContext) -> dict[str, Any]:
 
 
 def _profile(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
-    data = _merged_profile(ctx)
+    data = merged_profile(ctx)
     summary = (
         f"{data.get('name')}：{data.get('height')}cm/{data.get('weight')}kg，"
         f"目标 {data.get('goal')}，活动量 {data.get('activity')}，"
@@ -58,10 +58,10 @@ def _profile(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
     return ToolResult(ok=True, summary=summary, data=data)
 
 
-def _recent_meals(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
+def recent_meals(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
     days = int(args.get("days") or 7)
     data = ctx.service.get_recent_meals(ctx.user_id, days)
-    client_meals = _client_state(ctx).get("meals")
+    client_meals = client_state(ctx).get("meals")
     if isinstance(client_meals, list) and client_meals:
         today = date.today().isoformat()
         meals = []
@@ -92,7 +92,7 @@ def _recent_meals(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
 
 
 def _nutrition_gap(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
-    data = _merged_gap(ctx)
+    data = merged_gap(ctx)
     gap = data.get("gap") or {}
     summary = (
         f"今日缺口：蛋白 {gap.get('protein', 0)}g，纤维 {gap.get('fiber', 0)}g，"
@@ -101,7 +101,7 @@ def _nutrition_gap(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
     return ToolResult(ok=True, summary=summary, data=data)
 
 
-def _match_score(food: dict[str, Any], profile: dict[str, Any], gap_data: dict[str, Any]) -> int:
+def match_score(food: dict[str, Any], profile: dict[str, Any], gap_data: dict[str, Any]) -> int:
     targets = gap_data.get("targets") or {"protein": 90, "fiber": 25, "veggies": 500, "water": 1800}
     intake = gap_data.get("intake") or {}
     ratios = {}
@@ -142,29 +142,18 @@ def _search_foods(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
         limit=int(args.get("limit") or 5),
         nature=str(args.get("nature") or ""),
     )
-    profile = _merged_profile(ctx)
-    gap_data = _merged_gap(ctx)
+    profile = merged_profile(ctx)
+    gap_data = merged_gap(ctx)
     foods = data.get("foods") or []
     for food in foods:
-        food["match"] = _match_score(food, profile, gap_data)
+        food["match"] = match_score(food, profile, gap_data)
     summary = f"找到 {len(foods)} 道符合忌口与筛选条件的菜品"
     return ToolResult(ok=True, summary=summary, data={"count": len(foods), "foods": foods, "source": data.get("source")})
 
 
-def _menu(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
-    data = ctx.service.get_menu(ctx.user_id, str(args.get("meal_type") or ""))
-    profile = _merged_profile(ctx)
-    gap_data = _merged_gap(ctx)
-    foods = data.get("foods") or []
-    for food in foods:
-        food["match"] = _match_score(food, profile, gap_data)
-    summary = f"实时菜单当前有 {len(foods)} 道可售菜品"
-    return ToolResult(ok=True, summary=summary, data={"meal_type": data.get("meal_type"), "count": len(foods), "foods": foods})
-
-
 def _weekly_stats(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
     data = ctx.service.get_weekly_stats(ctx.user_id)
-    client_today = _client_state(ctx).get("today")
+    client_today = client_state(ctx).get("today")
     if isinstance(client_today, dict) and client_today.get("score") is not None:
         try:
             data["today_score"] = int(float(client_today.get("score")))
@@ -218,7 +207,7 @@ def _update_health_profile(args: dict[str, Any], ctx: ToolContext) -> ToolResult
                 fields[key] = round(float(args[key]), 1)
             except (TypeError, ValueError):
                 return ToolResult(ok=False, summary=f"{key} 必须是数字", error="invalid_number")
-    for key in ("age", "water_target"):
+    for key in ("age", "water_target", "spend_min", "spend_max"):
         if args.get(key) not in (None, ""):
             try:
                 fields[key] = int(float(args[key]))
@@ -261,6 +250,8 @@ def _update_health_profile(args: dict[str, Any], ctx: ToolContext) -> ToolResult
         "goal": "目标",
         "activity": "活动量",
         "water_target": "饮水目标",
+        "spend_min": "消费水平下限",
+        "spend_max": "消费水平上限",
         "sleep": "睡眠",
         "allergies": "过敏",
         "dislikes": "忌口",
@@ -284,7 +275,7 @@ def build_diet_tools() -> list[ToolSpec]:
             name="get_recent_meals",
             description="查询当前用户近若干天的饮食记录与营养估算",
             parameters=_schema({"days": {"type": "integer", "minimum": 1, "maximum": 30, "description": "天数，默认 7"}}),
-            handler=_recent_meals,
+            handler=recent_meals,
             category="read",
             tags=("meals",),
         ),
@@ -311,15 +302,6 @@ def build_diet_tools() -> list[ToolSpec]:
             handler=_search_foods,
             category="read",
             tags=("food",),
-        ),
-        ToolSpec(
-            name="get_menu",
-            description="读取当前时段实时可售菜单，仅工作模式可用",
-            parameters=_schema({"meal_type": {"type": "string", "enum": ["早餐", "午餐", "晚餐", "加餐", ""]}}),
-            handler=_menu,
-            category="local",
-            modes=("work",),
-            tags=("menu",),
         ),
         ToolSpec(
             name="get_weekly_stats",
@@ -350,6 +332,8 @@ def build_diet_tools() -> list[ToolSpec]:
                     "goal": {"type": "string", "description": "健康目标，如 均衡饮食、控制体重、增加蛋白"},
                     "activity": {"type": "string", "description": "活动量，如 久坐、适中、较高"},
                     "water_target": {"type": "integer", "description": "每日饮水目标 ml"},
+                    "spend_min": {"type": "integer", "description": "每餐消费水平下限，单位元"},
+                    "spend_max": {"type": "integer", "description": "每餐消费水平上限，单位元"},
                     "sleep": {"type": "number", "description": "常态睡眠小时数"},
                     "diet_style": {"type": "string", "description": "饮食风格，如 普通饮食、素食、低脂"},
                     "allergies": {"type": "array", "items": {"type": "string"}, "description": "过敏食物列表"},

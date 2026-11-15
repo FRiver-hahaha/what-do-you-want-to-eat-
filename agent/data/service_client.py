@@ -33,6 +33,8 @@ MOCK_PROFILE = {
     "allergies": ["花生"],
     "dislikes": ["香菜"],
     "diet_style": "普通饮食",
+    "spend_min": 20,
+    "spend_max": 35,
     "bmi": 20.76,
     "note": "下午容易口渴，晚餐不宜过饱",
 }

@@ -31,13 +31,16 @@ from agent.data.db import init_db
 from agent.data.service_client import ServiceClient
 from agent.llm.gateway import LLMGateway
 from agent.mcp.manager import MCPManager
+from agent.menu import spend_band
 from agent.rag.retriever import KnowledgeBase
 from agent.rag.store import knowledge_dir
 from agent.skills.market import SkillMarket
 from agent.skills.registry import SkillsRegistry
 from agent.tools.base import ToolContext
 from agent.tools.diet_tools import build_diet_tools
+from agent.tools.menu_tools import build_menu_tools
 from agent.tools.registry import ToolRegistry
+from agent.tools.report_tools import build_report_tools
 from agent.tools.system_tools import build_system_tools
 
 
@@ -56,7 +59,9 @@ class AgentApp:
         self.gateway = LLMGateway()
         self.registry = ToolRegistry()
         self.registry.register_many(build_diet_tools())
+        self.registry.register_many(build_menu_tools())
         self.registry.register_many(build_system_tools())
+        self.registry.register_many(build_report_tools())
         self.market = SkillMarket(None, self.service)
         self.skills = SkillsRegistry(self.registry, self.market)
         self.market.skills = self.skills
@@ -392,8 +397,8 @@ class AgentApp:
         if not query:
             raise AgentError(400, "empty_query", "缺少 query")
         top_k = int(payload.get("top_k") or 4)
-        results = self.knowledge.search(query, top_k=top_k)
-        return {"query": query, "count": len(results), "results": results}
+        results, plan = self.knowledge.search_plan(query, top_k=top_k)
+        return {"query": query, "count": len(results), "results": results, "plan": plan}
 
     def rag_ingest(self, payload: dict[str, Any]) -> dict[str, Any]:
         if payload.get("directory"):
@@ -438,6 +443,78 @@ class AgentApp:
             "error": result.error,
             "need_confirm": result.need_confirm,
         }
+
+    def _work_tool_context(self, payload: dict[str, Any], confirmed: bool = True) -> ToolContext:
+        return ToolContext(
+            user_id=str(payload.get("user_id") or DEFAULT_USER_ID),
+            session_id=str(payload.get("session_id") or "s_menu"),
+            mode="work",
+            confirmed=confirmed,
+            service=self.service,
+            gateway=self.gateway,
+            skills=self.skills,
+            registry=self.registry,
+        )
+
+    @staticmethod
+    def _require_work(payload: dict[str, Any]) -> None:
+        if str(payload.get("mode") or "work") != "work":
+            raise AgentError(403, "mode_forbidden", "该操作需要工作模式")
+
+    @staticmethod
+    def _tool_payload(result: Any) -> dict[str, Any]:
+        return {
+            "ok": result.ok,
+            "summary": result.summary,
+            "data": result.data,
+            "error": result.error,
+            "need_confirm": result.need_confirm,
+        }
+
+    def menu_view(self, payload: dict[str, Any]) -> dict[str, Any]:
+        self._require_work(payload)
+        ctx = self._work_tool_context(payload, confirmed=False)
+        result = self.registry.call("get_menu", {"meal_type": str(payload.get("meal_type") or "")}, ctx)
+        return self._tool_payload(result)
+
+    def menu_import(self, payload: dict[str, Any]) -> dict[str, Any]:
+        self._require_work(payload)
+        ctx = self._work_tool_context(payload, confirmed=True)
+        result = self.registry.call(
+            "import_menu",
+            {"items": payload.get("items") or [], "source": str(payload.get("source") or "import")},
+            ctx,
+        )
+        return self._tool_payload(result)
+
+    def menu_random(self, payload: dict[str, Any]) -> dict[str, Any]:
+        self._require_work(payload)
+        ctx = self._work_tool_context(payload, confirmed=False)
+        arguments: dict[str, Any] = {"meal_type": str(payload.get("meal_type") or "")}
+        if payload.get("seed") not in (None, ""):
+            arguments["seed"] = payload.get("seed")
+        result = self.registry.call("pick_random_food", arguments, ctx)
+        return self._tool_payload(result)
+
+    def spend_level(self, user_id: str) -> dict[str, Any]:
+        profile = self.service.get_profile(user_id)
+        low, high = spend_band(profile)
+        return {
+            "user_id": user_id,
+            "spend_level": {"min": low, "max": high, "unit": "元/餐"},
+            "menu_price": {"min": 0, "max": 0},
+        }
+
+    def update_spend_level(self, payload: dict[str, Any]) -> dict[str, Any]:
+        self._require_work(payload)
+        ctx = self._work_tool_context(payload, confirmed=True)
+        arguments = {
+            key: payload[key]
+            for key in ("spend_min", "spend_max")
+            if payload.get(key) not in (None, "")
+        }
+        result = self.registry.call("update_spend_level", arguments, ctx)
+        return self._tool_payload(result)
 
     def feedback(self, payload: dict[str, Any]) -> dict[str, Any]:
         user_id = str(payload.get("user_id") or DEFAULT_USER_ID)

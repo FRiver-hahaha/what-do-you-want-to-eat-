@@ -116,6 +116,18 @@ CREATE TABLE IF NOT EXISTS rag_chunks (
 );
 
 CREATE INDEX IF NOT EXISTS idx_rag_chunks_doc ON rag_chunks(doc_id);
+CREATE TABLE IF NOT EXISTS menu_imports (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  source TEXT NOT NULL DEFAULT 'import',
+  price_min REAL NOT NULL DEFAULT 0,
+  price_max REAL NOT NULL DEFAULT 0,
+  items TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_menu_imports_user ON menu_imports(user_id, id);
+
 CREATE TABLE IF NOT EXISTS traces (
   id TEXT PRIMARY KEY,
   thread_id TEXT NOT NULL,

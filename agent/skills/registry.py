@@ -12,6 +12,7 @@ BUILTIN_DIR = Path(__file__).resolve().parent / "builtin"
 
 TONE_CATEGORY = "tone"
 DEFAULT_TONE = "normal"
+BASE_TOOL_NAMES = {"update_health_profile", "export_health_report", "export_skill", "update_spend_level", "import_menu"}
 TONE_ALIASES = {
     "normal": "tone-normal",
     "gentle": "tone-gentle",
@@ -124,7 +125,7 @@ class SkillsRegistry:
         available = {spec.name for spec in self.tools_registry.specs_for_mode(mode)}
         if not skill.allowed_tools:
             return available
-        return available.intersection(skill.allowed_tools)
+        return available.intersection(skill.allowed_tools) | (available & BASE_TOOL_NAMES)
 
     def tools_for_skill(self, skill: SkillMeta | None, mode: str) -> list[dict[str, Any]]:
         specs = self.tools_registry.specs_for_mode(mode)
@@ -199,7 +200,7 @@ class SkillsRegistry:
             if not skill.allowed_tools:
                 return available
             allowed |= available.intersection(skill.allowed_tools)
-        return allowed or available
+        return (allowed or available) | (available & BASE_TOOL_NAMES)
 
     def tools_for_skills(self, skills: list[SkillMeta], mode: str) -> list[dict[str, Any]]:
         specs = self.tools_registry.specs_for_mode(mode)

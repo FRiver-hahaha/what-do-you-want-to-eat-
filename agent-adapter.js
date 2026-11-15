@@ -50,6 +50,7 @@
 
   function renderInline(text) {
     return text
+      .replace(/\[([^\]]+)\]\((\/api\/[^)\s]+)\)/g, (_, label, path) => `<a class="agent-inline-link" href="${BASE}${path}" rel="noopener" target="_blank">${label}</a>`)
       .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
       .replace(/`([^`]+)`/g, "<code>$1</code>");
   }
@@ -822,6 +823,37 @@
     content.appendChild(details);
   }
 
+  const CONFIRM_COPY = {
+    update_health_profile: "确认后会立即更新你的健康档案。",
+    record_meal: "确认后会把这一餐写入今天的饮食记录。",
+    install_skill: "确认后会把该技能安装到本地并启用。",
+    import_skill: "确认后会把这份 SKILL.md 导入为本地技能。",
+    enable_skill: "确认后会调整该技能的启用状态。"
+  };
+
+  function confirmCopy(tools) {
+    const copies = (tools || []).map(name => CONFIRM_COPY[name]).filter(Boolean);
+    if (!copies.length) return "确认后会执行这项操作。";
+    return [...new Set(copies)].join(" ");
+  }
+
+  function renderDownloads(article, downloads) {
+    if (!article || !downloads.length) return;
+    const content = $(".message-content", article);
+    if (!content) return;
+    const box = document.createElement("div");
+    box.className = "agent-downloads";
+    box.innerHTML = downloads
+      .map(item => {
+        const filename = escapeHtml(item.filename || "导出文件");
+        const href = `${BASE}${item.download_url}`;
+        return `<a class="agent-download" href="${escapeHtml(href)}" download="${filename}" rel="noopener" target="_blank"><span>下载文件</span><strong>${filename}</strong></a>`;
+      })
+      .join("");
+    content.appendChild(box);
+    toast(`已生成 ${downloads.length} 个文件，可直接下载`);
+  }
+
   async function consume(stream, onEvent) {
     const reader = stream.getReader();
     const decoder = new TextDecoder();
@@ -886,6 +918,7 @@ bubble.classList.add("is-streaming");
     renderImagePreview();
     clearComposer();
     const citations = [];
+    const downloads = [];
     recordHistory("user", text || "请分析图片");
 
     try {
@@ -925,6 +958,7 @@ bubble.classList.add("is-streaming");
           if (data.need_confirm) status.textContent = "等待你的确认";
           else status.textContent = data.ok ? "已完成查询" : "查询失败，继续整理";
           if (data.name === "update_health_profile" && data.ok) syncLocalProfile(data.data?.profile);
+          if (data.ok && data.data && data.data.download_url) downloads.push(data.data);
         } else if (event === "token") {
           answerText += data.text || "";
           bubble.innerHTML = renderMarkdown(answerText);
@@ -947,7 +981,7 @@ bubble.classList.add("is-streaming");
           const dialog = $("#agentConfirmDialog");
           const textNode = $("#agentConfirmText");
           const toolsNode = $("#agentConfirmTools");
-          if (textNode) textNode.textContent = "该操作会修改你的健康档案数据，确认后立即生效。";
+          if (textNode) textNode.textContent = confirmCopy(data.confirmed_tools || []);
           if (toolsNode) toolsNode.innerHTML = (data.confirmed_tools || []).map(tool => `<span>${escapeHtml(tool)}</span>`).join("");
           if (dialog && !dialog.open) dialog.showModal();
           status.textContent = "等待你的确认";
@@ -969,6 +1003,7 @@ bubble.classList.add("is-streaming");
       }
       recordHistory("agent", answerText);
       renderCitations(article, citations);
+      renderDownloads(article, downloads);
       article.classList.remove("typing-message");
       bubble.classList.remove("is-streaming");
     } catch (error) {

@@ -6,10 +6,11 @@ import sys
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Iterator
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from agent import __version__
 from agent.app import AgentApp, AgentError
+from agent.core.exports import resolve_export
 from agent.core.runtime import AgentEvent
 
 MAX_BODY_BYTES = 36_000_000
@@ -20,6 +21,7 @@ MEMORY_DELETE = re.compile(r"^/api/memory/(\d+)$")
 TRACE_DETAIL = re.compile(r"^/api/traces/([^/]+)$")
 MARKET_SKILL_DELETE = re.compile(r"^/api/skills/market/([^/]+)$")
 SKILL_DELETE = re.compile(r"^/api/skills/([^/]+)$")
+EXPORT_FILE = re.compile(r"^/api/exports/([^/]+)$")
 
 
 class AgentHTTPRequestHandler(BaseHTTPRequestHandler):
@@ -76,6 +78,23 @@ class AgentHTTPRequestHandler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError, OSError):
             return
 
+    def _send_file(self, path: Any) -> None:
+        try:
+            payload = path.read_bytes()
+        except OSError:
+            self._send_json(404, {"ok": False, "error": "export_not_found", "message": "导出文件不存在"})
+            return
+        name = path.name
+        suffix = path.suffix.lower()
+        content_type = "text/markdown; charset=utf-8" if suffix == ".md" else "text/plain; charset=utf-8"
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Disposition", f"attachment; filename=\"export{suffix}\"; filename*=UTF-8''{quote(name)}")
+        self.send_header("Content-Length", str(len(payload)))
+        self._cors()
+        self.end_headers()
+        self.wfile.write(payload)
+
     def _read_body(self) -> dict[str, Any]:
         raw_length = self.headers.get("Content-Length") or "0"
         try:
@@ -104,6 +123,9 @@ class AgentHTTPRequestHandler(BaseHTTPRequestHandler):
             result = self._route(method, path, query, body)
             if isinstance(result, tuple) and result[0] == "sse":
                 self._send_sse(result[1])
+                return
+            if isinstance(result, tuple) and result[0] == "file":
+                self._send_file(result[1])
                 return
             status, payload = result
             self._send_json(status, payload)
@@ -240,6 +262,34 @@ class AgentHTTPRequestHandler(BaseHTTPRequestHandler):
 
         if path == "/api/rag/stats" and method == "GET":
             return 200, app.rag_stats()
+
+        match = EXPORT_FILE.match(path)
+        if match and method == "GET":
+            file_path = resolve_export(unquote(match.group(1)))
+            if file_path is None:
+                raise AgentError(404, "export_not_found", "导出文件不存在")
+            return "file", file_path
+
+        if path == "/api/menu" and method == "GET":
+            return 200, app.menu_view(
+                {
+                    "user_id": query.get("user_id", "u_demo"),
+                    "mode": query.get("mode", "work"),
+                    "meal_type": query.get("meal_type", ""),
+                }
+            )
+
+        if path == "/api/menu/import" and method == "POST":
+            return 200, app.menu_import(body)
+
+        if path == "/api/menu/random" and method == "POST":
+            return 200, app.menu_random(body)
+
+        if path == "/api/profile/spend" and method == "GET":
+            return 200, app.spend_level(query.get("user_id", "u_demo"))
+
+        if path == "/api/profile/spend" and method == "POST":
+            return 200, app.update_spend_level(body)
 
         if path == "/api/mcp/status" and method == "GET":
             return 200, app.mcp_status()

@@ -6,6 +6,7 @@ import os
 import tempfile
 import unittest
 import uuid
+from urllib.parse import quote
 
 TMP_DIR = tempfile.mkdtemp(prefix="eat-agent-test-")
 os.environ["EAT_AGENT_DATA_DIR"] = TMP_DIR
@@ -28,8 +29,13 @@ from agent.mcp.manager import MCPManager
 from agent.server import AgentHTTPRequestHandler
 from agent.tools.base import ToolContext
 from agent.tools.diet_tools import build_diet_tools
+from agent.tools.menu_tools import build_menu_tools
 from agent.tools.registry import ToolRegistry
+from agent.tools.report_tools import build_report_tools
 from agent.tools.system_tools import build_system_tools
+from agent.core.exports import resolve_export
+from agent.menu import pick_random, spend_band
+from agent.rag.query import QueryCache, QueryProcessor
 
 _APP: AgentApp | None = None
 
@@ -336,6 +342,7 @@ class TestTools(unittest.TestCase):
     def test_mode_isolation_and_confirmation(self) -> None:
         registry = ToolRegistry()
         registry.register_many(build_diet_tools())
+        registry.register_many(build_menu_tools())
         registry.register_many(build_system_tools())
         app = get_app()
         qa_names = {spec.name for spec in registry.specs_for_mode("qa")}
@@ -467,6 +474,7 @@ class TestImages(unittest.TestCase):
         self.assertTrue(result["answer"])
 
 
+
 class TestTrace(unittest.TestCase):
     def test_trace_written(self) -> None:
         app = get_app()
@@ -476,6 +484,223 @@ class TestTrace(unittest.TestCase):
         trace = app.trace(trace_id)
         self.assertTrue(trace["spans"])
         self.assertTrue(app.traces(5))
+
+
+class TestQueryPipeline(unittest.TestCase):
+    def test_typo_correction_runs_before_search(self) -> None:
+        processor = QueryProcessor()
+        corrected, corrections = processor.correct("减脂期每天旦白质吃多少")
+        self.assertIn("蛋白质", corrected)
+        self.assertTrue(corrections)
+        self.assertNotIn("旦白质", corrected)
+
+    def test_common_words_are_not_rewritten(self) -> None:
+        processor = QueryProcessor()
+        corrected, corrections = processor.correct("减脂期每天蛋白质吃多少")
+        self.assertEqual(corrected, "减脂期每天蛋白质吃多少")
+        self.assertFalse(corrections)
+
+    def test_generic_phrase_is_not_rewritten(self) -> None:
+        processor = QueryProcessor()
+        text = "午餐按我的消费水平推荐几道菜"
+        corrected, corrections = processor.correct(text)
+        self.assertEqual(corrected, text)
+        self.assertFalse(corrections)
+
+    def test_short_follow_up_uses_recent_context(self) -> None:
+        processor = QueryProcessor()
+        plan = processor.prepare("那它呢", ["减脂期每天蛋白质吃多少", "每天 90 克蛋白质，蔬菜 500 克"])
+        self.assertTrue(plan.reference_used)
+        self.assertIn("蛋白质", plan.resolved)
+
+    def test_corrected_query_shares_search_cache(self) -> None:
+        app = get_app()
+        app.knowledge.search_plan("减脂期每天旦白质吃多少", top_k=3)
+        results, info = app.knowledge.search_plan("减脂期每天蛋白质吃多少", top_k=3)
+        self.assertTrue(results)
+        self.assertTrue(info["from_cache"])
+
+    def test_low_confidence_result_is_not_cached(self) -> None:
+        cache = QueryCache()
+        key = cache.key("probe")
+        self.assertFalse(cache.set(key, ["value"], 0.4))
+        self.assertIsNone(cache.get(key))
+
+    def test_retrieval_reports_correction(self) -> None:
+        app = get_app()
+        result = app.chat(
+            {"user_id": "u_demo", "session_id": new_session(), "message": "减脂期旦白质吃多少", "mode": "qa"}
+        )
+        retrieval = (result.get("done") or {}).get("retrieval") or {}
+        self.assertTrue(retrieval.get("corrections"))
+        self.assertIn("蛋白质", retrieval.get("resolved") or "")
+
+
+class TestExports(unittest.TestCase):
+    def _context(self, mode: str = "work") -> tuple[AgentApp, ToolContext]:
+        app = get_app()
+        ctx = ToolContext(
+            user_id="u_demo",
+            session_id=new_session(),
+            mode=mode,
+            service=app.service,
+            skills=app.skills,
+            registry=app.registry,
+        )
+        return app, ctx
+
+    def test_report_tools_registered(self) -> None:
+        registry = ToolRegistry()
+        registry.register_many(build_report_tools())
+        self.assertEqual({spec.name for spec in registry.specs_for_mode("qa")}, set())
+        self.assertEqual(
+            {spec.name for spec in registry.specs_for_mode("work")},
+            {"export_health_report", "export_skill"},
+        )
+        registry.shutdown()
+
+    def test_work_mode_keeps_base_tools_with_expert(self) -> None:
+        app = get_app()
+        skill = app.skills.get("nutritionist")
+        names = app.skills.allowed_tool_names(skill, "work")
+        self.assertIn("update_health_profile", names)
+        self.assertIn("export_health_report", names)
+        self.assertIn("export_skill", names)
+
+    def test_export_health_report(self) -> None:
+        app, ctx = self._context()
+        result = app.registry.call("export_health_report", {"days": 7}, ctx)
+        self.assertTrue(result.ok, result.error)
+        self.assertIn("download_url", result.data)
+        path = resolve_export(result.data["filename"])
+        self.assertIsNotNone(path)
+        content = path.read_text(encoding="utf-8")
+        self.assertIn("# 健康报告", content)
+        self.assertIn("## 今日营养缺口", content)
+
+    def test_export_skill(self) -> None:
+        app, ctx = self._context()
+        result = app.registry.call("export_skill", {"id": "nutritionist"}, ctx)
+        self.assertTrue(result.ok, result.error)
+        self.assertIn("download_url", result.data)
+        path = resolve_export(result.data["filename"])
+        self.assertIsNotNone(path)
+        self.assertIn("name: nutritionist", path.read_text(encoding="utf-8"))
+
+    def test_export_requires_work_mode(self) -> None:
+        app, ctx = self._context("qa")
+        result = app.registry.call("export_health_report", {}, ctx)
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error, "permission_denied")
+
+    def test_download_route_and_path_guard(self) -> None:
+        app, ctx = self._context()
+        result = app.registry.call("export_skill", {"id": "nutritionist"}, ctx)
+        handler = object.__new__(AgentHTTPRequestHandler)
+        handler.app = app
+        routed = handler._route("GET", f"/api/exports/{quote(result.data['filename'])}", {}, {})
+        self.assertEqual(routed[0], "file")
+        self.assertTrue(routed[1].is_file())
+        with self.assertRaises(AgentError):
+            handler._route("GET", "/api/exports/..%2Fagent.db", {}, {})
+
+
+class TestMenu(unittest.TestCase):
+    def _context(self, mode: str = "work", user_id: str = "u_demo") -> tuple[AgentApp, ToolContext]:
+        app = get_app()
+        ctx = ToolContext(
+            user_id=user_id,
+            session_id=new_session(),
+            mode=mode,
+            service=app.service,
+            skills=app.skills,
+            registry=app.registry,
+        )
+        return app, ctx
+
+    def test_spend_band_defaults_and_swap(self) -> None:
+        self.assertEqual(spend_band({}), (20, 35))
+        self.assertEqual(spend_band({"spend_min": 40, "spend_max": 25}), (25, 40))
+        self.assertEqual(spend_band({"spend_min": 0, "spend_max": 0}), (20, 35))
+        self.assertEqual(spend_band({"spend_min": 999, "spend_max": 1200}), (999, 999))
+
+    def test_menu_groups_by_spend_level(self) -> None:
+        app, ctx = self._context()
+        result = app.registry.call("get_menu", {"meal_type": "午餐"}, ctx)
+        self.assertTrue(result.ok, result.error)
+        self.assertEqual(result.data["spend_level"]["min"], 20)
+        self.assertEqual(result.data["spend_level"]["max"], 35)
+        self.assertTrue(result.data["daily"])
+        self.assertTrue(result.data["other"])
+        counts = result.data["counts"]
+        self.assertEqual(counts["daily"] + counts["other"], counts["all"])
+        self.assertTrue(all(food["group"] == "daily" for food in result.data["daily"]))
+        self.assertTrue(all(food["group"] == "other" for food in result.data["other"]))
+        self.assertIn("日常菜", result.summary)
+
+    def test_random_pick_ratio_near_sixty(self) -> None:
+        groups = {
+            "daily": [{"name": "daily", "price": 25}],
+            "other": [{"name": "other", "price": 60}],
+        }
+        picks = [pick_random(groups, seed=index) for index in range(600)]
+        ratio = sum(1 for item in picks if item["group"] == "daily") / len(picks)
+        self.assertGreater(ratio, 0.5)
+        self.assertLess(ratio, 0.7)
+        self.assertIsNone(pick_random({"daily": [], "other": []})["food"])
+
+    def test_import_menu_drives_grouping(self) -> None:
+        app, ctx = self._context(user_id=f"u_menu_{uuid.uuid4().hex[:6]}")
+        ctx.confirmed = True
+        items = [
+            {"name": "测试套餐A", "price": 25, "meal_types": ["午餐"]},
+            {"name": "测试套餐B", "price": 62, "meal_types": ["午餐"]},
+        ]
+        imported = app.registry.call("import_menu", {"items": items, "source": "test"}, ctx)
+        self.assertTrue(imported.ok, imported.error)
+        self.assertEqual(imported.data["menu_price"]["min"], 25)
+        self.assertEqual(imported.data["menu_price"]["max"], 62)
+        self.assertEqual(imported.data["counts"]["daily"], 1)
+        menu = app.registry.call("get_menu", {"meal_type": "午餐"}, ctx)
+        self.assertEqual(menu.data["source"], "import")
+        groups = {food["name"]: food["group"] for food in menu.data["foods"]}
+        self.assertEqual(groups["测试套餐A"], "daily")
+        self.assertEqual(groups["测试套餐B"], "other")
+
+    def test_update_spend_level_needs_confirmation(self) -> None:
+        app, ctx = self._context(user_id=f"u_spend_{uuid.uuid4().hex[:6]}")
+        pending = app.registry.call("update_spend_level", {"spend_min": 22, "spend_max": 30}, ctx)
+        self.assertTrue(pending.need_confirm)
+        ctx.confirmed = True
+        saved = app.registry.call("update_spend_level", {"spend_min": 30, "spend_max": 22}, ctx)
+        self.assertTrue(saved.ok, saved.error)
+        self.assertEqual(saved.data["spend_level"]["min"], 22)
+        self.assertEqual(saved.data["spend_level"]["max"], 30)
+        profile = app.service.get_profile(ctx.user_id)
+        self.assertEqual(profile["spend_min"], 22)
+
+    def test_menu_http_endpoints(self) -> None:
+        app = get_app()
+        handler = object.__new__(AgentHTTPRequestHandler)
+        handler.app = app
+        status, payload = handler._route("GET", "/api/menu", {"mode": "work", "user_id": "u_demo"}, {})
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["ok"])
+        self.assertIn("daily", payload["data"])
+        status, picked = handler._route("POST", "/api/menu/random", {}, {"user_id": "u_demo", "mode": "work", "seed": 7})
+        self.assertEqual(status, 200)
+        self.assertIn(picked["data"]["group"], ("daily", "other"))
+        status, spend = handler._route("GET", "/api/profile/spend", {"user_id": "u_demo"}, {})
+        self.assertEqual(status, 200)
+        self.assertEqual(spend["spend_level"]["min"], 20)
+        with self.assertRaises(AgentError):
+            handler._route("GET", "/api/menu", {"mode": "qa"}, {})
+
+    def test_menu_tool_hidden_in_qa_mode(self) -> None:
+        app, ctx = self._context("qa")
+        result = app.registry.call("get_menu", {}, ctx)
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error, "permission_denied")
 
 
 if __name__ == "__main__":

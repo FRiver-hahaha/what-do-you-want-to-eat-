@@ -155,6 +155,50 @@
   font-weight: 600;
 }
 
+.agent-downloads {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.agent-download {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(231, 84, 128, 0.28);
+  background: rgba(255, 255, 255, 0.62);
+  color: #1f2639;
+  text-decoration: none;
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.agent-download:hover {
+  transform: translateY(-1px);
+  border-color: rgba(231, 84, 128, 0.5);
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.agent-download span {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: #e75480;
+}
+
+.agent-download strong {
+  font-size: 13px;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.agent-inline-link {
+  color: #e75480;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .agent-dialog {
   width: min(560px, calc(100vw - 32px));
   max-height: 84vh;

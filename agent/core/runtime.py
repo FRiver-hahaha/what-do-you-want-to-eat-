@@ -154,7 +154,8 @@ class AgentRuntime:
                 profile = merge_profile(profile, client_context.get("profile"))
 
             plan = self.planner.plan(display_message, mode, bool(images), profile)
-            sources = self._retrieve(message or display_message, skill, mode, use_rag)
+            retrieval_history = [{"role": row.get("role"), "content": row.get("content")} for row in history[-6:]]
+            sources, rag_info = self._retrieve(message or display_message, skill, mode, use_rag, retrieval_history)
             knowledge_block = self._knowledge_block(sources)
             tool_names = sorted(self.skills.allowed_tool_names_many(skills, mode))
             system_prompt = build_system_prompt(
@@ -210,6 +211,16 @@ class AgentRuntime:
                     {"level": "warning", "message": "检测到试图改变规则的指令，已按安全边界处理"},
                 )
             yield AgentEvent("plan", plan.to_dict())
+            if rag_info.get("corrections") or rag_info.get("additions"):
+                detail = []
+                if rag_info.get("corrections"):
+                    detail.append("纠正 " + "、".join(f"{item['from']}→{item['to']}" for item in rag_info["corrections"]))
+                if rag_info.get("additions"):
+                    detail.append("结合上下文 " + "、".join(rag_info["additions"]))
+                yield AgentEvent(
+                    "notice",
+                    {"level": "info", "message": f"检索按「{rag_info.get('resolved')}」执行（{'；'.join(detail)}）"},
+                )
             for item in skills:
                 yield AgentEvent("skill", {"id": item.name, "display_name": item.display_name, "category": item.category})
             for source in sources:
@@ -320,6 +331,14 @@ class AgentRuntime:
                     with self.tracer.span(trace_id, f"tool:{name}", "tool", {"arguments": arguments}):
                         tool_result = self.registry.call(name, arguments, ctx)
                         self.planner.mark(plan, name, "ok" if tool_result.ok else "error")
+                    result_data: dict[str, Any] = {}
+                    if tool_result.ok and isinstance(tool_result.data, dict):
+                        if name == "update_health_profile":
+                            result_data["profile"] = tool_result.data.get("profile", {})
+                        if tool_result.data.get("download_url"):
+                            for key in ("filename", "download_url", "format", "bytes", "days", "records", "id", "display_name"):
+                                if key in tool_result.data:
+                                    result_data[key] = tool_result.data[key]
                     yield AgentEvent(
                         "tool_result",
                         {
@@ -329,11 +348,7 @@ class AgentRuntime:
                             "need_confirm": tool_result.need_confirm,
                             "summary": tool_result.summary,
                             "error": tool_result.error,
-                            **(
-                                {"data": {"profile": (tool_result.data or {}).get("profile", {})}}
-                                if name == "update_health_profile" and tool_result.ok
-                                else {}
-                            ),
+                            **({"data": result_data} if result_data else {}),
                         },
                     )
 
@@ -391,6 +406,14 @@ class AgentRuntime:
                     "tokens": tokens,
                     "plan": plan.to_dict(),
                     "citations": len(sources),
+                    "retrieval": {
+                        "resolved": rag_info.get("resolved"),
+                        "corrections": rag_info.get("corrections") or [],
+                        "additions": rag_info.get("additions") or [],
+                        "from_cache": rag_info.get("from_cache", False),
+                        "conflict": rag_info.get("conflict", False),
+                        "confidence": rag_info.get("confidence", 1.0),
+                    },
                 },
             )
         except GeneratorExit:
@@ -402,21 +425,31 @@ class AgentRuntime:
         finally:
             self.tracer.finish(trace_id, status, tokens)
 
-    def _retrieve(self, message: str, skill: Any, mode: str, use_rag: bool | None) -> list[dict[str, Any]]:
+    def _retrieve(
+        self,
+        message: str,
+        skill: Any,
+        mode: str,
+        use_rag: bool | None,
+        history: list[str] | None = None,
+    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        prepared = self.knowledge.processor().prepare(message, history or [])
+        empty = {**prepared.to_dict(), "hits": 0}
         if use_rag is False:
-            return []
+            return [], empty
+        haystack = prepared.resolved or message
         enabled = use_rag is True
         if not enabled:
             if skill is not None and skill.category in RAG_SKILL_CATEGORIES:
                 enabled = True
-            elif any(hint in message for hint in RAG_HINTS):
+            elif any(hint in haystack for hint in RAG_HINTS):
                 enabled = True
         if not enabled:
-            return []
+            return [], empty
         try:
-            return self.knowledge.search(message, top_k=3)
+            return self.knowledge.search_plan(haystack, top_k=3, prepared=prepared)
         except Exception:
-            return []
+            return [], {**empty, "error": "retrieval_failed"}
 
     @staticmethod
     def _knowledge_block(sources: list[dict[str, Any]]) -> str:

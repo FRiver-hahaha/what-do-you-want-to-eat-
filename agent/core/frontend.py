@@ -3,7 +3,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-PROFILE_FIELDS = {"name", "gender", "diet_style", "height", "weight", "age", "goal", "activity", "note", "waterTarget", "sleep"}
+PROFILE_FIELDS = {"name", "gender", "diet_style", "height", "weight", "age", "goal", "activity", "note", "waterTarget", "sleep", "spend_min", "spend_max"}
+PROFILE_NUMERIC_FIELDS = {"height", "weight", "age", "waterTarget", "sleep", "spend_min", "spend_max"}
 NUTRITION_FIELDS = {"protein", "fiber", "veggies", "water"}
 MEAL_FIELDS = {"type", "time", "text", "protein", "fiber", "veggies", "water"}
 MAX_CONTEXT_CHARS = 8000
@@ -89,7 +90,7 @@ def merge_profile(data: dict[str, Any], client_profile: Any) -> dict[str, Any]:
     for key, value in client_profile.items():
         if key not in PROFILE_FIELDS or value is None or key in locked:
             continue
-        if key in ("height", "weight", "age", "waterTarget", "sleep"):
+        if key in PROFILE_NUMERIC_FIELDS:
             try:
                 number = float(value)
             except (TypeError, ValueError):
@@ -97,6 +98,8 @@ def merge_profile(data: dict[str, Any], client_profile: Any) -> dict[str, Any]:
             if key == "waterTarget":
                 merged["water_target"] = int(number)
                 merged["waterTarget"] = int(number)
+            elif key in ("spend_min", "spend_max"):
+                merged[key] = int(number)
             elif key == "sleep":
                 merged["sleep"] = f"{number:g}小时"
                 merged["sleep_hours"] = number
@@ -176,6 +179,11 @@ def contract() -> dict[str, Any]:
             "images": "POST /api/chat/stream 的 images 数组，支持 dataURL 或 http(s) 图片，最多 4 张",
             "markdown": "回答按 Markdown 渲染：简单问题轻量段落，复杂问题使用标题、列表与加粗",
             "streaming": "token 按模型生成顺序逐字到达",
+            "downloads": "tool_result.data.download_url 渲染 .agent-downloads；GET /api/exports/{filename} 返回 attachment",
+            "spend_level": "profile.spend_min / spend_max 为每餐消费水平区间（整数，元）；缺省 20-35，GET /api/profile/spend 可读，POST 可写（需工作模式）",
+            "menu_groups": "GET /api/menu 返回 daily / other 两组与 counts；每道菜带 price、group（daily|other）、price_gap、price_reason",
+            "menu_import": "POST /api/menu/import 导入菜名与金额，写入 Agent 菜单库，导入后菜单以导入数据为准",
+            "random_pick": "POST /api/menu/random 按 60% 日常菜 / 40% 其他菜品抽取，返回 food 与 group",
             "plan": "plan / replan 事件暴露执行计划与重新规划",
             "worker": "worker_start / worker_done 暴露 Router 分派结果",
         },
@@ -228,7 +236,7 @@ def contract() -> dict[str, Any]:
             "error": "在 .message-bubble 显示错误并保底降级到本地规则",
         },
         "client_context_schema": {
-            "profile": {"name": "string", "height": "number", "weight": "number", "age": "number", "goal": "string", "activity": "string", "waterTarget": "number", "sleep": "number", "note": "string"},
+            "profile": {"name": "string", "height": "number", "weight": "number", "age": "number", "goal": "string", "activity": "string", "waterTarget": "number", "sleep": "number", "spend_min": "number", "spend_max": "number", "note": "string"},
             "meals": [{"type": "string", "time": "string", "text": "string", "protein": "number", "fiber": "number", "veggies": "number", "water": "number"}],
             "today": {"score": "number", "status": "string", "nutrition": {"protein": "number", "fiber": "number", "veggies": "number", "water": "number"}},
         },
@@ -238,5 +246,9 @@ def contract() -> dict[str, Any]:
             {"id": "meal_search_backend", "name": "菜品搜索走后端", "needed_ui": "可保留本地 searchFoods", "agent_api": "GET /api/tools + search_foods"},
             {"id": "guess_backend", "name": "猜餐走后端", "needed_ui": "保留本地 renderInference 作为降级", "agent_api": "meal-guess Skill + get_recent_meals"},
             {"id": "vision_model", "name": "视觉能力", "needed_ui": "拍照入口已接入", "agent_api": "deepseek-flash 原生支持 image_url 图片输入"},
+            {"id": "spend_level_ui", "name": "消费水平输入", "needed_ui": "档案页新增消费水平区间控件，读写 spend_min/spend_max", "agent_api": "GET/POST /api/profile/spend"},
+            {"id": "menu_price_field", "name": "菜单金额字段", "needed_ui": "菜品数据补 price（元），导入菜单时一并提交", "agent_api": "POST /api/menu/import"},
+            {"id": "menu_group_ui", "name": "日常菜与其他菜品分组", "needed_ui": "左侧菜单按 daily / other 渲染两组", "agent_api": "GET /api/menu"},
+            {"id": "random_pick_backend", "name": "随机选菜走后端", "needed_ui": "随机按钮改调 Agent，失败时回退本地随机", "agent_api": "POST /api/menu/random"},
         ],
     }
