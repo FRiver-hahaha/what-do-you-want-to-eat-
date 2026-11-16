@@ -1,0 +1,36 @@
+== P7 群组功能删除后全仓扫描 2026-11-16 11:25:09 ==
+-- 1.群组代码符号(判据:仅历史文档) --
+   (代码区零输出)
+-- 2.群组路由 15-24(判据:全部无路由) --
+   type 15 无路由
+   type 16 无路由
+   type 17 无路由
+   type 18 无路由
+   type 19 无路由
+   type 20 无路由
+   type 21 无路由
+   type 22 无路由
+   type 23 无路由
+   type 24 无路由
+-- 3.最终路由注册数与清单(判据:13) --
+13
+0,1,2,3,4,5,6,7,8,9,10,11,12
+-- 4.数据库表(判据:仅 user/friend) --
+
+-- 5.敏感信息扫描(判据:空) --
+web/httplib.h:4554:  static const auto charset = "0123456789abcdef";
+web/httplib.h:4735:      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+web/httplib.h:4882:      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+web/httplib.h:8417:      "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+transit/transit.cc:59:        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+-- 6.ChatRoom/群聊中文残留(代码区) --
+client/page/auth.cc:26:        return "群聊" + std::string(m["group_name"]) + "发来新的消息";
+web/index.html:204://   11 拉黑/取消  12 删除好友（群组 15–24 已随群组功能裁剪删除）
+== 数据库最终表结构 2026-11-16 11:26:34 ==
+chatroom_p7 表清单: friend,user
+user 表结构:
+user	CREATE TABLE `user` (\n  `id` int unsigned NOT NULL AUTO_INCREMENT COMMENT '用户ID',\n  `name` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '用户名',\n  `email` varchar(25) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '邮箱（唯一）',\n  `password` char(64) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '密码哈希',\n  `state` tinyint NOT NULL DEFAULT '0' COMMENT '状态: 0.离线 1.在线',\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `email` (`email`)\n) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表'
+friend 表结构:
+friend	CREATE TABLE `friend` (\n  `id` int unsigned NOT NULL AUTO_INCREMENT COMMENT '关系ID',\n  `user_id` int unsigned NOT NULL COMMENT '用户ID',\n  `friend_id` int unsigned NOT NULL COMMENT '好友ID',\n  `status` tinyint NOT NULL DEFAULT '0' COMMENT '关系状态: 0.用户待验证 1.好友待验证 2.正常 3.拉黑',\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `uk_user_friend` (`user_id`,`friend_id`)\n) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='好友关系表'
+群组表存在性: 0
+chatserver 权限: GRANT SELECT, INSERT, UPDATE, DELETE ON `chatroom_p7`.* TO `chatserver`@`localhost`
