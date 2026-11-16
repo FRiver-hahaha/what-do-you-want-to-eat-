@@ -1,0 +1,83 @@
+PASS health 200 ok
+FAIL health version p8-s2 :: {'database': 'ok', 'ok': True, 'service': 'chatroom-http', 'status': 'ok', 'version': 'p8-s3'}
+PASS POST meals no token -> unauthorized
+PASS GET meals no token -> unauthorized
+PASS GET gap no token -> unauthorized
+PASS GET weekly no token -> unauthorized
+PASS other uid meals -> forbidden
+PASS invalid uid meals -> invalid_params
+PASS missing idempotency_key -> invalid_params
+PASS illegal idempotency_key chars -> invalid_params
+PASS invalid date -> invalid_params
+PASS out-of-range date -> invalid_params
+PASS items non-array -> invalid_params
+PASS items non-string -> invalid_params
+PASS negative protein -> invalid_params
+PASS protein too large -> invalid_params
+PASS type non-string -> invalid_params
+PASS days=0 -> invalid_params
+PASS days=abc -> invalid_params
+PASS days=91 -> invalid_params
+PASS gap invalid date -> invalid_params
+PASS record meal ok
+PASS receipt_id format
+PASS record idempotent=false
+PASS record source=service
+PASS record user_id
+PASS default date == today
+PASS default type == 加餐
+PASS default text joins items
+PASS items round-trip
+PASS meal has all nutrition fields
+PASS meal time HH:MM
+PASS recent source=service
+PASS recent has contract fields
+PASS recent default days == 7
+PASS count == len(meals)
+PASS first write adds exactly one row
+PASS replay ok
+PASS replay idempotent=true
+PASS replay same receipt_id
+PASS replay same meal id
+PASS replay does not add a row
+PASS same key different payload -> ok:false
+PASS conflict error code
+PASS conflict does not add a row
+PASS concurrent all http 200
+PASS concurrent all ok:true
+PASS concurrent single receipt
+PASS concurrent adds exactly one row
+PASS mixed has winners
+PASS mixed losers are conflicts
+PASS mixed single winning receipt
+PASS mixed adds exactly one row (rollback works)
+PASS penalty regex 4+3
+PASS penalty zero for clean text
+PASS explicit date preserved
+PASS days=1 excludes yesterday
+PASS days=2 includes yesterday
+PASS meals sorted by date,id
+PASS gap default date == today
+PASS gap targets exact
+PASS gap has contract fields
+PASS gap water target matches profile
+PASS historical writes ok
+PASS historical intake exact
+PASS historical gap computed
+PASS weekly week == monday
+PASS weekly has contract fields
+PASS weekly days_recorded >= 1
+PASS weekly streak >= 1
+PASS weekly avg matches daily
+PASS score meal written
+PASS weekly score matches frontend formula
+PASS three_meal_days consistent when mains already complete
+PASS today has 3+ meals
+PASS today mains complete
+PASS weekly points > 0
+PASS item truncated to 60 chars
+PASS text truncated to 512 chars
+PASS many items still writable
+PASS items json within 1024 bytes
+PASS unknown api route -> 200 not_found
+SUMMARY passed=81 failed=1 total=82

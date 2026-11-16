@@ -1,0 +1,108 @@
+[  2%] Building CXX object CMakeFiles/server.dir/server/main.cc.o
+[  5%] Building CXX object CMakeFiles/client.dir/client/main.cc.o
+[  8%] Building CXX object CMakeFiles/transit.dir/transit/transit.cc.o
+[ 34%] Built target server_http
+[ 37%] Building CXX object CMakeFiles/client.dir/client/common/common.cc.o
+/home/m/eat-p8-s1/chatroom-backend/client/common/common.cc: In function ‘void pushOpt(const std::string&)’:
+/home/m/eat-p8-s1/chatroom-backend/client/common/common.cc:62:10: warning: ignoring return value of ‘ssize_t write(int, const void*, size_t)’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+   62 |     write(g_opt_efd, &one, sizeof(one));
+      |     ~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/m/eat-p8-s1/chatroom-backend/client/common/common.cc: In function ‘void showTip(const std::string&)’:
+/home/m/eat-p8-s1/chatroom-backend/client/common/common.cc:125:11: warning: ignoring return value of ‘int system(const char*)’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+  125 |     system("clear");
+      |     ~~~~~~^~~~~~~~~
+[ 40%] Linking CXX executable bin/transit
+[ 42%] Building CXX object CMakeFiles/server.dir/server/database/MySQL.cc.o
+[ 45%] Building CXX object CMakeFiles/server.dir/server/database/MySQLPool.cc.o
+[ 48%] Building CXX object CMakeFiles/client.dir/client/net/TcpClient.cc.o
+[ 48%] Built target transit
+[ 51%] Building CXX object CMakeFiles/client.dir/client/net/net.cc.o
+[ 54%] Building CXX object CMakeFiles/web.dir/web/main.cc.o
+[ 57%] Copy index.html into bin/static/ (web 服务仅托管 static 目录)
+[ 57%] Built target web_assets
+[ 60%] Building CXX object CMakeFiles/server.dir/server/database/Redis.cc.o
+[ 62%] Building CXX object CMakeFiles/server.dir/server/email/EmailSender.cc.o
+[ 65%] Building CXX object CMakeFiles/server.dir/server/model/FriendModel.cc.o
+[ 68%] Building CXX object CMakeFiles/server.dir/server/model/User.cc.o
+/home/m/eat-p8-s1/chatroom-backend/client/net/net.cc: In function ‘void ioLoop()’:
+/home/m/eat-p8-s1/chatroom-backend/client/net/net.cc:128:21: warning: ignoring return value of ‘ssize_t read(int, void*, size_t)’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+  128 |                 read(g_opt_efd, &val, sizeof(val));
+      |                 ~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[ 71%] Building CXX object CMakeFiles/server.dir/server/model/UserModel.cc.o
+[ 74%] Building CXX object CMakeFiles/server.dir/server/net/Connection.cc.o
+[ 77%] Building CXX object CMakeFiles/server.dir/server/net/TcpServer.cc.o
+[ 80%] Building CXX object CMakeFiles/server.dir/server/reactor/Reactor.cc.o
+[ 82%] Building CXX object CMakeFiles/server.dir/server/service/ChatService.cc.o
+[ 85%] Building CXX object CMakeFiles/client.dir/client/page/auth.cc.o
+/home/m/eat-p8-s1/chatroom-backend/server/reactor/Reactor.cc: In member function ‘void Reactor::pushFd(int)’:
+/home/m/eat-p8-s1/chatroom-backend/server/reactor/Reactor.cc:69:10: warning: ignoring return value of ‘ssize_t write(int, const void*, size_t)’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+   69 |     write(m_wakeup_fd, &u, sizeof(u));
+      |     ~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/m/eat-p8-s1/chatroom-backend/server/reactor/Reactor.cc: In member function ‘void Reactor::post(std::function<void()>)’:
+/home/m/eat-p8-s1/chatroom-backend/server/reactor/Reactor.cc:78:10: warning: ignoring return value of ‘ssize_t write(int, const void*, size_t)’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+   78 |     write(m_wakeup_fd, &u, sizeof(u));
+      |     ~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/m/eat-p8-s1/chatroom-backend/client/page/auth.cc: In function ‘void authOptions(TcpClient&)’:
+/home/m/eat-p8-s1/chatroom-backend/client/page/auth.cc:35:15: warning: ignoring return value of ‘int system(const char*)’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+   35 |         system("clear");
+      |         ~~~~~~^~~~~~~~~
+/home/m/eat-p8-s1/chatroom-backend/client/page/auth.cc: In function ‘void signUp(TcpClient&)’:
+/home/m/eat-p8-s1/chatroom-backend/client/page/auth.cc:66:15: warning: ignoring return value of ‘int system(const char*)’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+   66 |         system("clear");
+      |         ~~~~~~^~~~~~~~~
+/home/m/eat-p8-s1/chatroom-backend/client/page/auth.cc: In function ‘void passwordSignIn(TcpClient&)’:
+/home/m/eat-p8-s1/chatroom-backend/client/page/auth.cc:105:15: warning: ignoring return value of ‘int system(const char*)’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+  105 |         system("clear");
+      |         ~~~~~~^~~~~~~~~
+/home/m/eat-p8-s1/chatroom-backend/client/page/auth.cc: In function ‘void showOfflinePage(const json&)’:
+/home/m/eat-p8-s1/chatroom-backend/client/page/auth.cc:17:11: warning: ignoring return value of ‘int system(const char*)’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+   17 |     system("clear");
+      |     ~~~~~~^~~~~~~~~
+/home/m/eat-p8-s1/chatroom-backend/client/page/auth.cc: In function ‘void codeSignIn(TcpClient&)’:
+/home/m/eat-p8-s1/chatroom-backend/client/page/auth.cc:144:15: warning: ignoring return value of ‘int system(const char*)’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+  144 |         system("clear");
+      |         ~~~~~~^~~~~~~~~
+[ 88%] Building CXX object CMakeFiles/client.dir/client/page/friend.cc.o
+[ 91%] Building CXX object CMakeFiles/client.dir/client/page/settings.cc.o
+/home/m/eat-p8-s1/chatroom-backend/client/page/friend.cc: In function ‘void home(TcpClient&)’:
+/home/m/eat-p8-s1/chatroom-backend/client/page/friend.cc:14:15: warning: ignoring return value of ‘int system(const char*)’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+   14 |         system("clear");
+      |         ~~~~~~^~~~~~~~~
+/home/m/eat-p8-s1/chatroom-backend/client/page/friend.cc: In function ‘void friendPage(TcpClient&)’:
+/home/m/eat-p8-s1/chatroom-backend/client/page/friend.cc:35:15: warning: ignoring return value of ‘int system(const char*)’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+   35 |         system("clear");
+      |         ~~~~~~^~~~~~~~~
+/home/m/eat-p8-s1/chatroom-backend/client/page/friend.cc: In function ‘void addFriend(TcpClient&)’:
+/home/m/eat-p8-s1/chatroom-backend/client/page/friend.cc:57:15: warning: ignoring return value of ‘int system(const char*)’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+   57 |         system("clear");
+      |         ~~~~~~^~~~~~~~~
+/home/m/eat-p8-s1/chatroom-backend/client/page/friend.cc: In function ‘void friendList(TcpClient&)’:
+/home/m/eat-p8-s1/chatroom-backend/client/page/friend.cc:86:15: warning: ignoring return value of ‘int system(const char*)’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+   86 |         system("clear");
+      |         ~~~~~~^~~~~~~~~
+/home/m/eat-p8-s1/chatroom-backend/client/page/friend.cc: In function ‘void friendMenu(TcpClient&, const json&)’:
+/home/m/eat-p8-s1/chatroom-backend/client/page/friend.cc:138:15: warning: ignoring return value of ‘int system(const char*)’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+  138 |         system("clear");
+      |         ~~~~~~^~~~~~~~~
+/home/m/eat-p8-s1/chatroom-backend/client/page/settings.cc: In function ‘bool settings(TcpClient&)’:
+/home/m/eat-p8-s1/chatroom-backend/client/page/settings.cc:9:15: warning: ignoring return value of ‘int system(const char*)’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+    9 |         system("clear");
+      |         ~~~~~~^~~~~~~~~
+/home/m/eat-p8-s1/chatroom-backend/client/page/settings.cc: In function ‘void changePassword(TcpClient&)’:
+/home/m/eat-p8-s1/chatroom-backend/client/page/settings.cc:40:11: warning: ignoring return value of ‘int system(const char*)’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+   40 |     system("clear");
+      |     ~~~~~~^~~~~~~~~
+/home/m/eat-p8-s1/chatroom-backend/client/page/settings.cc: In function ‘bool signOut(TcpClient&)’:
+/home/m/eat-p8-s1/chatroom-backend/client/page/settings.cc:98:11: warning: ignoring return value of ‘int system(const char*)’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+   98 |     system("clear");
+      |     ~~~~~~^~~~~~~~~
+/home/m/eat-p8-s1/chatroom-backend/client/page/settings.cc: In function ‘bool exitLogin(TcpClient&)’:
+/home/m/eat-p8-s1/chatroom-backend/client/page/settings.cc:119:11: warning: ignoring return value of ‘int system(const char*)’ declared with attribute ‘warn_unused_result’ [-Wunused-result]
+  119 |     system("clear");
+      |     ~~~~~~^~~~~~~~~
+[ 94%] Linking CXX executable bin/server
+[ 97%] Linking CXX executable bin/client
+[ 97%] Built target server
+[ 97%] Built target client
+[100%] Linking CXX executable bin/web
+[100%] Built target web

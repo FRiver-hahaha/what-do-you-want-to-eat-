@@ -1,0 +1,10 @@
+F20261116 23:54:46.710740  6549 main_http.cc:217] database pool init failed (fail-closed): db=chatroom_p8
+*** Check failure stack trace: ***
+    @     0x70cc51015ed1  google::LogMessage::Fail()
+    @     0x70cc5101e6cf  google::LogMessage::SendToLog()
+    @     0x70cc510159dc  google::LogMessage::Flush()
+    @     0x70cc5101c3ed  google::LogMessageFatal::~LogMessageFatal()
+    @     0x57cf03d55898  main
+    @     0x70cc4f82a601  (unknown)
+    @     0x70cc4f82a718  __libc_start_main
+    @     0x57cf03d57755  _start

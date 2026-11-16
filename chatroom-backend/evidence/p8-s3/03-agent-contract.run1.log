@@ -1,0 +1,31 @@
+PASS  ServiceClient 处于 service 模式
+PASS  get_menu 午餐 source=service
+PASS  get_menu 午餐 count=14
+PASS  get_menu 午餐无 mock 回退异常
+PASS  get_menu 菜品字段与 MOCK_FOODS 一致
+PASS  get_menu 数值来自真实 foods 表
+PASS  get_menu meal_types 为数组、available 为 bool
+PASS  get_menu 全量 count=16 且 meal_type=全部
+PASS  get_menu 加餐 2 道
+PASS  search_foods 空条件返回 16 道且 source=service
+PASS  search_foods q=鸡胸 命中鸡胸菜品
+PASS  search_foods limit=3 生效
+PASS  search_foods nature=indulge 返回 6 道
+PASS  search_foods 无结果 count=0
+PASS  Agent 档案过敏=虾 后 search_foods 过滤虾类
+PASS  Agent 测试后过敏已恢复
+PASS  update_profile 全链路无 mock 回退
+PASS  get_friend_ranking week source=service
+PASS  get_friend_ranking week 仅含自己与 3 位正常好友
+PASS  get_friend_ranking week 不含拉黑用户
+PASS  get_friend_ranking 每项字段齐全
+PASS  get_friend_ranking today 返回 4 人
+PASS  get_friend_ranking 全链路无 mock 回退
+PASS  diet_tools._menu 返回 14 道
+PASS  diet_tools._menu 为每道菜注入 match(20-98)
+PASS  diet_tools._menu summary 使用真实条数
+PASS  diet_tools._search_foods 注入 match
+PASS  diet_tools._friend_ranking 返回 4 人
+PASS  diet_tools._friend_ranking summary 含人数与第一名
+
+RESULT 29/29 PASS

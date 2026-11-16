@@ -1,0 +1,13 @@
+PASS  D0 停库前业务请求正常
+PASS  D0 停库前 health ok
+PASS  D1 MySQL 已停止
+PASS  D2 停库期间无 5xx/网络异常
+PASS  D3 停库期间返回 service_unavailable
+PASS  D4 停库期间限时返回（< 8s）
+PASS  D5 health 明确报告数据库异常
+PASS  D6 MySQL 已恢复运行
+PASS  D7 起库后业务请求自愈（服务未重启）
+PASS  D8 自愈后仍走真实数据源
+恢复耗时 0.03s
+
+RESULT 10/10 PASS
