@@ -29,7 +29,6 @@ std::string g_prefix;
 
 std::atomic<bool> g_is_getline = true;
 std::atomic<bool> g_hide_echo = false;
-std::atomic<int> g_chat = 0;
 
 json g_user;
 TcpClient* g_client = nullptr;

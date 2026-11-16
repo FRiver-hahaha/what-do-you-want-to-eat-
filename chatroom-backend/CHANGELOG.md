@@ -1,46 +1,44 @@
 # CHANGELOG — 逐阶段代码修改记录
 
-> 基线 a1e654b，分支 refactor/backend-crop，三个补丁按接手包规定顺序应用。
-> 累计：16 文件，+348 / −543。未修改 client/ web/ transit/，未改任何接口约定。
+> 基线 a1e654b（lzh070702/ChatRoom），分支 feat/backend-crop。
+> 未修改学长仓库原有前端与 Python Agent。
 
-## P1 — 裁剪聊天功能（patches/01-crop-chat.patch，+2/−439）
+## P1 — 裁剪聊天功能（+2/−439）
 
-- CMakeLists.txt（−9）：移除 MessageModel.cc 编译项；整体移除 file_server 目标
-- server/model/MessageModel.cc（−120）/ MessageModel.h（−25）：文件删除
-- server/service/ChatService.cc（−277/+2）：删 5 个 handler 注册与实现
-  （oneChat/queryHistory/groupChat/queryGroupHistory/pendingFiles/flushMsgList）；
-  登录不再拉取 offline_msg/offline_group_msg；注销不再调 removeAll
-- server/service/ChatService.h（−8）：删 6 个方法声明 + MessageModel 成员 + 头文件引用
-- 效果：路由 28→23；type 13/14/25/26/27 无路由无响应不落库；message/file 表零写入
+- 删 5 个聊天 handler（13/14/25/26/27）、MessageModel.{h,cc}、file_server 构建目标
+- 登录不再拉取 offline_msg/offline_group_msg；注销不再调 removeAll
 
-## P2 — 运行时修复（patches/02-bugfix-runtime.patch，+9）
+## P2 — 运行时修复（+9）
 
-- server/main.cc（+3）：ChatService::instance() 提前至 accept 之前构造（B3：复位先于首个连接）
-- server/net/Connection.h（+1）/ Connection.cc（+3）：读缓冲上限 kMaxBufSize=64KB，
-  超长/畸形报文按连接异常关闭（B6：内存放大防护）
-- server/service/ChatService.cc（+2）：构造函数调用 m_user_model.resetState()
-  （B3 原代码定义了但从未调用——上次进程异常退出残留 state=1 导致账号锁死）
-- 效果：kill -9 后重启账号自动恢复；60MB 攻击连接被断开且 RSS 稳定
+- main.cc 提前构造单例（复位先于 accept）；64KB 读缓冲上限；构造时 resetState()
 
-## P3 — 安全加固（patches/03-security-hardening.patch，+337/−104）
+## P3 — 安全加固（+337/−104）
 
-- 新增 .env.example（38 行配置模板，敏感项留空）、.gitignore（排除 .env/build/bin/files/*.log）
-- 新增 server/common/Config.h：envOr/envInt/envBool 环境变量读取
-- server/database/MySQL.{h,cc}（+14）：updateAffected() 支持条件原子更新
-- server/database/Redis.{h,cc}（+30）：init 增加密码参数，AUTH %b 二进制安全认证，
-  失败 LOG(ERROR)+返回 false；LPUSH/RPOP 改 %b 防注入（B7）
-- server/email/EmailSender.{h,cc}（+42）：删除硬编码发件账号与授权码（历史泄露凭据出源码），
-  改环境变量注入；DRY_RUN 模式验证码打日志供自动化测试
-- server/main.cc（+21）：端口/线程数环境变量化
-- server/model/UserModel.{h,cc}（+10）：tryLogin()——UPDATE ... WHERE state=0 原子抢占（B4：并发登录）
-- server/service/ChatService.{h,cc}：jsonStr/jsonInt/jsonBool 安全取值 + try/catch 包裹 handle
-  （B1/B2：字段缺失/类型异常不再 assert 打死进程）；consumeCode() 验证码策略
-  （一次性 / TTL 300s / 限频 60s / 错 5 次锁定，B5）；MySQL/Redis 连接参数全部来自环境变量；
-  注册流程强制校验验证码（先判重后校验）
-- 效果：源码零凭据；凭据错误启动即失败且日志可定位；8 路并发登录仅 1 成功
+- 凭据全外置 .env（源码移除硬编码 SMTP 授权码）；Redis AUTH；tryLogin CAS 原子登录；
+  验证码策略（一次性/300s TTL/限频 60s/错 5 次锁定）；jsonStr/jsonInt/jsonBool 安全取值
 
-## 未做（按边界）
+## P7 — 后端资产整改（第一轮）
 
-- 未修改 client/ web/ transit/（前端由后续负责人处理）
-- 未新增产品功能、未改接口约定、未动 schema
-- 未提交 Git（待验收授权）
+- 删 server/file.cc、client/net/filetransfer.h 死文件；清理 offline_msg 孤儿写入
+- client：删私聊/聊天记录/文件传输入口与实现、g_chat 状态、type 13/25 推送展示
+- web/index.html 重写（删聊天视图/消息气泡/文件传输全家）
+- transit：删文件隧道（FILE_* 常量、file_fd、六个文件函数、@FILE 分支）
+- init.sql：删 message/file 表；弱口令与 GRANT ALL 改为最小权限模板（密码经 .env 注入）
+- web/main.cc：set_mount_point("/", ".") → "/"，"./static"（不暴露整个工作目录）
+- .gitignore 修复：evidence/*.log 按需归档例外；tests/ 测试脚本纳入 Git
+
+## P7 范围纠偏 — 彻底删除群组功能（本轮，最高优先级）
+
+用户决定群组管理也不再需要，全部删除：
+
+- server/service/ChatService.{h,cc}：删 10 个群组路由（15–24）、9 个方法实现、
+  GroupModel 成员与 include、offline_group_request 拉取与写入、注销级联 removeFromAll
+- server/model/GroupModel.{h,cc}：文件删除
+- client/page/group.{h,cc}：文件删除；friend.cc 删"群聊"菜单入口
+- client/net/net.cc / page/auth.cc：删 type 17/18/19/25 群组推送展示
+- web/index.html：删群组 UI 全家（页面/菜单/模态/成员操作/未读群组项）
+- init.sql：删 group_info/group_user 表（6→2 表，仅 user/friend）
+- CMakeLists：删 GroupModel.cc、group.cc 编译项
+- tests/ 8 个脚本修订：群组断言改为不可达（type 15–24 十项）、message/file/group 表改
+  表不存在断言、库名 --mysql-db 参数化、concurrency 默认账号改 bob
+- 最终保留路由 13 个（type 0–12）：心跳、账号 7 项、好友 5 项

@@ -15,7 +15,6 @@
 #include "../database/Redis.h"
 #include "../email/EmailSender.h"
 #include "../model/FriendModel.h"
-#include "../model/GroupModel.h"
 #include "../model/UserModel.h"
 #include "../net/Connection.h"
 
@@ -50,15 +49,6 @@ class ChatService {
     void blockFriend(std::shared_ptr<Connection> conn, const json& js);
     void deleteFriend(std::shared_ptr<Connection> conn, const json& js);
     void queryGroups(std::shared_ptr<Connection> conn, const json& js);
-    void createGroup(std::shared_ptr<Connection> conn, const json& js);
-    void inviteToGroup(std::shared_ptr<Connection> conn, const json& js);
-    void applyGroups(std::shared_ptr<Connection> conn, const json& js);
-    void processGroupRequest(std::shared_ptr<Connection> conn, const json& js);
-    void queryMembers(std::shared_ptr<Connection> conn, const json& js);
-    void setAdmin(std::shared_ptr<Connection> conn, const json& js);
-    void kickMember(std::shared_ptr<Connection> conn, const json& js);
-    void quitGroup(std::shared_ptr<Connection> conn, const json& js);
-    void dissolveGroup(std::shared_ptr<Connection> conn, const json& js);
 
 
     std::string sha256(const std::string& input);
@@ -76,7 +66,6 @@ class ChatService {
     MySQLPool m_mysql_pool;
     UserModel m_user_model;
     FriendModel m_friend_model;
-    GroupModel m_group_model;
     EmailSender m_email_sender;
     std::unordered_map<int, std::weak_ptr<Connection>> m_user_conn;
     std::mutex m_mutex;

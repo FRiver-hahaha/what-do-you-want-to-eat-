@@ -30,15 +30,10 @@
 // ============================================================================
 constexpr int WEB_PORT = 10000;
 constexpr int BACKEND_PORT = 8000;
-constexpr int FILE_PORT = 8001;  // 二进制文件服务端口
 constexpr int MAX_EVENTS = 1024;
 constexpr int BUFFER_SIZE = 65536;
 constexpr int EPOLL_TIMEOUT = 1000;  // ms
 constexpr const char* WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-constexpr const char* FILE_UP = "@FILE|U|";
-constexpr const char* FILE_DOWN = "@FILE|D|";
-constexpr const char* FILE_RESP = "@FILE|R|";
-constexpr const char* FILE_END = "@FILE|E|";
 
 // ============================================================================
 // 工具
@@ -185,8 +180,7 @@ enum class State : uint8_t {
 
 struct Conn {
     int client_fd = -1;
-    int server_fd = -1;   // 8000 聊天后端（常驻）
-    int file_fd = -1;     // 8001 文件后端（文件传输期间存在）
+    int server_fd = -1;   // 8000 后端（常驻）
     State state = State::HANDSHAKING;
     bool closing = false;
 
@@ -200,12 +194,6 @@ struct Conn {
 
     std::string frag_buf;  // 正在重组的 WebSocket 消息（FIN=0 分片累积）
     uint8_t frag_op = 0;   // 当前分片消息的起始 opcode（1=TEXT / 2=BINARY）
-
-    // 文件隧道（复用 10000，@FILE 标记路由到 8001）
-    bool file_connecting = false;    // file_fd 非阻塞连接中
-    bool file_resp_started = false;  // 是否已下发 @FILE|R|
-    std::string fswbuf;              // 待发往 8001 的原始字节
-    size_t fsw_off = 0;
 
     bool http_parsed = false;
 };
@@ -276,8 +264,6 @@ class TransitServer {
 
                 if (fd == c->client_fd)
                     handle_client(c, ev);
-                else if (fd == c->file_fd)
-                    handle_file(c, ev);
                 else
                     handle_server(c, ev);
             }
@@ -289,10 +275,6 @@ class TransitServer {
             if (c->server_fd >= 0) {
                 epoll_del(epfd_, c->server_fd);
                 close(c->server_fd);
-            }
-            if (c->file_fd >= 0) {
-                epoll_del(epfd_, c->file_fd);
-                close(c->file_fd);
             }
         }
         close(listen_fd_);
@@ -456,111 +438,6 @@ class TransitServer {
         }
     }
 
-    // ── 文件隧道（8001）────────────────────────────────────────────
-    // 浏览器发 @FILE|U|/@FILE|D| 后，后续 BINARY 帧原样转发到 8001；
-    // 8001 响应原样回传，首块前加 @FILE|R|、连接关闭时加 @FILE|E|。
-    void open_file_backend(Conn* c) {
-        end_file(c);
-        c->file_fd = connect_backend_nb(FILE_PORT);
-        if (c->file_fd < 0) {
-            c->cwbuf += ws_encode(WsOp::TEXT, FILE_END);
-            epoll_mod(epfd_, c->client_fd, EPOLLIN | EPOLLOUT);
-            return;
-        }
-        c->file_connecting = true;
-        c->file_resp_started = false;
-        c->fswbuf.clear();
-        c->fsw_off = 0;
-        epoll_add(epfd_, c->file_fd, EPOLLOUT);
-    }
-
-    void handle_file(Conn* c, uint32_t ev) {
-        if (c->file_connecting) {
-            if (ev & (EPOLLERR | EPOLLHUP)) {
-                end_file_with_notify(c);
-                return;
-            }
-            if (ev & EPOLLOUT) {
-                c->file_connecting = false;
-                uint32_t want = EPOLLIN | (c->fswbuf.empty() ? 0 : EPOLLOUT);
-                epoll_mod(epfd_, c->file_fd, want);
-            }
-            return;
-        }
-        if (ev & (EPOLLIN | EPOLLERR | EPOLLHUP))
-            handle_file_read(c);
-        if (ev & EPOLLOUT)
-            handle_file_write(c);
-    }
-
-    void handle_file_read(Conn* c) {
-        if (c->file_fd < 0)
-            return;
-        char tmp[8192];
-        while (true) {
-            ssize_t n = recv(c->file_fd, tmp, sizeof(tmp), 0);
-            if (n > 0) {
-                if (!c->file_resp_started) {
-                    c->cwbuf += ws_encode(WsOp::TEXT, FILE_RESP);
-                    c->file_resp_started = true;
-                }
-                c->cwbuf += ws_encode(WsOp::BINARY, std::string(tmp, n));
-                epoll_mod(epfd_, c->client_fd, EPOLLIN | EPOLLOUT);
-            } else if (n == 0) {
-                end_file_with_notify(c);
-                return;
-            } else {
-                if (errno == EAGAIN || errno == EWOULDBLOCK)
-                    break;
-                end_file_with_notify(c);
-                return;
-            }
-        }
-    }
-
-    void handle_file_write(Conn* c) {
-        if (c->file_fd < 0)
-            return;
-        while (c->fsw_off < c->fswbuf.size()) {
-            ssize_t n = send(c->file_fd, c->fswbuf.data() + c->fsw_off,
-                             c->fswbuf.size() - c->fsw_off, MSG_NOSIGNAL);
-            if (n > 0)
-                c->fsw_off += n;
-            else if (n == 0) {
-                end_file_with_notify(c);
-                return;
-            } else {
-                if (errno == EAGAIN || errno == EWOULDBLOCK)
-                    break;
-                end_file_with_notify(c);
-                return;
-            }
-        }
-        if (c->fsw_off >= c->fswbuf.size()) {
-            c->fswbuf.clear();
-            c->fsw_off = 0;
-            epoll_mod(epfd_, c->file_fd, EPOLLIN);
-        }
-    }
-
-    void end_file(Conn* c) {
-        if (c->file_fd >= 0) {
-            epoll_del(epfd_, c->file_fd);
-            close(c->file_fd);
-            c->file_fd = -1;
-        }
-        c->file_connecting = false;
-        c->file_resp_started = false;
-        c->fswbuf.clear();
-        c->fsw_off = 0;
-    }
-
-    void end_file_with_notify(Conn* c) {
-        end_file(c);
-        c->cwbuf += ws_encode(WsOp::TEXT, FILE_END);
-        epoll_mod(epfd_, c->client_fd, EPOLLIN | EPOLLOUT);
-    }
-
     void process_handshake(Conn* c) {
         std::string data(c->crbuf.begin(), c->crbuf.end());
         auto pos = data.find("\r\n\r\n");
@@ -656,8 +533,8 @@ class TransitServer {
     }
 
     // 一条完整 WebSocket 消息（FIN=1 之后）。
-    //  - BINARY 帧：文件模式下原样转发到 8001；否则忽略（聊天只走文本 JSON）
-    //  - TEXT 帧：@FILE|U|/@FILE|D| 打开文件隧道；其余按聊天 JSON 转发到 8000
+    //  - BINARY 帧：忽略（文件隧道已随聊天功能裁剪）
+    //  - TEXT 帧：按 JSON 转发到 8000 后端
     void complete_ws_message(Conn* c) {
         uint8_t op = c->frag_op;
         std::string data = std::move(c->frag_buf);
@@ -665,15 +542,7 @@ class TransitServer {
         c->frag_op = 0;
 
         if (op == (uint8_t)WsOp::BINARY) {
-            if (c->file_fd >= 0) {
-                c->fswbuf += data;
-                epoll_mod(epfd_, c->file_fd, EPOLLIN | EPOLLOUT);
-            }
-            return;
-        }
-        if (data.rfind(FILE_UP, 0) == 0 || data.rfind(FILE_DOWN, 0) == 0) {
-            open_file_backend(c);
-            return;
+            return;  // 文件隧道已随聊天功能裁剪，仅文本 JSON 有效
         }
         forward_to_backend(c, std::move(data));
     }
@@ -707,8 +576,6 @@ class TransitServer {
         for (auto& [k, v] : conns_) {
             if (v->server_fd == fd)
                 return v.get();
-            if (v->file_fd == fd)
-                return v.get();
         }
         return nullptr;
     }
@@ -723,10 +590,6 @@ class TransitServer {
         if (c->server_fd >= 0) {
             epoll_del(epfd_, c->server_fd);
             close(c->server_fd);
-        }
-        if (c->file_fd >= 0) {
-            epoll_del(epfd_, c->file_fd);
-            close(c->file_fd);
         }
         conns_.erase(it);
     }

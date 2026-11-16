@@ -1,6 +1,5 @@
 #include <signal.h>
 #include <sys/eventfd.h>
-#include <sys/stat.h>
 
 #include <cstdlib>
 #include <iostream>
@@ -16,7 +15,6 @@ using namespace std;
 
 int main(int argc, char* argv[]) {
     signal(SIGPIPE, SIG_IGN);
-    mkdir("./downloads", 0755);
     string host = (argc > 1) ? argv[1] : "127.0.0.1";
     int port = (argc > 2) ? stoi(argv[2]) : 8000;
     g_host = host;

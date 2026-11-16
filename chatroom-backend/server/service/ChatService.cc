@@ -119,8 +119,7 @@ void ChatService::logout(std::shared_ptr<Connection> conn) {
 
 ChatService::ChatService()
     : m_user_model(&m_mysql_pool),
-      m_friend_model(&m_mysql_pool),
-      m_group_model(&m_mysql_pool) {
+      m_friend_model(&m_mysql_pool) {
     // 所有连接参数来自环境变量，源码不留明文凭据（见 .env.example）
     const std::string mysql_host = envOr("CHATROOM_MYSQL_HOST", "127.0.0.1");
     const int mysql_port = envInt("CHATROOM_MYSQL_PORT", 3306);
@@ -185,36 +184,6 @@ ChatService::ChatService()
     };
     m_handlers[12] = [this](std::shared_ptr<Connection> c, const json& j) {
         deleteFriend(c, j);
-    };
-    m_handlers[15] = [this](std::shared_ptr<Connection> c, const json& j) {
-        queryGroups(c, j);
-    };
-    m_handlers[16] = [this](std::shared_ptr<Connection> c, const json& j) {
-        createGroup(c, j);
-    };
-    m_handlers[17] = [this](std::shared_ptr<Connection> c, const json& j) {
-        inviteToGroup(c, j);
-    };
-    m_handlers[18] = [this](std::shared_ptr<Connection> c, const json& j) {
-        applyGroups(c, j);
-    };
-    m_handlers[19] = [this](std::shared_ptr<Connection> c, const json& j) {
-        processGroupRequest(c, j);
-    };
-    m_handlers[20] = [this](std::shared_ptr<Connection> c, const json& j) {
-        queryMembers(c, j);
-    };
-    m_handlers[21] = [this](std::shared_ptr<Connection> c, const json& j) {
-        setAdmin(c, j);
-    };
-    m_handlers[22] = [this](std::shared_ptr<Connection> c, const json& j) {
-        kickMember(c, j);
-    };
-    m_handlers[23] = [this](std::shared_ptr<Connection> c, const json& j) {
-        quitGroup(c, j);
-    };
-    m_handlers[24] = [this](std::shared_ptr<Connection> c, const json& j) {
-        dissolveGroup(c, j);
     };
     // 任务队列取出调用
     m_db_thread = std::thread([this] {
@@ -338,7 +307,6 @@ void ChatService::signIn(std::shared_ptr<Connection> conn, const json& js) {
         }
     };
     pop_offline("offline_request:" + std::to_string(user.getId()));
-    pop_offline("offline_group_request:" + std::to_string(user.getId()));
     response["offline"] = offline;
     conn->getReactor()->handleWrite(conn, response.dump());
     LOG(INFO) << "SignIn success uid=" << user.getId()
@@ -448,8 +416,7 @@ void ChatService::codeLogin(std::shared_ptr<Connection> conn, const json& js) {
             }
         };
         pop_offline("offline_request:" + std::to_string(user.getId()));
-        pop_offline("offline_group_request:" + std::to_string(user.getId()));
-                response["offline"] = offline;
+                    response["offline"] = offline;
         conn->getReactor()->handleWrite(conn, response.dump());
         LOG(INFO) << "CodeLogin success uid=" << user.getId()
                   << " email=" << email;
@@ -517,7 +484,6 @@ void ChatService::signOut(std::shared_ptr<Connection> conn, const json& js) {
         return;
     }
     m_friend_model.removeAll(user_id);
-    m_group_model.removeFromAll(user_id);
     m_user_model.remove(user_id);
     conn->getReactor()->handleWrite(conn,
                                     R"({"type":7,"code":1,"msg":"已注销"})");
@@ -666,336 +632,6 @@ void ChatService::deleteFriend(std::shared_ptr<Connection> conn,
     conn->getReactor()->handleWrite(
         conn, R"({"type":12,"code":1,"msg":"成功删除该好友"})");
 }
-
-
-
-void ChatService::queryGroups(std::shared_ptr<Connection> conn,
-                              const json& js) {
-    std::vector<json> groups = m_group_model.queryGroups(conn->getUserId());
-    json response;
-    response["type"] = 15;
-    response["code"] = 1;
-    response["msg"] = groups;
-    conn->getReactor()->handleWrite(conn, response.dump());
-}
-
-void ChatService::createGroup(std::shared_ptr<Connection> conn,
-                              const json& js) {
-    std::string name = jsonStr(js, "name");
-    int user_id = conn->getUserId();
-    int group_id = 0;
-    if (!m_group_model.createGroup(name, user_id, group_id)) {
-        conn->getReactor()->handleWrite(
-            conn, R"({"type":16,"code":0,"msg":"创建群聊失败"})");
-        return;
-    }
-    json response;
-    response["type"] = 16;
-    response["code"] = 1;
-    response["msg"] = "成功创建群聊";
-    response["group_id"] = group_id;
-    conn->getReactor()->handleWrite(conn, response.dump());
-}
-
-void ChatService::inviteToGroup(std::shared_ptr<Connection> conn,
-                                const json& js) {
-    int group_id = jsonInt(js, "group_id");
-    int friend_id = jsonInt(js, "id");
-    int user_id = conn->getUserId();
-    int user_role = m_group_model.getRole(group_id, user_id);
-    if (user_role < 2) {
-        conn->getReactor()->handleWrite(
-            conn, R"({"type":17,"code":0,"msg":"无权限"})");
-        return;
-    }
-    if (m_friend_model.isFriend(user_id, friend_id) < 2) {
-        conn->getReactor()->handleWrite(
-            conn, R"({"type":17,"code":0,"msg":"不是好友"})");
-        return;
-    }
-    if (m_group_model.isInGroup(group_id, friend_id)) {
-        conn->getReactor()->handleWrite(
-            conn, R"({"type":17,"code":0,"msg":"对方已在群中"})");
-        return;
-    }
-    if (!m_group_model.addMember(group_id, friend_id, 1)) {
-        conn->getReactor()->handleWrite(
-            conn, R"({"type":17,"code":0,"msg":"邀请失败"})");
-        return;
-    }
-    json notify;
-    notify["type"] = 17;
-    notify["code"] = 2;
-    notify["group_id"] = group_id;
-    notify["group_name"] = m_group_model.getGroupName(group_id);
-    notify["msg"] = "你已被邀请加入群聊";
-    std::shared_ptr<Connection> friend_conn;
-    {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        auto it = m_user_conn.find(friend_id);
-        if (it != m_user_conn.end()) {
-            friend_conn = it->second.lock();
-        }
-    }
-    if (friend_conn) {
-        friend_conn->getReactor()->post([friend_conn, data = notify.dump()] {
-            friend_conn->sendData(data + '\n');
-        });
-    } else {
-        m_redis.lpush("offline_msg:" + std::to_string(friend_id),
-                      notify.dump());
-    }
-    conn->getReactor()->handleWrite(conn,
-                                    R"({"type":17,"code":1,"msg":"邀请成功"})");
-}
-
-void ChatService::applyGroups(std::shared_ptr<Connection> conn,
-                              const json& js) {
-    int group_id = jsonInt(js, "group_id");
-    std::string email = jsonStr(js, "email");
-    std::string name = jsonStr(js, "name");
-    int user_id = conn->getUserId();
-    if (!m_group_model.groupExist(group_id)) {
-        conn->getReactor()->handleWrite(
-            conn, R"({"type":18,"code":0,"msg":"该群聊不存在"})");
-        return;
-    }
-    if (m_group_model.isInGroup(group_id, user_id)) {
-        conn->getReactor()->handleWrite(
-            conn, R"({"type":18,"code":0,"msg":"禁止重复加入该群"})");
-        return;
-    }
-    std::vector<int> users;
-    if (!m_group_model.applyGroup(group_id, user_id, users)) {
-        conn->getReactor()->handleWrite(
-            conn, R"({"type":18,"code":0,"msg":"入群申请发送失败"})");
-        return;
-    }
-    json response;
-    response["type"] = 18;
-    response["code"] = 2;
-    response["msg"] = "有新的入群申请";
-    response["id"] = user_id;
-    response["name"] = name;
-    response["email"] = email;
-    for (int& user : users) {
-        std::shared_ptr<Connection> user_conn;
-        {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            auto it = m_user_conn.find(user);
-            if (it != m_user_conn.end()) {
-                user_conn = it->second.lock();
-            }
-        }
-        if (user_conn) {
-            user_conn->getReactor()->post([user_conn, data = response.dump()] {
-                user_conn->sendData(data + '\n');
-            });
-        } else {
-            if (!m_redis.lpush("offline_group_request:" + std::to_string(user),
-                               response.dump())) {
-                conn->getReactor()->handleWrite(
-                    conn, R"({"type":18,"code":0,"msg":"入群申请发送失败"})");
-                return;
-            }
-        }
-    }
-    conn->getReactor()->handleWrite(
-        conn, R"({"type":18,"code":1,"msg":"入群申请发送成功"})");
-}
-
-void ChatService::processGroupRequest(std::shared_ptr<Connection> conn,
-                                      const json& js) {
-    int group_id = jsonInt(js, "group_id");
-    bool agree = jsonBool(js, "agree");
-    int applicant_id = jsonInt(js, "id");
-    int user_id = conn->getUserId();
-    int user_role = m_group_model.getRole(group_id, user_id);
-    if (user_role < 2) {
-        conn->getReactor()->handleWrite(
-            conn, R"({"type":19,"code":0,"msg":"无权限"})");
-        return;
-    }
-    int applicant_role = m_group_model.getRole(group_id, applicant_id);
-    if (applicant_role != 0) {
-        conn->getReactor()->handleWrite(
-            conn, R"({"type":19,"code":0,"msg":"该申请已被处理"})");
-        return;
-    }
-    if (!m_group_model.processGroupRequest(group_id, applicant_id, agree)) {
-        conn->getReactor()->handleWrite(
-            conn, R"({"type":19,"code":0,"msg":"操作失败"})");
-        return;
-    }
-    json notify;
-    notify["type"] = 19;
-    notify["code"] = 2;
-    notify["group_id"] = group_id;
-    notify["agree"] = agree;
-    notify["msg"] = agree ? "管理员同意入群申请" : "管理员拒绝入群申请";
-    std::shared_ptr<Connection> user_conn;
-    {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        auto it = m_user_conn.find(applicant_id);
-        if (it != m_user_conn.end()) {
-            user_conn = it->second.lock();
-        }
-    }
-    if (user_conn) {
-        user_conn->getReactor()->post([user_conn, data = notify.dump()] {
-            user_conn->sendData(data + '\n');
-        });
-    } else {
-        m_redis.lpush("offline_msg:" + std::to_string(applicant_id),
-                      notify.dump());
-    }
-    conn->getReactor()->handleWrite(conn,
-                                    R"({"type":19,"code":1,"msg":"操作成功"})");
-}
-
-void ChatService::queryMembers(std::shared_ptr<Connection> conn,
-                               const json& js) {
-    int group_id = jsonInt(js, "group_id");
-    int user_id = conn->getUserId();
-    if (m_group_model.getRole(group_id, user_id) <= 0) {
-        conn->getReactor()->handleWrite(
-            conn, R"({"type":20,"code":0,"msg":"不在该群中"})");
-        return;
-    }
-    auto members = m_group_model.queryMembers(group_id);
-    json response;
-    response["type"] = 20;
-    response["code"] = 1;
-    for (auto& [member_id, role] : members) {
-        json info;
-        User user;
-        m_user_model.queryById(member_id, user);
-        info["id"] = user.getId();
-        info["name"] = user.getName();
-        info["email"] = user.getEmail();
-        info["role"] = role;
-        response["members"].push_back(info);
-    }
-    conn->getReactor()->handleWrite(conn, response.dump());
-}
-
-void ChatService::setAdmin(std::shared_ptr<Connection> conn, const json& js) {
-    int group_id = jsonInt(js, "group_id");
-    int target_id = jsonInt(js, "id");
-    bool admin = jsonBool(js, "admin");
-    int user_id = conn->getUserId();
-    if (m_group_model.getRole(group_id, user_id) != 3) {
-        conn->getReactor()->handleWrite(
-            conn, R"({"type":21,"code":0,"msg":"仅群主可操作"})");
-        return;
-    }
-    int target_role = m_group_model.getRole(group_id, target_id);
-    if (admin && target_role != 1) {
-        conn->getReactor()->handleWrite(
-            conn, R"({"type":21,"code":0,"msg":"目标成员状态异常"})");
-        return;
-    }
-    if (!admin && target_role != 2) {
-        conn->getReactor()->handleWrite(
-            conn, R"({"type":21,"code":0,"msg":"目标并非管理员"})");
-        return;
-    }
-    int new_role = admin ? 2 : 1;
-    if (!m_group_model.setRole(group_id, target_id, new_role)) {
-        conn->getReactor()->handleWrite(
-            conn, R"({"type":21,"code":0,"msg":"操作失败"})");
-        return;
-    }
-    std::string msg = admin ? "成功设为管理员" : "已撤销管理员";
-    json response;
-    response["type"] = 21;
-    response["code"] = 1;
-    response["msg"] = msg;
-    conn->getReactor()->handleWrite(conn, response.dump());
-}
-
-void ChatService::kickMember(std::shared_ptr<Connection> conn, const json& js) {
-    int group_id = jsonInt(js, "group_id");
-    int target_id = jsonInt(js, "id");
-    int user_id = conn->getUserId();
-    if (target_id == user_id) {
-        conn->getReactor()->handleWrite(
-            conn, R"({"type":22,"code":0,"msg":"不能踢自己"})");
-        return;
-    }
-    int user_role = m_group_model.getRole(group_id, user_id);
-    int target_role = m_group_model.getRole(group_id, target_id);
-    if (target_role == -1) {
-        conn->getReactor()->handleWrite(
-            conn, R"({"type":22,"code":0,"msg":"目标不在群中"})");
-        return;
-    }
-    if (target_role == 3) {
-        conn->getReactor()->handleWrite(
-            conn, R"({"type":22,"code":0,"msg":"不能踢群主"})");
-        return;
-    }
-    if (user_role == 2 && target_role >= 2) {
-        conn->getReactor()->handleWrite(
-            conn, R"({"type":22,"code":0,"msg":"管理员不能踢管理员"})");
-        return;
-    }
-    if (user_role < 2) {
-        conn->getReactor()->handleWrite(
-            conn, R"({"type":22,"code":0,"msg":"无权限"})");
-        return;
-    }
-    if (!m_group_model.delMember(group_id, target_id)) {
-        conn->getReactor()->handleWrite(
-            conn, R"({"type":22,"code":0,"msg":"操作失败"})");
-        return;
-    }
-    conn->getReactor()->handleWrite(
-        conn, R"({"type":22,"code":1,"msg":"已踢出成员"})");
-}
-
-void ChatService::quitGroup(std::shared_ptr<Connection> conn, const json& js) {
-    int group_id = jsonInt(js, "group_id");
-    int user_id = conn->getUserId();
-    int role = m_group_model.getRole(group_id, user_id);
-    if (role == -1) {
-        conn->getReactor()->handleWrite(
-            conn, R"({"type":23,"code":0,"msg":"不在该群中"})");
-        return;
-    }
-    if (role == 3) {
-        conn->getReactor()->handleWrite(
-            conn, R"({"type":23,"code":0,"msg":"群主不能直接退出"})");
-        return;
-    }
-    if (!m_group_model.delMember(group_id, user_id)) {
-        conn->getReactor()->handleWrite(
-            conn, R"({"type":23,"code":0,"msg":"退出失败"})");
-        return;
-    }
-    conn->getReactor()->handleWrite(
-        conn, R"({"type":23,"code":1,"msg":"已退出群聊"})");
-}
-
-void ChatService::dissolveGroup(std::shared_ptr<Connection> conn,
-                                const json& js) {
-    int group_id = jsonInt(js, "group_id");
-    int user_id = conn->getUserId();
-    if (m_group_model.getRole(group_id, user_id) != 3) {
-        conn->getReactor()->handleWrite(
-            conn, R"({"type":24,"code":0,"msg":"仅群主可解散群聊"})");
-        return;
-    }
-    if (!m_group_model.dissolveGroup(group_id)) {
-        conn->getReactor()->handleWrite(
-            conn, R"({"type":24,"code":0,"msg":"解散失败"})");
-        return;
-    }
-    conn->getReactor()->handleWrite(
-        conn, R"({"type":24,"code":1,"msg":"已解散群聊"})");
-}
-
-
 
 
 

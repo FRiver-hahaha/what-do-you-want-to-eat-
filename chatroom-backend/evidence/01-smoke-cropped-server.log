@@ -1,0 +1,21 @@
+I20261113 19:04:19.671309  8158 main.cc:38] Server started on port 8000 worker_threads=4
+I20261113 19:04:45.665979  8160 Reactor.cc:111] New connection fd=31
+I20261113 19:04:45.666105  8160 Reactor.cc:111] New connection fd=32
+W20261113 19:04:45.666342  8160 EmailSender.cc:32] [DRY-RUN] skip smtp, code for alice@t.com = 915251
+W20261113 19:04:45.674837  8160 EmailSender.cc:32] [DRY-RUN] skip smtp, code for bob@t.com = 465850
+I20261113 19:04:45.686635  8160 ChatService.cc:344] SignIn success uid=14 email=alice@t.com
+I20261113 19:04:45.693624  8160 ChatService.cc:344] SignIn success uid=15 email=bob@t.com
+I20261113 19:04:45.712112  8161 Reactor.cc:111] New connection fd=33
+I20261113 19:04:45.714171  8161 Reactor.cc:127] Connection closed fd=33 uid=-1
+I20261113 19:04:45.772352  8161 Reactor.cc:111] New connection fd=33
+W20261113 19:04:45.772531  8161 EmailSender.cc:32] [DRY-RUN] skip smtp, code for carol@t.com = 086649
+I20261113 19:04:45.784543  8161 ChatService.cc:344] SignIn success uid=16 email=carol@t.com
+E20261113 19:04:46.044688  8160 ChatService.cc:97] Invalid request type=13
+E20261113 19:04:50.049475  8160 ChatService.cc:97] Invalid request type=14
+E20261113 19:04:53.053066  8160 ChatService.cc:97] Invalid request type=25
+E20261113 19:04:56.056732  8160 ChatService.cc:97] Invalid request type=26
+E20261113 19:04:59.060411  8160 ChatService.cc:97] Invalid request type=27
+I20261113 19:05:02.078056  8160 ChatService.cc:507] ExitLogin uid=14
+I20261113 19:05:02.589108  8160 Reactor.cc:127] Connection closed fd=31 uid=-1
+I20261113 19:05:02.630434  8160 Reactor.cc:127] Connection closed fd=32 uid=15
+I20261113 19:05:02.631202  8161 Reactor.cc:127] Connection closed fd=33 uid=16

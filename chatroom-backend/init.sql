@@ -1,20 +1,25 @@
--- ChatRoom 数据库初始化脚本
+-- ChatRoom 后端数据库初始化脚本（裁剪版：仅账号 / 好友，聊天与群组功能已删除）
 -- 使用方法: sudo mysql < init.sql
+-- 说明: 建库建表可直接执行；应用账号按下文模板手动创建，密码经环境变量注入。
 
 -- 创建数据库
 CREATE DATABASE IF NOT EXISTS chatroom
     CHARACTER SET utf8mb4
     COLLATE utf8mb4_unicode_ci;
 
--- 创建用户并授权
-CREATE USER IF NOT EXISTS 'chatserver'@'localhost' IDENTIFIED BY '123456';
-GRANT ALL PRIVILEGES ON chatroom.* TO 'chatserver'@'localhost';
-FLUSH PRIVILEGES;
+-- 应用账号模板（不要直接执行，替换占位符后再执行）：
+--   1. 将 <强密码> 替换为实际强密码（不要写入本文件 / 源码 / 文档 / 日志）
+--   2. 服务运行时通过环境变量 CHATROOM_MYSQL_PASSWORD 注入（见 .env.example）
+--   3. 权限遵循最小化原则：仅授予运行所需的 SELECT / INSERT / UPDATE / DELETE
+--
+-- CREATE USER 'chatserver'@'localhost' IDENTIFIED BY '<强密码>';
+-- GRANT SELECT, INSERT, UPDATE, DELETE ON chatroom.* TO 'chatserver'@'localhost';
+-- FLUSH PRIVILEGES;
 
---进入数据库
 USE `chatroom`;
 
---创建表
+-- 创建表（注：聊天 / 群组相关表已随功能裁剪删除，仅保留 user / friend 两张表）
+
 CREATE TABLE IF NOT EXISTS `user` (
     `id` INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '用户ID',
     `name` VARCHAR(50) NOT NULL COMMENT '用户名',
@@ -32,35 +37,3 @@ CREATE TABLE IF NOT EXISTS `friend` (
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_user_friend` (`user_id`, `friend_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='好友关系表';
-
-CREATE TABLE IF NOT EXISTS `group_info` (
-    `id` INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '群聊ID',
-    `name` VARCHAR(50) NOT NULL COMMENT '群聊名',
-    `owner_id` INT UNSIGNED NOT NULL COMMENT '群主ID',
-    PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='群聊信息表';
-
-CREATE TABLE IF NOT EXISTS `group_user` (
-    `group_id` INT UNSIGNED NOT NULL COMMENT '群聊ID',
-    `user_id` INT UNSIGNED NOT NULL COMMENT '群聊成员ID',
-    `role` TINYINT NOT NULL DEFAULT 0 COMMENT '角色: 0.待验证 1.成员 2.管理员 3.群主',
-    PRIMARY KEY (`group_id`, `user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='群聊成员表';
-
-CREATE TABLE IF NOT EXISTS `message` (
-    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '消息ID',
-    `sender_id` INT UNSIGNED NOT NULL COMMENT '发送者ID',
-    `receiver_id` INT UNSIGNED NOT NULL COMMENT '接受者ID',
-    `type` TINYINT NOT NULL DEFAULT 0 COMMENT '聊天类型: 0.私聊 1.群聊',
-    `content` TEXT NOT NULL COMMENT '发送信息',
-    `is_file` TINYINT NOT NULL DEFAULT 0 COMMENT '是否为文件: 0.否 1.是',
-    `send_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '发送时间',
-    PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='聊天记录表';
-
-CREATE TABLE IF NOT EXISTS `file` (
-    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '文件ID',
-    `file` TEXT NOT NULL COMMENT '文件名',
-    PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='文件id表';
-

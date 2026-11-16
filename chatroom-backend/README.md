@@ -1,17 +1,26 @@
-# ChatRoom
+# ChatRoom Backend（裁剪版）
 
-基于 C++17 的高性能聊天室系统，采用 Reactor 模式 + 线程池架构，支持私聊、群聊、文件传输、断点续传、WebSocket 网页端接入。
+基于 C++17 的账号 / 好友 / 在线状态后端服务。Reactor 模式 + 线程池架构。
+私聊、群聊、消息记录、文件传输等聊天能力，以及群组管理功能，均已按需求整体裁剪。
+
+> 来源声明见 [NOTICE](NOTICE)。
 
 ---
 
-## 功能特性
+## 功能特性（保留）
 
-- **即时通讯**：私聊、群聊、好友申请、群邀请/申请、消息历史记录
-- **文件传输**：上传/下载、断点续传、大文件分片传输
-- **多端支持**：终端客户端 (TUI)、Web 网页端 (WebSocket)
-- **高性能**：Reactor 多线程模型、epoll ET 模式、连接池复用
-- **数据持久化**：MySQL 存储用户/好友/群组/消息，Redis 缓存离线消息
-- **邮件验证**：注册/登录/改密邮箱验证码
+- **账号**：注册（邮箱验证码）、密码登录、验证码登录、重置密码、退出、注销（级联删除）
+- **好友**：申请、审批、拉黑、删除、好友列表（含在线状态）
+- **在线状态**：登录 / 退出即时可见，进程崩溃重启自动复位
+- **安全**：凭据全环境变量注入、Redis AUTH、验证码策略（限频/过期/次数上限/一次性）、CAS 原子登录、64KB 报文上限
+- **配套端**：终端客户端 (TUI)、Web 网页端（经 WebSocket 中转）
+
+## 已删除（本仓库不再提供）
+
+- 聊天：私聊、群聊、聊天记录、消息推送、文件传输（含 file_server 二进制服务）、message/file 表
+- 群组：创建、解散、成员管理、邀请、审批、管理员权限、群组列表（15–24 全部路由）、GroupModel、group_info/group_user 表
+
+删除的协议 type 一律返回 `{"type":0,"code":0,"msg":"异常请求"}`。
 
 ---
 
@@ -22,7 +31,7 @@
 | C++ 编译器 | GCC 7+ / Clang 6+ | 支持 C++17 |
 | CMake | 3.10+ | 构建系统 |
 | MySQL | 5.7+ / 8.0 | 主数据库 |
-| Redis | 6.0+ | 离线消息缓存 |
+| Redis | 6.0+ | 离线申请通知缓存 |
 | hiredis | 1.0+ | Redis C 客户端 |
 | libmysqlclient | 8.0+ | MySQL C API |
 | libcurl | 7.60+ | 发送邮件 (SMTP) |
@@ -36,8 +45,8 @@
 ```bash
 sudo apt update
 sudo apt install -y \
-    build-essential cmake \
-    libmysqlclient-dev libhiredis-dev libcurl4-openssl-dev \
+    build-essential cmake pkg-config \
+    default-libmysqlclient-dev libhiredis-dev libcurl4-openssl-dev \
     libssl-dev libgoogle-glog-dev \
     nlohmann-json3-dev libreadline-dev \
     mysql-server redis-server
@@ -48,154 +57,56 @@ sudo apt install -y \
 ## 目录结构
 
 ```
-ChatRoom/
-├── CMakeLists.txt              # 构建配置
-├── README.md                   # 本文档
-├── init.sql                    # 数据库初始化脚本
-├── client/                     # 终端客户端 (TUI)
-│   ├── main.cc                 # 入口：连接服务器、启动网络/IO 线程、认证菜单
-│   ├── pool.h                  # 线程池
-│   ├── common/                 # 通用工具、颜色、全局变量
-│   │   ├── common.h
-│   │   └── common.cc
-│   ├── net/                    # TcpClient、协议收发、文件传输
-│   │   ├── net.h
-│   │   ├── net.cc
-│   │   ├── TcpClient.h
-│   │   ├── TcpClient.cc
-│   │   └── filetransfer.h
-│   └── page/                   # 页面/菜单
-│       ├── auth.h              # 认证页面
-│       ├── auth.cc
-│       ├── friend.h            # 好友页面
-│       ├── friend.cc
-│       ├── group.h             # 群聊页面
-│       ├── group.cc
-│       ├── settings.h          # 设置页面
-│       └── settings.cc
-├── server/                     # 聊天主服务 (端口 8000)
+chatroom-backend/
+├── CMakeLists.txt              # 构建配置（server / client / transit / web 四个目标）
+├── init.sql                    # 数据库初始化（2 张表 + 应用账号模板）
+├── .env.example                # 运行配置模板（凭据经环境变量注入）
+├── NOTICE                      # 上游来源与版权声明
+├── tests/                      # 协议级回归测试脚本（Python，已按裁剪后功能修订）
+├── evidence/                   # 构建 / 测试证据日志
+├── server/                     # 主服务 (端口 8000)
 │   ├── main.cc                 # 入口：主 Reactor + 子 Reactor 线程池
-│   ├── pool.h                  # 线程池
-│   ├── database/               # MySQL 连接池、Redis 封装
-│   │   ├── MySQL.h
-│   │   ├── MySQL.cc
-│   │   ├── MySQLPool.h
-│   │   ├── MySQLPool.cc
-│   │   ├── Redis.h
-│   │   └── Redis.cc
-│   ├── email/                  # SMTP 发送验证码
-│   │   ├── EmailSender.h
-│   │   └── EmailSender.cc
-│   ├── model/                  # 数据模型：User/Friend/Group/Message
-│   │   ├── User.h
-│   │   ├── User.cc
-│   │   ├── UserModel.h
-│   │   ├── UserModel.cc
-│   │   ├── FriendModel.h
-│   │   ├── FriendModel.cc
-│   │   ├── GroupModel.h
-│   │   ├── GroupModel.cc
-│   │   ├── MessageModel.h
-│   │   └── MessageModel.cc
-│   ├── net/                    # TcpServer、Connection
-│   │   ├── TcpServer.h
-│   │   ├── TcpServer.cc
-│   │   ├── Connection.h
-│   │   └── Connection.cc
+│   ├── common/Config.h         # 环境变量读取工具
+│   ├── database/               # MySQL 连接池、Redis 封装（支持 AUTH）
+│   ├── email/                  # SMTP 发送验证码（凭据外置）
+│   ├── model/                  # User / UserModel / FriendModel
+│   ├── net/                    # TcpServer、Connection（64KB 读上限）
 │   ├── reactor/                # Reactor 事件循环
-│   │   ├── Reactor.h
-│   │   └── Reactor.cc
-│   ├── service/                # ChatService：业务逻辑分发、离线消息落盘
-│   │   ├── ChatService.h
-│   │   └── ChatService.cc
-│   └── file.cc                 # 文件服务 (端口 8001)
-├── transit/                    # WebSocket ↔ TCP 中转 (端口 10000)
-│   ├── transit.cc              # 单进程 epoll ET，处理 WS 握手/分帧、后端长连接、文件隧道
-│   └── pool.h                  # 线程池 (仅做 SHA1)
-└── web/                        # 静态 HTTP 前端 (端口 9000)
-    ├── main.cc                 # httplib 托管 index.html
-    ├── index.html              # 网页聊天界面
-    └── httplib.h               # 单头文件 HTTP 库
+│   └── service/ChatService.cc  # 业务逻辑分发（13 个保留路由 0–12）
+├── client/                     # 终端客户端 (TUI)：账号/好友操作
+├── transit/                    # WebSocket ↔ TCP 中转 (端口 10000，纯文本 JSON)
+└── web/                        # 静态 HTTP 服务 (端口 9000，仅托管 ./static)
 ```
 
 ---
 
 ## 构建与运行
 
-### 1. 克隆仓库
+### 1. 初始化数据库
 
 ```bash
-git clone git@github.com:lzh070702/ChatRoom.git
+sudo mysql < init.sql        # 建库 + 建 user/friend 两张表
+# 应用账号：按 init.sql 内模板创建（密码经 .env 注入，权限仅 SELECT/INSERT/UPDATE/DELETE）
 ```
 
-### 2. 初始化数据库
-
-项目根目录提供了 `init.sql`，一条命令完成建库、建用户、建表：
+### 2. 配置并启动
 
 ```bash
-cd ChatRoom
-sudo mysql < init.sql
-```
+cp .env.example .env && chmod 600 .env && vi .env
+set -a && . ./.env && set +a
 
-> **注意**：数据库配置硬编码在 `server/service/ChatService.cc:45-46`（用户 `chatserver`、密码 `123456`、库名 `chatroom`），如需修改请改源码重新编译。
-
-### 3. 启动 Redis
-
-```bash
-redis-server --daemonize yes
-```
-
-### 4. 构建项目
-
-```bash
-mkdir build && cd build
-cmake ..
-make -j$(nproc)
-```
-
-构建产物在 `build/bin/`：
-- `server`          — 聊天主服务 (8000)
-- `file_server`     — 文件传输服务 (8001)
-- `client`          — 终端客户端
-- `transit`         — WS↔TCP 中转 (10000)
-- `web`             — 静态 HTTP 前端 (9000)
-
-### 5. 运行服务端 (按顺序启动)
-
-```bash
+mkdir -p build && cd build && cmake .. && make -j$(nproc)
 cd bin
-
-# 终端 1: 聊天主服务
-./server
-
-# 终端 2: 文件传输服务
-./file_server
-
-# 终端 3: WebSocket 中转 (网页端必需)
-./transit
-
-# 终端 4: 静态 Web 前端 (可选)
-./web
+./server        # 主服务 (8000)
+./transit       # WebSocket 中转 (10000，网页端必需)
+./web           # 静态页托管 (9000，可选)
+./client        # 终端客户端（可选）
 ```
 
-### 6. 运行客户端
+### 3. 运行配置（全部经环境变量，源码零硬编码）
 
-```bash
-cd bin
-
-# 默认连接 127.0.0.1:8000
-./client
-
-# 仅指定地址(默认端口为 8000)
-./client <host>
-
-# 指定地址/端口
-./client <host> <port>
-
-# 网页端(可以同时支持cli和web)：启动 ./web 后，浏览器访问 http://<server-ip>:9000/index.html
-# WebSocket 连接地址：ws://<server-ip>:10000
-```
-
+见 `.env.example`：MySQL / Redis / SMTP 连接、端口、线程数、验证码策略。
+`CHATROOM_SMTP_DRY_RUN=1` 仅供自动化测试（验证码打日志），生产必须移除。
 
 ---
 
@@ -203,30 +114,20 @@ cd bin
 
 | 服务 | 端口 | 说明 |
 |------|------|------|
-| 聊天主服务 | 8000 | TCP 长连接，JSON 换行分帧 |
-| 文件传输 | 8001 | 二进制协议，支持断点续传 |
+| 主服务 | 8000 | TCP 长连接，JSON 换行分帧 |
 | WebSocket 中转 | 10000 | WS ↔ TCP，供网页端接入 |
-| HTTP 静态前端 | 9000 | 托管 index.html |
-
----
-
-## 配置说明
-
-主要配置硬编码在代码中，需修改源码后重新编译：
-
-| 文件 | 配置项 |
-|------|--------|
-| `server/service/ChatService.cc:45-51` | MySQL/Redis 连接池参数、数据库账号密码 |
-| `server/main.cc:14,29` | 主服务线程数、监听端口 |
-| `server/file.cc:29,46` | 文件服务端口、存储目录 |
-| `transit/transit.cc:31-33` | WS 端口、后端端口、文件端口 |
-| `web/main.cc:5` | HTTP 端口 |
-| `client/main.cc:20-21` | 默认连接地址/端口 |
+| HTTP 静态前端 | 9000 | 仅托管 bin/static 目录 |
 
 ---
 
 ## 协议简述
 
-- **客户端↔主服务 (8000)**：JSON 文本，`\n` 分帧，`type` 字段区分业务 (1=注册, 2=登录, 13=私聊, 25=群聊…)
-- **客户端↔文件服务 (8001)**：二进制帧头 + 文件名 + 数据，支持上传/下载/断点续传
-- **网页↔中转 (10000)**：标准 WebSocket，文本帧转发 JSON，二进制帧透传文件服务
+客户端 ↔ 主服务 (8000)：JSON 文本，`\n` 分帧，`type` 字段区分业务。
+保留 type：0–12（心跳/账号 0–7、好友 8–12）。
+聊天（13/14/25/26/27）与群组（15–24）相关 type 已删除。
+
+## 回归测试
+
+`tests/` 内含 8 个协议级测试脚本（已按最终裁剪范围修订：群组与聊天均改为不可达断言，
+库名经 --mysql-db 参数化）。用法与判据见 `TEST-REPORT.md` 与 `HANDOFF.md`。
+本仓库交付证据见 `evidence/`（p7b-*.log 为最终裁剪版实测）。

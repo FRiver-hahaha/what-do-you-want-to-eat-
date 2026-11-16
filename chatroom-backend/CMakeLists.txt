@@ -16,7 +16,6 @@ set(SERVER_SRCS
     server/database/Redis.cc
     server/email/EmailSender.cc
     server/model/FriendModel.cc
-    server/model/GroupModel.cc
     server/model/User.cc
     server/model/UserModel.cc
     server/net/Connection.cc
@@ -36,7 +35,6 @@ add_executable(client
     client/net/net.cc
     client/page/auth.cc
     client/page/friend.cc
-    client/page/group.cc
     client/page/settings.cc
 )
 target_include_directories(client PRIVATE client)
@@ -52,11 +50,12 @@ add_executable(web web/main.cc)
 target_include_directories(web PRIVATE web)
 target_link_libraries(web PRIVATE Threads::Threads)
 
-add_custom_command(OUTPUT ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/index.html
+add_custom_command(OUTPUT ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/static/index.html
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/static
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         ${CMAKE_CURRENT_SOURCE_DIR}/web/index.html
-        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/index.html
+        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/static/index.html
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/web/index.html
-    COMMENT "Copy index.html into bin directory"
+    COMMENT "Copy index.html into bin/static/ (web 服务仅托管 static 目录)"
 )
-add_custom_target(web_assets ALL DEPENDS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/index.html)
+add_custom_target(web_assets ALL DEPENDS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/static/index.html)

@@ -1,0 +1,16 @@
+
+== 并发登录 8 路 carol@t.com @ 127.0.0.1:8000 ==
+  成功登录数 = 1
+    {"type":2,"code":0,"msg":"该账号已在其他设备登录"}
+    {"type":2,"code":0,"msg":"该账号已在其他设备登录"}
+    {"type":2,"code":0,"msg":"该账号已在其他设备登录"}
+    {"type":2,"code":0,"msg":"该账号已在其他设备登录"}
+    {"type":2,"code":0,"msg":"该账号已在其他设备登录"}
+    {"type":2,"code":0,"msg":"该账号已在其他设备登录"}
+    {"type":2,"code":0,"msg":"该账号已在其他设备登录"}
+    {"code":1,"email":"carol@t.com","id":22,"msg":"登录成功","name":"carol","offline":[]
+  [PASS] 并发登录仅 1 路成功 success=1/8
+  [PASS] DB state=1 state=1
+  [PASS] 全部断开后 state 归 0 state=0
+
+结果: PASS=3 FAIL=0

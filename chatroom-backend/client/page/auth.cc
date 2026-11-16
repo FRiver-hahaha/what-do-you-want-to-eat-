@@ -10,21 +10,6 @@ static std::string formatOffline(const json& m) {
     if (type == 9) {
         return std::string(m["name"]) + std::string(m["msg"]);
     }
-    if (type == 13) {
-        return "好友" + std::string(m["name"]) + "发来新的消息";
-    }
-    if (type == 17) {
-        return std::string(m["msg"]) + std::string(m["group_name"]);
-    }
-    if (type == 18) {
-        return std::string(m["msg"]) + std::string(m["name"]);
-    }
-    if (type == 19) {
-        return std::string(m["msg"]);
-    }
-    if (type == 25) {
-        return "群聊" + std::string(m["group_name"]) + "发来新的消息";
-    }
     return "";
 }
 
@@ -33,7 +18,7 @@ static void showOfflinePage(const json& offline) {
     pushOpt("──────── 登录成功 ────────");
     pushOpt("======================");
     if (offline.empty()) {
-        pushOpt("（暂无离线消息）");
+        pushOpt("（暂无离线通知）");
     } else {
         for (auto& m : offline) {
             pushOpt(CYAN + formatOffline(m) + RESET);
