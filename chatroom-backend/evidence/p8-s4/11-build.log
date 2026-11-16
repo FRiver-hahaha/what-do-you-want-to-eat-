@@ -1,0 +1,5 @@
+[  8%] Building CXX object CMakeFiles/server_http.dir/server/http/controller/FriendController.cc.o
+[  8%] Building CXX object CMakeFiles/server_http.dir/server/http/main_http.cc.o
+[ 13%] Building CXX object CMakeFiles/server_http.dir/server/http/service/FriendService.cc.o
+[ 17%] Linking CXX executable bin/server_http
+[100%] Built target server_http

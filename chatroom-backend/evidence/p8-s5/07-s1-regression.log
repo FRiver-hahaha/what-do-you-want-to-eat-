@@ -1,0 +1,34 @@
+PASS health 200 + ok
+PASS health database=ok
+PASS no token -> unauthorized
+PASS wrong token -> unauthorized
+PASS missing header -> unauthorized
+PASS other uid -> forbidden
+PASS other uid message
+PASS other uid without token -> unauthorized first
+PASS invalid uid chars -> invalid_params
+PASS overlong uid -> invalid_params
+PASS GET default profile name
+PASS GET default profile bmi 20.76
+PASS GET source=service
+PASS GET water dual write
+PASS GET sleep text
+PASS GET allergies array
+PASS PATCH ok
+PASS PATCH bmi recomputed
+PASS PATCH updated fields
+PASS GET persisted height/weight
+PASS height out of range -> invalid_params
+PASS height 0 -> invalid_params
+PASS age non-numeric -> invalid_params
+PASS gender non-string -> invalid_params
+PASS empty object -> invalid_params
+PASS note truncated to 120
+PASS allergies capped to 20 items
+PASS allergy item truncated to 30 chars
+PASS spend swapped
+PASS waterTarget writes water_target
+PASS sleep text parsed
+PASS invalid json -> invalid_params
+PASS unknown api route -> not_found (200)
+SUMMARY passed=33 failed=0 total=33

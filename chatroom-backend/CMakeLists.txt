@@ -27,6 +27,35 @@ add_executable(server ${SERVER_SRCS})
 target_include_directories(server PRIVATE server ${MYSQL_INCLUDE_DIR})
 target_link_libraries(server PRIVATE mysqlclient hiredis curl glog crypto)
 
+# ── P8 HTTP Server (:8080) ──
+set(HTTP_SRCS
+    server/database/MySQLPool.cc
+    server/http/main_http.cc
+    server/http/Auth.cc
+    server/http/Router.cc
+    server/http/dao/UserDao.cc
+    server/http/dao/ProfileDao.cc
+    server/http/dao/MealDao.cc
+    server/http/dao/IdempotencyDao.cc
+    server/http/dao/FoodDao.cc
+    server/http/dao/RankingDao.cc
+    server/http/service/ProfileService.cc
+    server/http/service/MealService.cc
+    server/http/service/StatsService.cc
+    server/http/service/FoodService.cc
+    server/http/service/RankingService.cc
+    server/http/service/FriendService.cc
+    server/http/controller/ProfileController.cc
+    server/http/controller/MealController.cc
+    server/http/controller/StatsController.cc
+    server/http/controller/FoodController.cc
+    server/http/controller/RankingController.cc
+    server/http/controller/FriendController.cc
+)
+add_executable(server_http ${HTTP_SRCS})
+target_include_directories(server_http PRIVATE server web ${MYSQL_INCLUDE_DIR})
+target_link_libraries(server_http PRIVATE Threads::Threads mysqlclient glog crypto)
+
 # ── Client ──
 add_executable(client
     client/main.cc

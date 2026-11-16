@@ -1,0 +1,12 @@
+PASS  foods 表在售菜品 16 行
+PASS  菜单返回条目数等于 foods 在售行数
+PASS  菜单每条菜品字段与 foods 表逐列一致
+PASS  搜索结果来自真实 foods 表（三文鱼）
+PASS  排行榜成员等于 friend(status=2) 查询结果
+PASS  排行榜 u_demo 今日分与 DB 独立复算一致
+PASS  u_test_rank_a 无记录(0) 今日基线分 71
+PASS  u_test_rank_b 无记录(0) 今日基线分 71
+PASS  u_test_rank_c 无记录(0) 今日基线分 68
+PASS  非正常好友关系存在且未进入榜单
+
+SUMMARY passed=10 failed=0 total=10

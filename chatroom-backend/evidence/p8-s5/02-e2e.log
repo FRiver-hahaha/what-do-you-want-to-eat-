@@ -1,0 +1,43 @@
+PASS  ServiceClient 处于 service 模式（非 mock）
+PASS  1 健康档案读取成功
+PASS  1 档案来自真实服务端
+PASS  1 档案字段齐全且无 mock 回退
+PASS  2 档案更新返回成功
+PASS  2 更新后重新读取生效 weight=64.5
+PASS  2 档案更新已落库
+PASS  2 BMI 随体重重算
+PASS  3 早餐记录成功且非重放
+PASS  3 午餐记录成功且非重放
+PASS  3 晚餐记录成功且非重放
+PASS  3 三条记录 receipt 互不相同
+PASS  3 三条记录真实落库
+PASS  4 重复请求返回 idempotent=true
+PASS  4 重复请求回放同一 receipt
+PASS  4 重复请求未新增数据行
+PASS  4 幂等表只保留一条记录
+PASS  5 新增记录立即可见（当日查询命中 3 条）
+PASS  5 记录 source=service
+PASS  5 记录营养值来自请求而非 mock
+PASS  6 营养缺口 intake 与 DB 当日汇总一致
+PASS  6 营养缺口含 targets 与 gap
+PASS  7 周统计包含今日
+PASS  7 周统计今日分数与 DB 独立复算一致
+PASS  7 周统计 days_recorded 覆盖今日记录
+PASS  8 菜品搜索走真实服务端
+PASS  8 菜单走真实服务端
+PASS  9 好友列表来自真实服务端
+PASS  10 排行榜来自真实服务端且含自己
+PASS  10 排行榜自己分数与周统计今日分一致
+PASS  11 分享给真实好友成功
+PASS  11 接收方可查询到该分享
+PASS  11 分享码非空且可复用于接收方
+PASS  T1 昨日记录写入成功
+PASS  T1 昨日记录未串入今日营养缺口
+PASS  T1 昨日记录已落库
+PASS  T1 昨日记录不出现在 days=1 结果
+PASS  T1 昨日记录出现在 days=2 结果
+PASS  T1 周统计昨日餐数 +1，今日餐数不变
+PASS  T1 周统计总餐数增量恰为 1（无重复计入）
+PASS  T2 档案已恢复基线 weight
+
+RESULT 41/41 PASS

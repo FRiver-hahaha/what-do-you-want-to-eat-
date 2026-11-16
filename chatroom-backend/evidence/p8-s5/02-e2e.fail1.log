@@ -1,0 +1,47 @@
+PASS  ServiceClient 处于 service 模式（非 mock）
+PASS  1 健康档案读取成功
+PASS  1 档案来自真实服务端
+PASS  1 档案字段齐全且无 mock 回退
+PASS  2 档案更新返回成功
+PASS  2 更新后重新读取生效 weight=64.5
+PASS  2 档案更新已落库
+PASS  2 BMI 随体重重算
+PASS  3 早餐记录成功且非重放
+PASS  3 午餐记录成功且非重放
+PASS  3 晚餐记录成功且非重放
+PASS  3 三条记录 receipt 互不相同
+PASS  3 三条记录真实落库
+PASS  4 重复请求返回 idempotent=true
+PASS  4 重复请求回放同一 receipt
+PASS  4 重复请求未新增数据行
+PASS  4 幂等表只保留一条记录
+PASS  5 新增记录立即可见（当日查询命中 3 条）
+PASS  5 记录 source=service
+FAIL  5 记录营养值来自请求而非 mock :: [('早餐', 20), ('午餐', 30), ('晚餐', 25)]
+PASS  6 营养缺口 intake 与 DB 当日汇总一致
+PASS  6 营养缺口含 targets 与 gap
+PASS  7 周统计包含今日
+PASS  7 周统计今日分数与 DB 独立复算一致
+PASS  7 周统计 days_recorded 覆盖今日记录
+PASS  8 菜品搜索走真实服务端
+PASS  8 菜单走真实服务端
+PASS  9 好友列表来自真实服务端
+PASS  10 排行榜来自真实服务端且含自己
+PASS  10 排行榜自己分数与周统计今日分一致
+Traceback (most recent call last):
+  File "/home/m/eat-p8-s1/s5_e2e_test.py", line 291, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "/home/m/eat-p8-s1/s5_e2e_test.py", line 230, in main
+    share_ok, message, shares = market.share(
+                                ~~~~~~~~~~~~^
+        "medical-nutrition", "u_demo", ["u_test_rank_a"])
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/m/eat-p8-s1/agent/skills/market.py", line 289, in share
+    row = self.get(skill_id)
+  File "/home/m/eat-p8-s1/agent/skills/market.py", line 214, in get
+    row = query_one("SELECT * FROM market_skills WHERE id = ?", (skill_id,))
+  File "/home/m/eat-p8-s1/agent/data/db.py", line 72, in query_one
+    row = conn.execute(sql, params).fetchone()
+          ~~~~~~~~~~~~^^^^^^^^^^^^^
+sqlite3.OperationalError: no such table: market_skills

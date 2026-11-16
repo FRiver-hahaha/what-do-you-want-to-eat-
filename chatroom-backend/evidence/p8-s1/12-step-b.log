@@ -1,0 +1,10 @@
+foods	p8:migration=001_p8_business;schema=p8-1;owner=backend-p8
+health_profile	p8:migration=001_p8_business;schema=p8-1;owner=backend-p8
+idempotency_records	p8:migration=001_p8_business;schema=p8-1;owner=backend-p8
+meal_records	p8:migration=001_p8_business;schema=p8-1;owner=backend-p8
+agent_uid	p8:migration=001_p8_business; Agent 侧用户标识
+1	我	u_demo@agent.local	0	u_demo
+1	0
+0
+1	0
+EXEC_OK
