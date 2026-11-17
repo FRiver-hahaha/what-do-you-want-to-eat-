@@ -33,6 +33,41 @@ git clone -b feat/app-transport-scale https://github.com/FRiver-hahaha/what-do-y
 cd what-do-you-want-to-eat-
 ```
 
+### 2.1 一键构建（推荐）
+
+在仓库根目录执行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-windows-oneclick.ps1
+```
+
+脚本会自动完成：
+
+1. 检查 VS2022 C++ 工具链、CMake、Python；
+2. 安装 vcpkg 与 `openssl:x64-windows`（没有时）；
+3. 下载并解压 WebView2 SDK（没有时）；
+4. CMake 配置并编译 `eat-app.exe`；
+5. PyInstaller 打包 `eat-agent.exe`；
+6. 组装 `dist\eat-app-windows-x64\`，复制 `web\` 与 OpenSSL DLL；
+7. 生成 `Start.bat`、`README.txt` 与 `dist\eat-app-windows-x64.zip`。
+
+可选参数：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-windows-oneclick.ps1 `
+  -VcpkgRoot C:\vcpkg `
+  -OutDir dist\eat-app-windows-x64
+```
+
+跳过 Agent（只验证 GUI）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-windows-oneclick.ps1 -SkipAgent
+```
+
+首次执行需要外网，耗时主要在 vcpkg 安装 OpenSSL 与 PyInstaller 打包。
+脚本尚未在 Windows 上实测；如果某一步失败，按提示的手动步骤（第 3–5 节）继续即可。
+
 ## 3. 编译控制台客户端 `client_smoke.exe`
 
 最简单的方式（不需要 CMake/OpenSSL）：

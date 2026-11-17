@@ -179,7 +179,13 @@ hostname -I                       # 记下服务端局域网 IP
 
 #### 3.1 GUI `eat-app.exe`
 
-Release 提供 `eat-client-windows.zip`（源码 + 构建脚本 + Agent + 前端资源），**不包含预编译 exe**；Linux 构建机无法生成 Windows 可执行文件。在 Windows 上按 [`AGENT_win.md`](AGENT_win.md) 编译。
+Release 提供 `eat-client-windows.zip`（源码 + 构建脚本 + Agent + 前端资源），**不包含预编译 exe**；Linux 构建机无法生成 Windows 可执行文件。在 Windows 上按 [`AGENT_win.md`](AGENT_win.md) 编译，或直接一键构建：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-windows-oneclick.ps1
+```
+
+脚本会生成 `dist\eat-app-windows-x64\`（`eat-app.exe`、`eat-agent.exe`、`web\`、OpenSSL DLL、`Start.bat`）与同名 zip。
 
 构建后的运行目录：
 

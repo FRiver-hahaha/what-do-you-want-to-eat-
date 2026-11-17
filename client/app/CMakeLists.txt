@@ -48,6 +48,7 @@ add_custom_command(TARGET eat-app POST_BUILD
         "${CMAKE_SOURCE_DIR}/styles.css"
         "${CMAKE_SOURCE_DIR}/features.css"
         "${CMAKE_SOURCE_DIR}/agent.css"
+        "${CMAKE_SOURCE_DIR}/login.css"
         "${EAT_WEB_OUTPUT}"
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_SOURCE_DIR}/assets"
