@@ -327,6 +327,102 @@ Linux 上第一优先级（按顺序）：
 
 ---
 
+## 10.1 局域网联调：能测哪部分客户端
+
+**结论**：同一局域网内“Linux 服务端 + 同学客户端”的拓扑可行，但当前代码还不能做到“同学从 GitHub 下载就能连”。必须先补齐构建、握手和可执行客户端。
+
+### 10.1.1 能测与不能测
+
+| 能力 | Linux 联调可测 | 说明 |
+|---|---|---|
+| `TcpTransport` 传输层 | 可以 | 代码用 `#ifdef _WIN32` 兼容 POSIX；`access_token` 由 `TransportConfig` 注入，不依赖 DPAPI |
+| 握手 / 心跳 / 断线重连 / 请求超时 | 可以 | 需服务端先有握手 Handler |
+| `OfflineQueue` | 可以 | 纯逻辑 |
+| `bench_tcp` 建连 + 握手 | 可以 | 冒烟版，不读回执、不做 1M |
+| 协议/缓存/身份/配置测试 | 可以 | `ctest` 直接跑 |
+| Windows App UI / 托盘 / 单实例 / 安装包 | 不可以 | Windows 专属 |
+| KeyVault | 不可以 | Windows DPAPI；Linux 返回 `unsupported_platform` |
+| 命名管道 Agent IPC / 双用户 ACL | 不可以 | Windows 专属 |
+| 真实注册/登录/业务帧 | 暂不可以 | `IdentityService` 与 T6 Handler 未实现 |
+
+### 10.1.2 网络前提
+
+1. 服务端监听 `0.0.0.0:9443`（当前 `InetAddress(config.tcp_port)` 默认绑定任意地址）。
+2. Linux 防火墙放行 `9443/tcp`：
+   ```bash
+   sudo ufw allow 9443/tcp
+   sudo ufw status
+   ```
+3. 客户端把 `host` 从 `127.0.0.1` 改为服务端局域网 IP，例如 `192.168.1.20`。
+4. 两台机器在同一子网；关闭路由器/AP 的“AP 隔离”；关闭会劫持内网流量的 VPN/代理。
+5. **仅限内网测试**：当前是明文 TCP，没有 TLS，不要暴露到公网。
+
+### 10.1.3 当前四个硬缺口
+
+| 缺口 | 现状 | 影响 |
+|---|---|---|
+| 服务端构建 | Muduo 未 vendored；本机未构建 | Linux 上先补 T0.2，才有 `eat-server` |
+| 握手鉴权 | `main.cc` 未注册 HandshakeHandler | 握手返回 `handshake_unavailable`，连不上 |
+| 身份/业务 | `IdentityService`、T6 Handler 未实现 | 没有注册/登录，也没有 `profile.get` |
+| 客户端产物 | 无 Windows App 安装包；`TcpTransport` 只有库；`bench_tcp` 是冒烟版 | 同学下载的是源码，不能双击运行 |
+
+### 10.1.4 最小可测路径
+
+1. Linux 上补 T0.2，构建 `eat-server`。
+2. 加一个**测试用握手 Handler**（固定测试 token，或临时接 `TokenVerifier`），让握手返回 `handshake_resp`。
+3. 同学在 Windows 上用 `bench_tcp` 或 `client_smoke`（待补）连 `服务器IP:9443`，验证：
+   - 握手成功；
+   - 60s 心跳 ack；
+   - 断开后客户端重连；
+   - 未握手直接发业务帧被 `2001` 拒绝并断连。
+4. 等 T3.3 + T6.3 完成，再测注册/登录/档案/餐记录/统计。
+
+### 10.1.5 `client_smoke`（待补目标）
+
+建议新增：
+
+```bash
+./build/client_smoke --host 192.168.1.20 --port 9443 --token test-token
+```
+
+行为：用 `TcpTransport` 握手 → 发心跳 → 发 `profile.get` → 打印 `ok/error_code`。Linux 上用 CLI token 注入，不编译 DPAPI。该目标当前尚未加入 CMake，Linux 上第一优先补齐。
+
+### 10.1.6 同学侧准备
+
+- Windows 机器；与服务器同局域网；
+- 当前没有安装包，需要先编译 `bench_tcp`/`client_smoke`，或等 Windows App 产物；
+- 只验证协议时，`bench_tcp` 最省事；要验证 UI/KeyVault，必须有 Windows App 可执行文件。
+
+### 10.1.7 一个容易踩的坑
+
+`TcpTransport::Start()` 首次连接失败会直接返回失败，不会自动进入重连。联调时必须**先启动服务端**，再让同学启动客户端。
+
+### 10.1.8 联调命令示例
+
+服务端：
+
+```bash
+ip -4 addr show
+sudo ./build/eat-server --config /etc/eat/server.toml
+```
+
+同学客户端：
+
+```bash
+./build/bench_tcp --host 192.168.1.20 --port 9443 --connections 10 --token test-token
+```
+
+### 10.1.9 联调验收判据
+
+- 握手返回 `handshake_resp`，不是 `handshake_unavailable`；
+- 心跳帧收到 `heartbeat_ack`；
+- 断开服务端后客户端进入退避重连；
+- 未握手业务帧返回 `2001 handshake_required`；
+- 纯心跳期间 MySQL/Redis 计数零增长；
+- 全程使用测试 token，不使用真实模型 Key。
+
+---
+
 ## 11. 100 万同时在线压测方案（后续）
 
 - 被测端：单机 32C/64G/NVMe，Linux。
@@ -371,15 +467,18 @@ Linux 上第一优先级（按顺序）：
 6. 不要读取或输出 `.env` 内容；不要提交密钥。
 7. 不要合并 PR #2；本分支已包含 `chatroom-backend/` 代码作为基线。
 8. 不要直接改 main；在新分支上继续。
+9. 如果用户要“局域网联调/同学客户端连服务端”，先按 10.1 检查四个硬缺口；没有测试握手 Handler 前，不要让同学连接并误判为“网络问题”。
+10. 联调只在内网、明文 TCP 下进行；测试 token 可用，真实模型 Key 不进服务端、不进日志、不进帧。
 
 ---
 
 ## 15. 远端与 clone
 
 ```bash
-git clone <repo-url>
+git clone git@github.com:FRiver-hahaha/what-do-you-want-to-eat-.git
 cd what-do-you-want-to-eat-
 git checkout feat/app-transport-scale
+git pull --ff-only
 ```
 
 - 分支：`feat/app-transport-scale`
@@ -392,4 +491,5 @@ git checkout feat/app-transport-scale
 ```bash
 git fetch origin feat/app-transport-scale
 git checkout -b feat/app-transport-scale origin/feat/app-transport-scale
+git pull --ff-only
 ```
