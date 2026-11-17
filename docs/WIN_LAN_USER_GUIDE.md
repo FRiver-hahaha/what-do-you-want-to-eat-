@@ -1,7 +1,7 @@
 # Windows 用户连接指南（局域网）
 
 > 适用：已经拿到 `eat-app-windows-x64.zip` 的 Windows 用户。
-> 当前示例服务端地址：`10.225.197.15:9443`。
+> 当前示例服务端地址：`10.101.17.32:9443`。
 > 如果 Linux 服务端换了 WiFi 或 IP 发生变化，按本文第八节操作，不需要重新编译。
 
 ---
@@ -13,7 +13,7 @@ Windows 电脑必须和 Linux 服务端在**同一个 WiFi / 局域网**。
 打开 PowerShell：
 
 ```powershell
-Test-NetConnection 10.225.197.15 -Port 9443
+Test-NetConnection 10.101.17.32 -Port 9443
 ```
 
 必须看到：
@@ -78,7 +78,7 @@ eat-app.exe
 
 | 项目 | 填写内容 |
 |---|---|
-| 服务器地址 | `10.225.197.15` |
+| 服务器地址 | `10.101.17.32` |
 | 端口 | `9443` |
 | 账号 | 你的账号，例如 `win01@test.local` |
 | 密码 | 你的密码，至少 8 位 |
@@ -131,7 +131,7 @@ redis-cli --scan --pattern 'eat:v1:*' | head
 
 | 现象 | 处理 |
 |---|---|
-| 一直停在登录界面 | 先在 PowerShell 执行 `Test-NetConnection 10.225.197.15 -Port 9443` |
+| 一直停在登录界面 | 先在 PowerShell 执行 `Test-NetConnection 10.101.17.32 -Port 9443` |
 | 提示账号已存在 | 取消勾选“注册新账号”，直接登录 |
 | 提示密码错误 | 确认账号密码；首次注册时密码至少 8 位 |
 | 页面能打开但菜单没数据 | 旧 `session.json` 没清干净；按第二节重做 |
