@@ -200,7 +200,7 @@ node --check bridge.js
 
 ### 8.1 当前状态（2026-11-17）
 
-Linux 侧已通过 SSH 推送成功，远端 `feat/app-transport-scale` = `3fd8a1d`。Windows 上直接 clone 即可获得全部提交：
+Linux 侧已通过 SSH 推送成功，远端 `feat/app-transport-scale` = `3e8d8f1`。Windows 上直接 clone 即可获得全部提交：
 
 ```
 08263e9 chore(repo): add enterprise metadata, CI and packaging scripts
@@ -208,6 +208,8 @@ Linux 侧已通过 SSH 推送成功，远端 `feat/app-transport-scale` = `3fd8a
 4ad8311 feat(client): add transport bridge, IPC protocol and Windows shell; align agent contract
 ac7271c chore(deploy): add Docker image, compose stack and migration entrypoint
 3fd8a1d docs: record push blocker, git bundle and Windows import steps
+b7246ae docs: update Windows handoff after successful SSH push
+3e8d8f1 fix(ci): build Windows client from repository sources instead of ignored dist
 ```
 
 `dist/eat-agent-updates.bundle` 仅作为离线备份保留，正常联网时**不需要**手动导入。
