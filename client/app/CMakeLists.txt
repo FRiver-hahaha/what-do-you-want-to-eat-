@@ -24,11 +24,15 @@ if(NOT EAT_WEBVIEW2_FOUND)
     return()
 endif()
 
-add_executable(eat-app WIN32 win32/main.cc)
-target_include_directories(eat-app PRIVATE "${WEBVIEW2_INCLUDE_DIR}")
+add_executable(eat-app WIN32
+    win32/main.cc
+    "${CMAKE_SOURCE_DIR}/client/transport/TcpTransport.cc"
+)
+target_include_directories(eat-app PRIVATE "${WEBVIEW2_INCLUDE_DIR}" "${CMAKE_SOURCE_DIR}")
 target_link_libraries(eat-app PRIVATE
+    eat_protocol
     "${WEBVIEW2_LOADER_LIB}"
-    ole32 oleaut32 user32 shell32 shlwapi
+    ole32 oleaut32 user32 shell32 shlwapi ws2_32
 )
 
 # The page is shipped with the installer; the App never loads a remote first

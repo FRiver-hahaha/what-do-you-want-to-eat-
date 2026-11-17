@@ -2,7 +2,13 @@
 
 跨端饮食助手：**Linux 服务端**（C++17 + Muduo + MySQL）+ **Windows 客户端**（Win32 + WebView2，复用现有 Web 页面）+ **Python Agent**（LLM / RAG / MCP / Skill）。
 
-> 状态（2026-11-17）：三线后端已合并；服务端认证与档案读写已在 Linux 通过真实 TCP 验证；Windows GUI 已在本机完成编译并验证页面加载；`meal/stats/food/friend/ranking` 仍未帧化，GUI 与业务 TCP 的桥接尚未接线。
+> 状态（2026-11-17，第二轮）：`meal/stats/food/friend/ranking` 共 15 个业务方法、Redis Cache-Aside、Agent 的 TCP 数据通道均已在 Linux 上通过真实 TCP 与 MySQL/Redis 验证；Windows GUI 的 `service.login` / `service.request` 桥接代码已补，但尚未在 Windows 上编译验证；单 exe 与资源嵌入未完成。
+
+Release 资产：
+
+- `eat-server-linux-x86_64.tar.gz`：Linux 服务端二进制、`client_smoke`、`run.sh` 与全量迁移。
+- `eat-client-windows.zip`：Windows 客户端源码、构建脚本、Agent 与前端资源（不含预编译 exe）。
+- Windows 构建步骤见 [`AGENT_win.md`](AGENT_win.md)。
 
 ## 功能状态
 
@@ -10,11 +16,13 @@
 |---|---|
 | 注册 / 登录 / 握手鉴权（scrypt + 令牌哈希） | 已实现并实测 |
 | `profile.get` / `profile.patch`（MySQL 落库、幂等键） | 已实现并实测 |
+| 餐记录 / 统计 / 菜单 / 好友 / 排行（15 个方法） | 已实现并在 Linux 实测 |
+| Redis Cache-Aside（写后 DEL、负缓存、熔断降级） | 已接线；写后失效/停机降级/恢复已实测，负缓存命中路径未覆盖 |
+| Agent `ServiceClient` TCP 帧通道 | 已实现并实测（严格模式下不再回退 mock） |
 | 控制台客户端 `client_smoke.exe` | 已生成并验证完整握手/档案流程 |
-| Windows GUI `eat-app.exe` | 已编译并验证启动、窗口与页面渲染 |
-| GUI 业务数据 / Agent↔TCP 桥接 | 未接线（页面当前显示本地模式） |
-| 餐记录 / 统计 / 菜单 / 好友 / 排行 帧化 | 未迁移（P8 历史代码已删除） |
-| Redis 缓存 | 未接线 |
+| Windows GUI `eat-app.exe` | 壳/页面已编译验证过；本轮新增桥接代码未在 Windows 验证 |
+| GUI 业务数据 / Agent↔TCP 桥接 | 代码已补：页面 → 壳 → Agent → TCP；待 Windows 编译验证 |
+| 单 exe | 未完成（仍依赖外置 `web/`、`eat-agent.exe`） |
 | 100 万在线 | 阻断，无压测数据 |
 
 ## 架构
@@ -22,12 +30,11 @@
 ```
 Windows App (Win32 + WebView2)
   ├─ web/index.html、app.js、bridge.js（与浏览器同一套页面资源）
-  ├─ bridge.js ── postMessage ──▶ 壳
-  └─ 命名管道 ──▶ eat-agent.exe（Python，LLM/RAG/MCP/Skill）
-
-client_smoke.exe ── 1 条业务 TCP ──▶ eat-server (Linux :9443)
-eat-server ── MySQL（账号/档案/事件）
-           ── Redis（规划中，当前 CacheClient 未接线）
+  ├─ bridge.js ── postMessage ──▶ 壳（service.login / service.request）
+  └─ 命名管道 ──▶ eat-agent.exe（LLM/RAG/MCP/Skill）── TCP 帧 ──▶ eat-server
+                                                                  ├─ MySQL（账号/档案/餐/好友）
+                                                                  └─ Redis（Cache-Aside）
+client_smoke.exe ── 业务 TCP ──▶ eat-server (Linux :9443)
 ```
 
 ## 从零启动
@@ -62,14 +69,39 @@ docker compose -f deploy/docker/docker-compose.yml logs -f eat-server
 - 容器启动时自动执行 `migrations/base/000_init.sql`、`001_p8_business.sql`、`foods_seed.sql` 与 `migrations/add/002→006`。
 - 服务端监听 `0.0.0.0:9443`。
 
-#### 方案 B：裸机
+#### 方案 B：Release 二进制包（最快）
+
+从 GitHub Releases 下载 `eat-server-linux-x86_64.tar.gz`：
+
+```bash
+tar -xzf eat-server-linux-x86_64.tar.gz
+cd eat-server-linux-x86_64
+mysql --default-character-set=utf8mb4 -uroot -p < migrations/00_all.sql
+export EAT_MYSQL_PASSWORD='你的MySQL密码'
+./run.sh
+```
+
+包内包含：
+
+```text
+eat-server            # Release 二进制
+client_smoke          # 帧级验证客户端（Linux 版）
+run.sh                # 启动脚本
+server.toml.example   # 配置模板
+migrations/00_all.sql # 000→006 全量迁移
+```
+
+- 运行依赖：glibc 2.39+（Ubuntu 24.04/25.04）、`libssl3`、`libmysqlclient`。
+- Redis 可选：未启动时缓存自动 fail-open，业务直接查 MySQL。
+
+#### 方案 C：裸机
 
 安装依赖（Ubuntu 示例）：
 
 ```bash
 sudo apt update
 sudo apt install -y build-essential cmake libssl-dev libmysqlclient-dev \
-  default-mysql-client mysql-server
+  default-mysql-client mysql-server redis-server
 ```
 
 构建 Muduo 与服务端：
@@ -101,7 +133,16 @@ cmake --build build -j"$(nproc)" --target eat-server client_smoke
   done
 } > /tmp/eat_00_all.sql
 
-mysql -uroot -p < /tmp/eat_00_all.sql
+mysql --default-character-set=utf8mb4 -uroot -p < /tmp/eat_00_all.sql
+```
+
+> 必须带 `--default-character-set=utf8mb4`，否则中文菜名会被二次编码成乱码，导致菜单与搜索为空。
+
+启动 Redis（可选，但推荐）：
+
+```bash
+redis-server --port 6379 --daemonize yes --save '' --appendonly no
+redis-cli ping                 # 期望 PONG
 ```
 
 启动服务端：
@@ -111,6 +152,20 @@ export EAT_MYSQL_PASSWORD='你的MySQL密码'
 export EAT_MYSQL_USER=root        # 示例配置默认是 eat，按实际账号覆盖
 ./build/eat-server --config deploy/server.toml.example
 ```
+
+Redis 相关配置在 `deploy/server.toml.example`：
+
+```toml
+redis_host = 127.0.0.1
+redis_port = 6379
+cache_get_timeout_ms = 20
+cache_connect_timeout_ms = 50
+cache_breaker_failures = 3
+cache_breaker_open_ms = 5000
+cache_gen = 1
+```
+
+缓存键前缀为 `eat:v1:<cache_gen>:`。写入档案/餐记录/好友关系后会同步删除相关键；Redis 故障时业务自动降级到 MySQL。
 
 确认监听与放行端口：
 
@@ -122,15 +177,17 @@ hostname -I                       # 记下服务端局域网 IP
 
 ### 3. 启动客户端（Windows）
 
-#### 3.1 GUI `eat-app.exe`（推荐体验页面）
+#### 3.1 GUI `eat-app.exe`
 
-从 GitHub Releases 下载 `eat-app-windows-x64.zip`，解压后目录形态：
+Release 提供 `eat-client-windows.zip`（源码 + 构建脚本 + Agent + 前端资源），**不包含预编译 exe**；Linux 构建机无法生成 Windows 可执行文件。在 Windows 上按 [`AGENT_win.md`](AGENT_win.md) 编译。
+
+构建后的运行目录：
 
 ```text
 eat-app-windows-x64\
   eat-app.exe
-  WebView2Loader.dll
-  web\              # 与仓库根目录同一套前端资源
+  eat-agent.exe          # PyInstaller 打包的 Python Agent
+  web\                   # 前端资源，由 CMake 自动复制
     index.html
     app.js
     bridge.js
@@ -139,16 +196,19 @@ eat-app-windows-x64\
     features.css
     agent.css
     assets\
+  libcrypto-3-x64.dll    # 使用动态 OpenSSL 时需要
+  libssl-3-x64.dll
 ```
 
-双击 `eat-app.exe` 即可启动。首次启动会在同目录创建 `webview-data\`。关闭窗口会进入托盘，右键托盘图标选择“退出”才会结束进程。
+双击 `eat-app.exe` 即可启动。首次启动会创建 `webview-data\`；关闭窗口进入托盘，右键托盘图标“退出”才会结束进程。
 
 当前 GUI 边界：
 
 - 窗口、单实例、托盘、本地 WebView2 页面已验证。
-- 页面会提示“本地模式”，因为 `bridge.js` 的 App 模式与业务 TCP 尚未接线。
-- GUI 内暂不能完成服务端注册/档案/餐记录请求；需要真实业务联调时请使用 `client_smoke.exe`。
-- 同目录没有 `eat-agent.exe` 时，Agent 对话不可用；页面仍可正常加载。
+- 页面菜单、随机推荐、消费区间已改走 `eatTransport.request`；App 模式经壳转发给 Agent，再由 Agent 的 TCP 通道访问服务端。
+- 登录协议已就绪：页面可发送 `{type:"service.login", host, port, login_id, password, register}`，壳完成握手后把会话写入 `%LOCALAPPDATA%\EatApp\session.json`，并通过命名管道通知 Agent（`service.configure`）。
+- 页面暂无登录表单；没有会话时 Agent 仍可能以 mock 开发模式启动，不能作为真实数据验收。
+- 单 exe（资源嵌入、PyInstaller 打包 `eat-agent.exe`）尚未实现。
 
 #### 3.2 控制台客户端 `client_smoke.exe`
 
@@ -261,11 +321,13 @@ verify_weight=66
 | `handshake_error code=2002` | 账号或密码错误、令牌无效 | 确认密码 ≥8 位；首次是否加了 `--register` |
 | `handshake_error code=2003` | 连续失败导致账号锁定 | 等待锁定窗口结束或换测试账号 |
 | `patch_error code=3001` | 写方法缺 `idem_key` | 去掉 `--omit-idem` |
-| GUI 页面提示“本地模式” | App 桥接尚未接线 | 属当前已知边界，用 `client_smoke.exe` 测业务 |
+| GUI 页面提示“本地模式” | 未完成 `service.login`，或 Agent 未收到 TCP 配置 | 按 [`AGENT_win.md`](AGENT_win.md) 第 6 节登录或注入环境变量 |
+| 菜单/搜索为空 | 迁移未带 `utf8mb4`，中文菜名乱码 | 用 `mysql --default-character-set=utf8mb4` 重导 `00_all.sql` |
+| `menu`/`search` 首次成功、后续变慢 | Redis 未启动，缓存 fail-open | `redis-cli ping`，按方案 C 启动 Redis |
 
 ## 当前可测范围
 
-本次局域网联调只覆盖「注册 → 登录 → 握手 → 读档案 → 改体重 → 读回」。页面内餐记录、菜单、好友、排行失败属于业务尚未迁移，不是网络故障。
+服务端 `meal.* / stats.* / food.* / friend.* / ranking.friends` 共 15 个方法、Redis Cache-Aside、Agent TCP 数据通道均已在 Linux 实测。Windows GUI 的壳/页面桥接代码已补，但尚未在 Windows 编译验证；页面登录表单与单 exe 仍未完成。
 
 ## 仓库结构
 
@@ -273,12 +335,13 @@ verify_weight=66
 shared/protocol/      帧协议 / CRC32C / 严格 JSON（server、client、bench 同源）
 server/               tcp、identity、app、business、database、cache
 client/               Win32+WebView2 壳、TCP 传输、IPC、KeyVault
-agent/                Python Agent（HTTP 开发入口 + IPC App 入口）
+agent/                Python Agent（HTTP 开发入口 + IPC App 入口 + TCP 数据通道）
 migrations/base/      P7/P8 SQL 基线（000_init / 001_p8_business / foods_seed）
 migrations/add/       002–006 增量迁移
 deploy/               Docker、systemd、sysctl、preflight
 tests/                protocol / unit / integration / load
 docs/                 架构、运行手册、设计、协议
+AGENT_win.md          Windows 编译指南（Agent / GUI / 控制台客户端）
 ```
 
 ## 测试
@@ -287,7 +350,12 @@ docs/                 架构、运行手册、设计、协议
 ctest --test-dir build --output-on-failure     # C++ 单元/协议测试
 python -m unittest agent.tests.test_smoke      # Agent 单测
 python tests/integration/ipc_smoke.py          # IPC
-bash tests/integration/s1_smoke.sh             # 真实 TCP（需 MySQL）
+
+# 服务端 15 个业务方法（需服务端、MySQL、Redis）
+PYTHONPATH=. python3 tests/integration/service_tcp_test.py --host 127.0.0.1 --port 9443
+
+# Agent 经 TCP 完成全部数据方法
+PYTHONPATH=. python3 tests/integration/agent_service_client_test.py 127.0.0.1 9443
 ```
 
 ## 贡献与安全

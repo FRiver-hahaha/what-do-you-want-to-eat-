@@ -28,7 +28,18 @@ int CloseHandle(std::intptr_t handle) { return close(static_cast<int>(handle)); 
 
 std::string BuildHandshakeBody(const TransportConfig& config) {
     protocol::JsonValue body = protocol::JsonValue::Object();
-    body.Set("access_token", protocol::JsonValue::String(config.access_token));
+    if (!config.access_token.empty()) {
+        body.Set("access_token", protocol::JsonValue::String(config.access_token));
+    } else if (!config.login_id.empty()) {
+        body.Set("login_id", protocol::JsonValue::String(config.login_id));
+        body.Set("password", protocol::JsonValue::String(config.password));
+        body.Set("display_name", protocol::JsonValue::String(config.display_name));
+        if (config.register_account) {
+            body.Set("action", protocol::JsonValue::String("register"));
+        }
+    } else {
+        body.Set("access_token", protocol::JsonValue::String(std::string()));
+    }
     body.Set("device_id", protocol::JsonValue::String(config.device_id));
     body.Set("client_version", protocol::JsonValue::String(config.client_version));
     protocol::JsonValue version = protocol::JsonValue::Object();
@@ -180,6 +191,16 @@ bool TcpTransport::Handshake(std::string& error) {
     if (!parsed.ok || !parsed.value.IsObject()) {
         error = "handshake_bad_body";
         return false;
+    }
+    const protocol::JsonValue* user_key = parsed.value.Find("user_key");
+    if (user_key != nullptr && user_key->IsString()) user_key_ = user_key->AsString();
+    const protocol::JsonValue* access_token = parsed.value.Find("access_token");
+    if (access_token != nullptr && access_token->IsString()) {
+        access_token_ = access_token->AsString();
+    }
+    const protocol::JsonValue* refresh_token = parsed.value.Find("refresh_token");
+    if (refresh_token != nullptr && refresh_token->IsString()) {
+        refresh_token_ = refresh_token->AsString();
     }
     error.clear();
     return true;

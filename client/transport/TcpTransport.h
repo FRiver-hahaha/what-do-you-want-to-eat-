@@ -18,6 +18,10 @@ struct TransportConfig {
     std::string host = "127.0.0.1";
     std::uint16_t port = 9443;
     std::string access_token;
+    std::string login_id;
+    std::string password;
+    std::string display_name;
+    bool register_account = false;
     std::string device_id;
     std::string client_version = "windows-app/1";
     std::uint32_t heartbeat_s = 60;
@@ -33,6 +37,10 @@ class TcpTransport {
     bool Start(std::string& error);
     void Stop();
     bool Connected() const;
+
+    const std::string& user_key() const { return user_key_; }
+    const std::string& access_token() const { return access_token_; }
+    const std::string& refresh_token() const { return refresh_token_; }
 
     bool Request(const std::string& method, const protocol::JsonValue& params,
                  protocol::JsonValue& data, protocol::ErrorCode& error,
@@ -59,6 +67,9 @@ class TcpTransport {
     void CompletePending(std::uint64_t request_id, const protocol::Frame& frame);
 
     TransportConfig config_;
+    std::string user_key_;
+    std::string access_token_;
+    std::string refresh_token_;
     std::intptr_t socket_handle_ = -1;
     mutable std::mutex socket_mutex_;
     std::atomic<bool> running_{false};

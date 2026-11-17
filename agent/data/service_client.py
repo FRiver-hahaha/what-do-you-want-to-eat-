@@ -1,20 +1,33 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
+import threading
 import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
-from agent.config import SERVER_BASE_URL, SERVER_TOKEN, SERVICE_TIMEOUT
+from agent.config import (SERVER_BASE_URL, SERVER_TCP_HOST, SERVER_TCP_PORT, SERVER_TOKEN,
+                          SERVER_USER_KEY, SERVICE_REQUIRED, SERVICE_TIMEOUT)
+from agent.transport.tcp_frame import TcpFrameClient, TcpFrameError
 
 LOCAL_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
 def _today() -> str:
     return date.today().isoformat()
+
+
+def _idem_key(*parts: Any) -> str:
+    text = "|".join(
+        json.dumps(part, sort_keys=True, ensure_ascii=False)
+        if isinstance(part, (dict, list)) else str(part)
+        for part in parts
+    )
+    return hashlib.sha1(text.encode("utf-8")).hexdigest()
 
 
 MOCK_PROFILE = {
@@ -103,16 +116,113 @@ def _build_mock_meals() -> list[dict[str, Any]]:
 
 
 class ServiceClient:
-    def __init__(self, base_url: str | None = None, token: str | None = None) -> None:
+    def __init__(self, base_url: str | None = None, token: str | None = None,
+                 tcp_host: str | None = None, tcp_port: int | None = None,
+                 user_key: str | None = None) -> None:
         self.base_url = (base_url if base_url is not None else SERVER_BASE_URL).rstrip("/")
         self.token = token if token is not None else SERVER_TOKEN
+        self.tcp_host = tcp_host if tcp_host is not None else SERVER_TCP_HOST
+        self.tcp_port = int(tcp_port if tcp_port is not None else SERVER_TCP_PORT)
+        self.user_key = user_key if user_key is not None else SERVER_USER_KEY
         self.last_error = ""
+        self._tcp: TcpFrameClient | None = None
+        self._tcp_lock = threading.Lock()
         self._mock_meals = _build_mock_meals()
         self._profile_overrides: dict[str, dict[str, Any]] = {}
 
     @property
     def mode(self) -> str:
+        if self.tcp_host:
+            return "tcp"
         return "service" if self.base_url else "mock"
+
+    @property
+    def strict(self) -> bool:
+        return SERVICE_REQUIRED or bool(self.tcp_host or self.base_url)
+
+    def configure_service(self, *, host: str = "", port: int = 0,
+                          user_key: str = "", access_token: str = "") -> dict[str, Any]:
+        with self._tcp_lock:
+            if self._tcp is not None:
+                self._tcp.close()
+                self._tcp = None
+        if host:
+            self.tcp_host = host
+        if port:
+            self.tcp_port = int(port)
+        if user_key:
+            self.user_key = user_key
+        if access_token:
+            self.token = access_token
+        self.last_error = ""
+        return self.status()
+
+    def _close_tcp(self) -> None:
+        with self._tcp_lock:
+            if self._tcp is not None:
+                self._tcp.close()
+                self._tcp = None
+
+    def _ensure_tcp(self) -> TcpFrameClient:
+        with self._tcp_lock:
+            if self._tcp is not None:
+                return self._tcp
+            if not self.token:
+                raise TcpFrameError("missing_access_token")
+            client = TcpFrameClient(self.tcp_host, self.tcp_port, SERVICE_TIMEOUT)
+            client.connect()
+            handshake = client.handshake(access_token=self.token, device_id="eat-agent",
+                                         client_version="1.0.0")
+            remote_key = str(handshake.get("user_key") or "")
+            if self.user_key and remote_key and remote_key != self.user_key:
+                client.close()
+                raise TcpFrameError("user_key_mismatch")
+            if not self.user_key:
+                self.user_key = remote_key
+            self._tcp = client
+            return client
+
+    def _call_tcp(self, method: str, params: dict[str, Any]) -> dict[str, Any] | None:
+        try:
+            client = self._ensure_tcp()
+            result = client.request(method, params)
+        except (OSError, TcpFrameError, ValueError) as exc:
+            self.last_error = str(exc)
+            self._close_tcp()
+            return None
+        if not result.get("ok"):
+            self.last_error = f"{result.get('error') or 'error'}:{result.get('message') or ''}"
+            return None
+        self.last_error = ""
+        return dict(result.get("data") or {})
+
+    def _failure(self) -> dict[str, Any]:
+        return {
+            "ok": False,
+            "error": self.last_error or "service_unavailable",
+            "message": self.last_error or "service_unavailable",
+            "source": "service_error",
+        }
+
+    def _remote(self, method: str, params: dict[str, Any] | None = None,
+                http_method: str | None = None, http_path: str = "",
+                http_payload: dict[str, Any] | None = None,
+                wrap: Any = None) -> dict[str, Any] | None:
+        if self.tcp_host:
+            data = self._call_tcp(method, params or {})
+            if data is not None:
+                data.setdefault("source", "service")
+                return wrap(data) if wrap else data
+            if self.strict:
+                return self._failure()
+            return None
+        if self.base_url and http_method:
+            data = self._request(http_method, http_path, http_payload)
+            if data is not None:
+                return data
+            if self.strict:
+                return self._failure()
+        return None
 
     def _request(self, method: str, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any] | None:
         if not self.base_url:
@@ -137,7 +247,8 @@ class ServiceClient:
             return None
 
     def get_profile(self, user_id: str) -> dict[str, Any]:
-        remote = self._request("GET", f"/api/v1/users/{user_id}/health-profile")
+        remote = self._remote("profile.get", {}, "GET",
+                              f"/api/v1/users/{user_id}/health-profile")
         if remote:
             return remote
         profile = copy.deepcopy(MOCK_PROFILE)
@@ -153,7 +264,19 @@ class ServiceClient:
         return profile
 
     def update_profile(self, user_id: str, fields: dict[str, Any]) -> dict[str, Any]:
-        remote = self._request("PATCH", f"/api/v1/users/{user_id}/health-profile", fields)
+        def wrap(data: dict[str, Any]) -> dict[str, Any]:
+            return {
+                "ok": True,
+                "user_id": user_id,
+                "profile": data,
+                "updated": sorted(fields),
+                "source": data.get("source", "service"),
+            }
+
+        params = dict(fields)
+        params["idem_key"] = _idem_key("profile", user_id, fields)
+        remote = self._remote("profile.patch", params, "PATCH",
+                              f"/api/v1/users/{user_id}/health-profile", fields, wrap)
         if remote:
             return remote
         current = self._profile_overrides.setdefault(user_id, {})
@@ -168,7 +291,8 @@ class ServiceClient:
         }
 
     def get_recent_meals(self, user_id: str, days: int = 7) -> dict[str, Any]:
-        remote = self._request("GET", f"/api/v1/users/{user_id}/meals?days={days}")
+        remote = self._remote("meal.recent", {"days": days}, "GET",
+                              f"/api/v1/users/{user_id}/meals?days={days}")
         if remote:
             return remote
         cutoff = (date.today() - timedelta(days=days - 1)).isoformat()
@@ -177,7 +301,8 @@ class ServiceClient:
 
     def get_nutrition_gap(self, user_id: str, target_date: str | None = None) -> dict[str, Any]:
         target = target_date or _today()
-        remote = self._request("GET", f"/api/v1/users/{user_id}/nutrition-gap?date={target}")
+        remote = self._remote("stats.nutrition_gap", {"date": target}, "GET",
+                              f"/api/v1/users/{user_id}/nutrition-gap?date={target}")
         if remote:
             return remote
         profile = self.get_profile(user_id)
@@ -195,7 +320,8 @@ class ServiceClient:
         }
 
     def get_weekly_stats(self, user_id: str) -> dict[str, Any]:
-        remote = self._request("GET", f"/api/v1/users/{user_id}/weekly-stats")
+        remote = self._remote("stats.weekly", {}, "GET",
+                              f"/api/v1/users/{user_id}/weekly-stats")
         if remote:
             return remote
         return {
@@ -218,7 +344,15 @@ class ServiceClient:
         limit: int = 5,
         nature: str = "",
     ) -> dict[str, Any]:
-        remote = self._request(
+        remote = self._remote(
+            "food.search",
+            {
+                "query": query,
+                "tags": tags or [],
+                "meal_type": meal_type,
+                "limit": limit,
+                "nature": nature,
+            },
             "GET",
             f"/api/v1/foods/search?q={urllib.parse.quote(query)}&meal_type={urllib.parse.quote(meal_type)}&limit={limit}&nature={urllib.parse.quote(nature)}",
         )
@@ -252,7 +386,8 @@ class ServiceClient:
         return {"user_id": user_id, "foods": foods, "count": len(foods), "source": "mock"}
 
     def get_menu(self, user_id: str, meal_type: str = "") -> dict[str, Any]:
-        remote = self._request("GET", f"/api/v1/menu?meal_type={urllib.parse.quote(meal_type)}")
+        remote = self._remote("food.menu", {"meal_type": meal_type}, "GET",
+                              f"/api/v1/menu?meal_type={urllib.parse.quote(meal_type)}")
         if remote:
             return remote
         foods = [copy.deepcopy(food) for food in MOCK_FOODS if food["available"]]
@@ -261,13 +396,15 @@ class ServiceClient:
         return {"user_id": user_id, "meal_type": meal_type or "全部", "foods": foods, "count": len(foods), "source": "mock"}
 
     def get_friend_ranking(self, user_id: str, scope: str = "week") -> dict[str, Any]:
-        remote = self._request("GET", f"/api/v1/users/{user_id}/ranking?scope={scope}")
+        remote = self._remote("ranking.friends", {"scope": scope}, "GET",
+                              f"/api/v1/users/{user_id}/ranking?scope={scope}")
         if remote:
             return remote
         return {"user_id": user_id, "scope": scope, "ranking": copy.deepcopy(MOCK_RANKING), "source": "mock"}
 
     def get_friends(self, user_id: str) -> dict[str, Any]:
-        remote = self._request("GET", f"/api/v1/users/{user_id}/friends")
+        remote = self._remote("friend.list", {}, "GET",
+                              f"/api/v1/users/{user_id}/friends")
         if remote:
             return remote
         return {"user_id": user_id, "friends": copy.deepcopy(MOCK_FRIENDS), "source": "mock"}
@@ -275,7 +412,10 @@ class ServiceClient:
     def record_meal(self, user_id: str, payload: dict[str, Any], idempotency_key: str) -> dict[str, Any]:
         body = dict(payload)
         body["idempotency_key"] = idempotency_key
-        remote = self._request("POST", f"/api/v1/users/{user_id}/meals", body)
+        params = dict(body)
+        params["idem_key"] = idempotency_key
+        remote = self._remote("meal.create", params, "POST",
+                              f"/api/v1/users/{user_id}/meals", body)
         if remote:
             return remote
         meal = {
@@ -307,6 +447,10 @@ class ServiceClient:
         return {
             "mode": self.mode,
             "base_url": self.base_url,
+            "tcp_host": self.tcp_host,
+            "tcp_port": self.tcp_port,
+            "user_key": self.user_key,
+            "strict": self.strict,
             "last_error": self.last_error,
-            "note": "服务端未配置时自动使用本地 mock 数据，生产环境仅服务端可连接 MySQL/Redis",
+            "note": "服务端已配置时只使用 TCP 帧，不再用 mock 冒充真实数据；未配置时才使用本地 mock",
         }

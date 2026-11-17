@@ -9,6 +9,8 @@ Messages handled here:
   hello          -> hello_ack
   ping           -> pong
   agent.chat     -> a stream of agent.event frames + agent.done
+  service.request-> one page-level request rendered by the Agent over TCP
+  service.configure -> attach the session to the TCP service
   shutdown       -> close the pipe and exit
 """
 
@@ -21,8 +23,10 @@ import struct
 import sys
 import threading
 from typing import Any, BinaryIO, Callable
+from urllib.parse import parse_qs, urlparse
 
 from agent.app import AgentApp
+from agent.config import DEFAULT_USER_ID
 
 MAX_PAYLOAD = 1024 * 1024
 HEADER = struct.Struct("<I")
@@ -60,6 +64,45 @@ class StreamConnection:
         self._write(_encode(message))
 
 
+def _service_request(app: AgentApp, path: str, init: dict[str, Any]) -> dict[str, Any]:
+    parsed = urlparse(path)
+    query = {key: values[0] for key, values in parse_qs(parsed.query).items()}
+    method = str(init.get("method") or "GET").upper()
+    body: Any = init.get("body") or {}
+    if isinstance(body, str):
+        try:
+            body = json.loads(body)
+        except json.JSONDecodeError:
+            body = {}
+    if not isinstance(body, dict):
+        body = {}
+    user_id = str(query.get("user_id") or body.get("user_id")
+                  or app.service.user_key or DEFAULT_USER_ID)
+    route = parsed.path.rstrip("/") or "/"
+
+    if route == "/api/menu":
+        return app.menu_view({
+            "user_id": user_id,
+            "mode": query.get("mode", "work"),
+            "meal_type": query.get("meal_type", ""),
+        })
+    if route == "/api/menu/random" and method == "POST":
+        payload = dict(body)
+        payload.setdefault("user_id", user_id)
+        payload.setdefault("mode", "work")
+        return app.menu_random(payload)
+    if route == "/api/profile/spend":
+        payload = dict(body)
+        payload.setdefault("user_id", user_id)
+        payload.setdefault("mode", "work")
+        if method == "POST":
+            return app.update_spend_level(payload)
+        return app.spend_level(user_id)
+    if route == "/api/service/status":
+        return app.service.status()
+    raise ValueError(f"unknown_path:{route}")
+
+
 def serve(app: AgentApp, connection: StreamConnection) -> bool:
     """Returns False when the peer asked to shut down."""
     while True:
@@ -95,6 +138,44 @@ def serve(app: AgentApp, connection: StreamConnection) -> bool:
                     "type": "agent.error",
                     "id": request_id,
                     "message": f"agent_failed:{type(error).__name__}",
+                })
+        elif kind == "service.request":
+            request_id = message.get("id")
+            try:
+                payload = _service_request(
+                    app,
+                    str(message.get("path") or ""),
+                    dict(message.get("init") or {}),
+                )
+                connection.send({
+                    "type": "service.response",
+                    "id": request_id,
+                    "data": payload,
+                })
+            except Exception as error:
+                connection.send({
+                    "type": "agent.error",
+                    "id": request_id,
+                    "message": f"service_failed:{type(error).__name__}:{error}",
+                })
+        elif kind == "service.configure":
+            try:
+                status = app.service.configure_service(
+                    host=str(message.get("host") or ""),
+                    port=int(message.get("port") or 0),
+                    user_key=str(message.get("user_key") or ""),
+                    access_token=str(message.get("access_token") or ""),
+                )
+                connection.send({
+                    "type": "service.configured",
+                    "id": message.get("id"),
+                    "status": status,
+                })
+            except Exception as error:
+                connection.send({
+                    "type": "agent.error",
+                    "id": message.get("id"),
+                    "message": f"service_configure_failed:{type(error).__name__}",
                 })
         else:
             connection.send({"type": "agent.error", "message": "unknown_type"})

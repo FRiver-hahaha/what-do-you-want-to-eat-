@@ -46,6 +46,11 @@ SERVER_BASE_URL = os.environ.get("EAT_SERVER_BASE_URL", "").rstrip("/")
 SERVER_TOKEN = os.environ.get("EAT_SERVER_TOKEN", "")
 SERVICE_TIMEOUT = float(os.environ.get("EAT_SERVICE_TIMEOUT", "5"))
 
+SERVER_TCP_HOST = os.environ.get("EAT_TCP_HOST", "")
+SERVER_TCP_PORT = int(os.environ.get("EAT_TCP_PORT", "9443"))
+SERVER_USER_KEY = os.environ.get("EAT_USER_KEY", "")
+SERVICE_REQUIRED = os.environ.get("EAT_SERVICE_REQUIRED", "") == "1"
+
 DEFAULT_USER_ID = os.environ.get("EAT_DEFAULT_USER_ID", "u_demo")
 DEFAULT_SESSION_ID = os.environ.get("EAT_DEFAULT_SESSION_ID", "s_demo")
 

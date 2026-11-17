@@ -855,9 +855,7 @@ async function loadAgentMenu() {
   rebuildLocalGroups();
   renderFoodMenus();
   try {
-    const response = await fetch(`${agentBase()}/api/menu?mode=work&user_id=u_demo`);
-    if (!response.ok) return;
-    const payload = await response.json();
+    const payload = await window.eatTransport.request("/api/menu?mode=work&user_id=u_demo");
     if (payload && payload.ok && payload.data) applyAgentMenu(payload.data);
   } catch {
     // 保持本地消费区间分组
@@ -1069,21 +1067,18 @@ function pickLocalRandom(excludeId) {
 
 async function pickRandomFood(excludeId) {
   try {
-    const response = await fetch(`${agentBase()}/api/menu/random`, {
+    const payload = await window.eatTransport.request("/api/menu/random", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ user_id: "u_demo", mode: "work", seed: Math.floor(Math.random() * 100000) })
     });
-    if (response.ok) {
-      const payload = await response.json();
-      const remote = payload && payload.ok ? payload.data?.food : null;
-      if (remote && remote.id !== excludeId) {
-        const local = foods.find(food => food.id === remote.id);
-        const merged = decorateFood({ ...(local || {}), ...remote });
-        randomHistory.push(merged.id);
-        if (randomHistory.length > 6) randomHistory.shift();
-        return merged;
-      }
+    const remote = payload && payload.ok ? payload.data?.food : null;
+    if (remote && remote.id !== excludeId) {
+      const local = foods.find(food => food.id === remote.id);
+      const merged = decorateFood({ ...(local || {}), ...remote });
+      randomHistory.push(merged.id);
+      if (randomHistory.length > 6) randomHistory.shift();
+      return merged;
     }
   } catch {
     // 后端不可用时走本地 70/30
@@ -1268,12 +1263,12 @@ async function saveSpendRange() {
   profile.spend_min = min;
   profile.spend_max = max;
   try {
-    const response = await fetch(`${agentBase()}/api/profile/spend`, {
+    const payload = await window.eatTransport.request("/api/profile/spend", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ user_id: "u_demo", mode: "work", spend_min: min, spend_max: max })
     });
-    if (!response.ok) throw new Error("failed");
+    if (!payload || payload.ok === false) throw new Error("failed");
     showToast("每餐消费区间已保存");
   } catch {
     showToast("已在本地保存，连接 Agent 后生效");

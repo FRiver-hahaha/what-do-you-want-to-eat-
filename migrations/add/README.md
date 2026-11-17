@@ -29,6 +29,13 @@ MySQL requires every unique key on a partitioned table to include the partitioni
 
 The idempotency key therefore remains unique within a day. A key reused after the idempotency window has expired is outside the window and is allowed. Within the window, the same key is blocked.
 
+## Inserting idempotency rows on MySQL 8.4
+
+`created_day` is a stored generated column derived from `created_at`. On MySQL 8.4 an
+insert that omits `created_at` can evaluate the generated column against
+`'0000-00-00'` and fail with error 1292. Application code must write the timestamp
+explicitly, e.g. `INSERT ... (..., created_at) VALUES (..., NOW())`.
+
 ## Rollback limits
 
 Rollback only removes objects and columns created by these migrations. It does not touch P7 `user` / `friend` tables or existing business data. `meal_records` rollback restores the single-column primary key and removes partitioning.

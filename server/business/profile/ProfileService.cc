@@ -4,6 +4,9 @@
 #include <cmath>
 #include <cstddef>
 
+#include "server/cache/CacheClient.h"
+#include "server/cache/InvalidationSet.h"
+
 namespace eat::business {
 namespace {
 
@@ -119,6 +122,16 @@ ProfileResult ProfileService::Get(const std::string& user_key) {
     if (user_key.empty()) return UserNotFound();
     if (!identity_.UserExists(user_key)) return UserNotFound();
 
+    if (cache_ != nullptr) {
+        protocol::JsonValue cached;
+        if (cache_->Read(cache_->keys().Profile(user_key), cached)) {
+            ProfileResult cached_result;
+            cached_result.ok = true;
+            cached_result.data = cached;
+            return cached_result;
+        }
+    }
+
     ProfileDao dao(pool_);
     HealthProfileRow row;
     const ProfileDao::Lookup lookup = dao.Load(user_key, row);
@@ -127,6 +140,9 @@ ProfileResult ProfileService::Get(const std::string& user_key) {
     ProfileResult result;
     result.ok = true;
     result.data = BuildProfile(user_key, row);
+    if (cache_ != nullptr) {
+        cache_->Write(cache_->keys().Profile(user_key), result.data, "prof");
+    }
     return result;
 }
 
@@ -172,6 +188,11 @@ ProfileResult ProfileService::Patch(const std::string& user_key,
     ProfileResult result;
     result.ok = true;
     result.data = BuildProfile(user_key, row);
+    if (cache_ != nullptr) {
+        cache_->BumpProfileVersion(user_key);
+        cache_->Delete(cache::ProfileKeys(cache_->keys(), user_key));
+        cache_->Write(cache_->keys().Profile(user_key), result.data, "prof");
+    }
     return result;
 }
 

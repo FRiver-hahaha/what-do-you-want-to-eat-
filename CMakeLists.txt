@@ -50,12 +50,30 @@ add_library(eat_server_core STATIC
 target_include_directories(eat_server_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(eat_server_core PUBLIC eat_protocol Threads::Threads)
 
+if(NOT WIN32)
+    target_sources(eat_server_core PRIVATE
+        server/cache/CacheClient.cc
+        server/database/RedisClient.cc
+    )
+endif()
+
 if(EAT_MYSQL_FOUND)
     target_sources(eat_server_core PRIVATE
         server/database/MySQLPool.cc
         server/identity/IdentityService.cc
         server/business/profile/ProfileDao.cc
         server/business/profile/ProfileService.cc
+        server/business/user/UserDao.cc
+        server/business/meal/MealDao.cc
+        server/business/meal/IdempotencyDao.cc
+        server/business/meal/MealService.cc
+        server/business/stats/StatsService.cc
+        server/business/food/FoodDao.cc
+        server/business/food/FoodService.cc
+        server/business/friend/FriendDao.cc
+        server/business/friend/FriendService.cc
+        server/business/ranking/RankingDao.cc
+        server/business/ranking/RankingService.cc
         server/app/ServiceRegistry.cc
     )
     target_include_directories(eat_server_core PUBLIC ${MYSQL_INCLUDE_DIR})

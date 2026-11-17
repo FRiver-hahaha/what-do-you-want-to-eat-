@@ -3,7 +3,7 @@
 > 决策日期：2026-11-17
 > 分支：`feat/app-transport-scale`
 > 当前提交：`1a54ee6`
-> 状态：**仅记录方案，尚未修改业务代码**。等待 Linux + MySQL/Redis 环境后继续。
+> 状态：**服务端 15 个业务方法与 Redis Cache-Aside、Agent TCP 数据通道已完成并在 Linux 实测**；Windows GUI 桥接代码已补但未在 Windows 编译验证；单 exe 未完成。第二轮进展见 §9。
 
 ## 1. 路线决策
 
@@ -263,6 +263,44 @@ migrations/add/006_event_outbox.sql
 ## 8. 交接状态
 
 - 本文档记录路线 A 与实施清单。
-- 本轮**没有修改** `server/business`、`agent/data/service_client.py`、`client/app/win32/main.cc` 的业务逻辑。
-- 下一轮在 Linux 上继续：先恢复 `chatroom-backend` 的 Service/DAO，再补 Handler 与 CacheClient，随后做 GUI/Agent 桥接和单 exe。
+- 第二轮已完成 §4.1–§4.4 与 §4.5 的代码接线，详见 §9。
+- 下一轮重点：Windows 上编译 `eat-app.exe`、验证 `service.login` 与页面业务、完成单 exe 与 Release。
 - 开始前先 `git pull --ff-only`，确认远端无新提交。
+
+## 9. 第二轮进展（2026-11-17）
+
+### 9.1 已完成并实测（Linux）
+
+| 项目 | 实现 | 证据 |
+|---|---|---|
+| 业务层恢复 | `server/business/{meal,stats,food,friend,ranking}` + `common/{BusinessResult,DateUtil,Utf8Util,HealthScore,BusinessJson}` + `user/UserDao` | 编译通过 |
+| TCP Handler | `ServiceRegistry` 注册 `meal.* / stats.* / food.* / friend.* / ranking.friends` 共 15 个方法 | 真实 TCP 请求通过 |
+| Cache-Aside | `server/database/RedisClient`（RESP，连接池，命令白名单 GET/SETEX/DEL/MGET/EXISTS/PING）+ `server/cache/CacheClient`（CacheValue、TTL+jitter、熔断 fail-open） | Redis 键可见，写后 DEL，停 Redis 业务仍成功 |
+| 身份统一 | 业务一律使用握手得到的 `context.user_key`；`meal_records/idempotency_records` 同时兼容非空 `agent_uid` 列 | 请求中伪造 `user_key` 被 dispatcher 剔除 |
+| 幂等 | `meal.create/patch/delete` 使用 `idem_key`（兼容 `idempotency_key`），同键同内容重放、异内容 3003 | 端到端脚本覆盖 |
+| 缓存失效 | profile patch → 删除档案键并 bump 进程内 profile 版本；meal 写 → DEL 当日 gap/week 键；friend 写 → DEL 双方好友键 | 实测 |
+| Agent TCP | `agent/transport/tcp_frame.py`（40B 帧 + CRC32C）；`agent/data/service_client.py` 支持 `tcp` 模式、严格模式不回退 mock | `agent_service_client_test.py` 通过 |
+| IPC 扩展 | `service.configure`、`service.request`（Agent 侧渲染 `/api/menu`、`/api/menu/random`、`/api/profile/spend`） | Python 语法检查 |
+| 页面传输 | `app.js` 三处 `fetch` 改为 `eatTransport.request`，浏览器/App 行为分流 | `node --check` |
+
+### 9.2 已写代码、未在 Windows 验证
+
+- `client/transport/TcpTransport`：新增 login/password/register 握手与 `user_key/access_token/refresh_token` 访问器。
+- `client/app/win32/main.cc`：`service.login` 握手、`%LOCALAPPDATA%\EatApp\session.json` 会话持久化、环境变量注入、`service.configure` 通知 Agent、`service.request` 转发。
+- `client/app/CMakeLists.txt`：`eat-app` 链接 `TcpTransport.cc` + `eat_protocol` + `ws2_32`。
+
+### 9.3 未完成
+
+- 页面登录表单：协议已就绪，但 `index.html/app.js` 尚无服务器地址与登录/注册 UI。
+- 单 exe：仍依赖 exe 同目录 `web/` 与 `eat-agent.exe`；未做资源嵌入与 PyInstaller 打包。
+- Windows 编译验证：当前构建机是 Linux，无 MSVC/WebView2 SDK。
+- 负缓存命中路径：`CacheClient::WriteEmpty` 已实现但业务未接入（读路径把 empty 视为 miss）。
+- 过敏/忌口过滤的专门测试、weekly 独立复算断言尚未加入自动化脚本。
+- Release 资产与截图/日志证据未产出。
+
+### 9.4 本轮验证记录
+
+- `service_tcp_test.py`：注册 → profile → meal 幂等/冲突 → recent → gap 恒等 → weekly → patch/version conflict → menu/search → friend request/accept/list → ranking → delete → friend remove，全通过。
+- `agent_service_client_test.py`：Agent `ServiceClient` 以 TCP 模式完成 profile/meal/stats/food/friend/ranking，严格模式下连接失败返回 `source=service_error`，不回退 mock。
+- 迁移：`migrations/base/000→001→foods_seed` + `migrations/add/002→006` 在全新 MySQL 8.4 库、`--default-character-set=utf8mb4` 下逐步执行全部成功；`foods` 中文正常，`meal_records/idempotency_records` 各 25 个分区。
+- 注意：应用插入 `idempotency_records` 时必须显式写 `created_at=NOW()`，否则 MySQL 8.4 在生成列 `created_day` 上可能报 `Incorrect date value: '0000-00-00'`。代码已在 `IdempotencyDao` 处理。

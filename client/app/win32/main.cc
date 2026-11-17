@@ -19,6 +19,10 @@
 
 #include <wrl.h>
 
+#include "client/transport/TcpTransport.h"
+#include "shared/protocol/JsonValue.h"
+#include "shared/protocol/StrictJson.h"
+
 using Microsoft::WRL::ComPtr;
 
 namespace {
@@ -121,6 +125,40 @@ std::wstring ExecutableDir() {
     std::wstring path(buffer);
     const auto slash = path.find_last_of(L"\\/");
     return slash == std::wstring::npos ? std::wstring() : path.substr(0, slash);
+}
+
+std::wstring LocalAppDataDir() {
+    wchar_t buffer[MAX_PATH] = {};
+    const DWORD size = GetEnvironmentVariableW(L"LOCALAPPDATA", buffer, MAX_PATH);
+    return size > 0 ? std::wstring(buffer, size) : ExecutableDir();
+}
+
+std::string ReadUtf8File(const std::wstring& path) {
+    HANDLE file = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                              nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file == INVALID_HANDLE_VALUE) return std::string();
+    LARGE_INTEGER size = {};
+    if (!GetFileSizeEx(file, &size) || size.QuadPart <= 0 || size.QuadPart > 1024 * 1024) {
+        CloseHandle(file);
+        return std::string();
+    }
+    std::string content(static_cast<std::size_t>(size.QuadPart), '\0');
+    DWORD read = 0;
+    const bool ok = ReadFile(file, &content[0], static_cast<DWORD>(content.size()), &read, nullptr) &&
+                    read == content.size();
+    CloseHandle(file);
+    return ok ? content : std::string();
+}
+
+bool WriteUtf8File(const std::wstring& path, const std::string& content) {
+    HANDLE file = CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS,
+                              FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file == INVALID_HANDLE_VALUE) return false;
+    DWORD written = 0;
+    const bool ok = WriteFile(file, content.data(), static_cast<DWORD>(content.size()), &written,
+                              nullptr) && written == content.size();
+    CloseHandle(file);
+    return ok;
 }
 
 bool ReadExact(HANDLE pipe, void* buffer, std::size_t size) {
@@ -251,11 +289,140 @@ class ShellApp {
         return 0;
     }
 
-    void OnIpcPayload(const std::string& json) {
+    void OnIpcPayload(const std::string& json) { PostToWeb(json); }
+
+    void PostToWeb(const std::string& json) {
         if (controller_ == nullptr) return;
         ComPtr<ICoreWebView2> webview;
         if (FAILED(controller_->get_CoreWebView2(&webview)) || webview == nullptr) return;
         webview->PostWebMessageAsJson(Widen(json).c_str());
+    }
+
+    void RouteWebMessage(const std::string& utf8) {
+        const auto parsed = protocol::ParseStrictJson(utf8);
+        if (parsed.ok && parsed.value.IsObject()) {
+            const protocol::JsonValue* type = parsed.value.Find("type");
+            if (type != nullptr && type->IsString() && type->AsString() == "service.login") {
+                HandleServiceLogin(parsed.value);
+                return;
+            }
+        }
+        ipc_.Send(utf8);
+    }
+
+    static std::string StringField(const protocol::JsonValue& object, const char* key) {
+        const protocol::JsonValue* value = object.Find(key);
+        return value != nullptr && value->IsString() ? value->AsString() : std::string();
+    }
+
+    void HandleServiceLogin(const protocol::JsonValue& message) {
+        const std::string host = StringField(message, "host");
+        const std::string login_id = StringField(message, "login_id");
+        const std::string password = StringField(message, "password");
+        const std::string display_name = StringField(message, "display_name");
+        const protocol::JsonValue* port_value = message.Find("port");
+        std::uint16_t port = 9443;
+        if (port_value != nullptr && port_value->IsInt() && port_value->AsInt() > 0 &&
+            port_value->AsInt() <= 65535) {
+            port = static_cast<std::uint16_t>(port_value->AsInt());
+        }
+        const protocol::JsonValue* register_value = message.Find("register");
+        const bool register_account = register_value != nullptr && register_value->AsBool();
+        if (host.empty() || login_id.empty() || password.empty()) {
+            ReplyLogin(message, false, "host/login_id/password are required");
+            return;
+        }
+
+        client::TransportConfig config;
+        config.host = host;
+        config.port = port;
+        config.login_id = login_id;
+        config.password = password;
+        config.display_name = display_name.empty() ? login_id : display_name;
+        config.register_account = register_account;
+        config.device_id = "eat-app";
+        config.client_version = "windows-app/1";
+
+        client::TcpTransport transport(config);
+        std::string error;
+        if (!transport.Start(error)) {
+            ReplyLogin(message, false, "login_failed:" + error);
+            return;
+        }
+        session_.host = host;
+        session_.port = port;
+        session_.user_key = transport.user_key();
+        session_.access_token = transport.access_token();
+        transport.Stop();
+        if (session_.access_token.empty() || session_.user_key.empty()) {
+            ReplyLogin(message, false, "login_returned_empty_session");
+            return;
+        }
+        SaveSession();
+        ApplySessionEnvironment();
+        NotifyAgentService();
+        ReplyLogin(message, true, "");
+    }
+
+    void ReplyLogin(const protocol::JsonValue& message, bool ok, const std::string& error) {
+        protocol::JsonValue response = protocol::JsonValue::Object();
+        response.Set("type", protocol::JsonValue::String("service.login.response"));
+        const protocol::JsonValue* id = message.Find("id");
+        if (id != nullptr) response.Set("id", *id);
+        response.Set("ok", protocol::JsonValue::Bool(ok));
+        response.Set("user_key", protocol::JsonValue::String(session_.user_key));
+        response.Set("message", protocol::JsonValue::String(error));
+        PostToWeb(response.Dump());
+    }
+
+    void ApplySessionEnvironment() {
+        if (session_.access_token.empty()) return;
+        SetEnvironmentVariableW(L"EAT_TCP_HOST", Widen(session_.host).c_str());
+        SetEnvironmentVariableW(L"EAT_TCP_PORT", std::to_wstring(session_.port).c_str());
+        SetEnvironmentVariableW(L"EAT_USER_KEY", Widen(session_.user_key).c_str());
+        SetEnvironmentVariableW(L"EAT_SERVER_TOKEN", Widen(session_.access_token).c_str());
+        SetEnvironmentVariableW(L"EAT_SERVICE_REQUIRED", L"1");
+    }
+
+    void NotifyAgentService() {
+        if (session_.access_token.empty()) return;
+        protocol::JsonValue configure = protocol::JsonValue::Object();
+        configure.Set("type", protocol::JsonValue::String("service.configure"));
+        configure.Set("host", protocol::JsonValue::String(session_.host));
+        configure.Set("port", protocol::JsonValue::Int(session_.port));
+        configure.Set("user_key", protocol::JsonValue::String(session_.user_key));
+        configure.Set("access_token", protocol::JsonValue::String(session_.access_token));
+        ipc_.Send(configure.Dump());
+    }
+
+    std::wstring SessionPath() const {
+        return LocalAppDataDir() + L"\\EatApp\\session.json";
+    }
+
+    void LoadSession() {
+        const std::string raw = ReadUtf8File(SessionPath());
+        if (raw.empty()) return;
+        const auto parsed = protocol::ParseStrictJson(raw);
+        if (!parsed.ok || !parsed.value.IsObject()) return;
+        session_.host = StringField(parsed.value, "host");
+        session_.user_key = StringField(parsed.value, "user_key");
+        session_.access_token = StringField(parsed.value, "access_token");
+        const protocol::JsonValue* port_value = parsed.value.Find("port");
+        if (port_value != nullptr && port_value->IsInt() && port_value->AsInt() > 0 &&
+            port_value->AsInt() <= 65535) {
+            session_.port = static_cast<std::uint16_t>(port_value->AsInt());
+        }
+    }
+
+    void SaveSession() {
+        const std::wstring dir = LocalAppDataDir() + L"\\EatApp";
+        CreateDirectoryW(dir.c_str(), nullptr);
+        protocol::JsonValue root = protocol::JsonValue::Object();
+        root.Set("host", protocol::JsonValue::String(session_.host));
+        root.Set("port", protocol::JsonValue::Int(session_.port));
+        root.Set("user_key", protocol::JsonValue::String(session_.user_key));
+        root.Set("access_token", protocol::JsonValue::String(session_.access_token));
+        WriteUtf8File(SessionPath(), root.Dump());
     }
 
  private:
@@ -306,6 +473,7 @@ class ShellApp {
 
     void Setup() {
         AddTrayIcon();
+        LoadSession();
         StartAgent();
         CreateWebView();
     }
@@ -327,6 +495,12 @@ class ShellApp {
         const std::wstring agent_path = dir + L"\\eat-agent.exe";
         SetEnvironmentVariableW(L"EAT_APP_SID", L"local");
         SetEnvironmentVariableW(L"EAT_APP_INSTANCE", L"1");
+        const std::wstring app_dir = LocalAppDataDir() + L"\\EatApp";
+        const std::wstring data_dir = app_dir + L"\\data";
+        CreateDirectoryW(app_dir.c_str(), nullptr);
+        CreateDirectoryW(data_dir.c_str(), nullptr);
+        SetEnvironmentVariableW(L"EAT_AGENT_DATA_DIR", data_dir.c_str());
+        ApplySessionEnvironment();
 
         STARTUPINFOW startup = {};
         startup.cb = sizeof(startup);
@@ -338,6 +512,7 @@ class ShellApp {
             agent_process_ = process.hProcess;
         }
         ipc_.Start(L"\\\\.\\pipe\\EatAppAgent-local-1", window_);
+        NotifyAgentService();
     }
 
     void CreateWebView() {
@@ -367,7 +542,7 @@ class ShellApp {
                                     if (!utf8.empty() && utf8.back() == '\0') {
                                         utf8.pop_back();
                                     }
-                                    ipc_.Send(utf8);
+                                    self->RouteWebMessage(utf8);
                                     CoTaskMemFree(json);
                                 }
                                 return S_OK;
@@ -439,6 +614,14 @@ class ShellApp {
     ICoreWebView2Controller* controller_ = nullptr;
     IpcClient ipc_;
     HANDLE agent_process_ = nullptr;
+
+    struct Session {
+        std::string host = "127.0.0.1";
+        std::uint16_t port = 9443;
+        std::string user_key;
+        std::string access_token;
+    };
+    Session session_;
 };
 
 }  // namespace

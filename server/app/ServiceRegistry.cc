@@ -1,8 +1,10 @@
 #include "server/app/ServiceRegistry.h"
 
 #include <utility>
+#include <algorithm>
 
 #include "server/app/Log.h"
+#include "shared/protocol/methods.h"
 
 namespace eat::app {
 namespace {
@@ -37,6 +39,10 @@ ServiceRegistry::ServiceRegistry(const Config& config, tcp::FrameDispatcher& dis
     : config_(config), dispatcher_(dispatcher) {}
 
 ServiceRegistry::~ServiceRegistry() {
+    cache_.reset();
+    cache_keys_.reset();
+    if (redis_) redis_->Shutdown();
+    redis_.reset();
     if (pool_) pool_->Shutdown();
 }
 
@@ -51,7 +57,35 @@ bool ServiceRegistry::Init(std::string& error) {
     }
     identity_ = std::make_unique<identity::IdentityService>(*pool_);
     verifier_ = std::make_unique<identity::TokenVerifier>(identity_.get());
-    profile_ = std::make_unique<business::ProfileService>(*pool_, *identity_);
+
+    db::RedisClient::Options redis_options;
+    redis_options.pool_size = static_cast<int>(
+        std::min<std::uint32_t>(config_.business_threads, 8));
+    redis_options.connect_timeout_ms =
+        static_cast<int>(config_.cache_connect_timeout_ms);
+    redis_options.io_timeout_ms = static_cast<int>(config_.cache_get_timeout_ms);
+    redis_options.password = config_.redis_password;
+    redis_ = std::make_unique<db::RedisClient>();
+    std::string redis_error;
+    if (redis_->Init(config_.redis_host, config_.redis_port, redis_options, redis_error)) {
+        cache_keys_ = std::make_unique<cache::CacheKeyBuilder>("v1", config_.cache_gen);
+        cache::CacheOptions cache_options;
+        cache_options.breaker_failures = config_.cache_breaker_failures;
+        cache_options.breaker_open_ms = config_.cache_breaker_open_ms;
+        cache_ = std::make_unique<cache::CacheClient>(*redis_, *cache_keys_, cache_options);
+    } else {
+        Log::Write(LogLevel::Warn, "cache", "redis_unavailable:" + redis_error);
+        redis_->Shutdown();
+        redis_.reset();
+    }
+
+    cache::CacheClient* cache = cache_.get();
+    profile_ = std::make_unique<business::ProfileService>(*pool_, *identity_, cache);
+    meal_ = std::make_unique<business::MealService>(*pool_, cache);
+    stats_ = std::make_unique<business::StatsService>(*pool_, cache);
+    food_ = std::make_unique<business::FoodService>(*pool_, cache);
+    friend_ = std::make_unique<business::FriendService>(*pool_, cache);
+    ranking_ = std::make_unique<business::RankingService>(*pool_);
     return true;
 }
 
@@ -99,7 +133,79 @@ void ServiceRegistry::RegisterHandlers() {
                                 std::string& message) {
                              return HandleAuthRegister(context, params, data, error, message);
                          });
+    RegisterBusiness(protocol::method::kMealCreate,
+                     [this](const std::string& key, const protocol::JsonValue& params) {
+                         return meal_->Create(key, params);
+                     });
+    RegisterBusiness(protocol::method::kMealRecent,
+                     [this](const std::string& key, const protocol::JsonValue& params) {
+                         return meal_->Recent(key, params);
+                     });
+    RegisterBusiness(protocol::method::kMealPatch,
+                     [this](const std::string& key, const protocol::JsonValue& params) {
+                         return meal_->Patch(key, params);
+                     });
+    RegisterBusiness(protocol::method::kMealDelete,
+                     [this](const std::string& key, const protocol::JsonValue& params) {
+                         return meal_->Delete(key, params);
+                     });
+    RegisterBusiness(protocol::method::kStatsNutritionGap,
+                     [this](const std::string& key, const protocol::JsonValue& params) {
+                         return stats_->NutritionGap(key, params);
+                     });
+    RegisterBusiness(protocol::method::kStatsWeekly,
+                     [this](const std::string& key, const protocol::JsonValue& params) {
+                         return stats_->Weekly(key, params);
+                     });
+    RegisterBusiness(protocol::method::kFoodMenu,
+                     [this](const std::string& key, const protocol::JsonValue& params) {
+                         return food_->Menu(key, params);
+                     });
+    RegisterBusiness(protocol::method::kFoodSearch,
+                     [this](const std::string& key, const protocol::JsonValue& params) {
+                         return food_->Search(key, params);
+                     });
+    RegisterBusiness(protocol::method::kFriendList,
+                     [this](const std::string& key, const protocol::JsonValue& params) {
+                         return friend_->List(key, params);
+                     });
+    RegisterBusiness(protocol::method::kFriendRequest,
+                     [this](const std::string& key, const protocol::JsonValue& params) {
+                         return friend_->Request(key, params);
+                     });
+    RegisterBusiness(protocol::method::kFriendAccept,
+                     [this](const std::string& key, const protocol::JsonValue& params) {
+                         return friend_->Accept(key, params);
+                     });
+    RegisterBusiness(protocol::method::kFriendRemove,
+                     [this](const std::string& key, const protocol::JsonValue& params) {
+                         return friend_->Remove(key, params);
+                     });
+    RegisterBusiness(protocol::method::kFriendBlock,
+                     [this](const std::string& key, const protocol::JsonValue& params) {
+                         return friend_->Block(key, params);
+                     });
+    RegisterBusiness(protocol::method::kRankingFriends,
+                     [this](const std::string& key, const protocol::JsonValue& params) {
+                         return ranking_->Friends(key, params);
+                     });
     Log::Write(LogLevel::Info, "service", "handlers_registered");
+}
+
+void ServiceRegistry::RegisterBusiness(const char* method, ServiceHandler handler) {
+    dispatcher_.Register(
+        method, [handler](tcp::ConnContext& context, const protocol::JsonValue& params,
+                          protocol::JsonValue& data, protocol::ErrorCode& error,
+                          std::string& message) {
+            const business::BusinessResult result = handler(context.user_key, params);
+            if (!result.ok) {
+                error = result.code;
+                message = result.message;
+                return false;
+            }
+            data = result.data;
+            return true;
+        });
 }
 
 bool ServiceRegistry::HandleHandshake(tcp::ConnContext& context, const protocol::JsonValue& body,

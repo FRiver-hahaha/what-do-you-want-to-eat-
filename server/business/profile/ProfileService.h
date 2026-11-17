@@ -8,6 +8,10 @@
 #include "shared/protocol/JsonValue.h"
 #include "shared/protocol/protocol.h"
 
+namespace eat::cache {
+class CacheClient;
+}
+
 namespace eat::business {
 
 struct ProfileResult {
@@ -19,8 +23,9 @@ struct ProfileResult {
 
 class ProfileService {
  public:
-    ProfileService(db::MySQLPool& pool, identity::IdentityService& identity)
-        : pool_(pool), identity_(identity) {}
+    ProfileService(db::MySQLPool& pool, identity::IdentityService& identity,
+                   cache::CacheClient* cache = nullptr)
+        : pool_(pool), identity_(identity), cache_(cache) {}
 
     ProfileResult Get(const std::string& user_key);
     ProfileResult Patch(const std::string& user_key, const protocol::JsonValue& body);
@@ -28,6 +33,7 @@ class ProfileService {
  private:
     db::MySQLPool& pool_;
     identity::IdentityService& identity_;
+    cache::CacheClient* cache_ = nullptr;
 };
 
 }  // namespace eat::business

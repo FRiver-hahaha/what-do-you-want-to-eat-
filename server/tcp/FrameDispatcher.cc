@@ -124,6 +124,7 @@ DispatchOutcome FrameDispatcher::HandleRequest(ConnContext& context,
     }
     if (protocol::method::IsWriteMethod(name)) {
         const protocol::JsonValue* idem = sanitized.Find("idem_key");
+        if (idem == nullptr) idem = sanitized.Find("idempotency_key");
         if (idem == nullptr || !idem->IsString() || idem->AsString().empty()) {
             return ErrorOutcome(protocol::ErrorCode::InvalidParams, "missing_idem_key", false);
         }
