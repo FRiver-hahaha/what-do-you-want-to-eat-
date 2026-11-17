@@ -44,7 +44,14 @@ cache_connect_timeout_ms = 50
 cache_breaker_failures = 3
 cache_breaker_open_ms = 5000
 cache_gen = 1
+
+captcha_required = 1
+captcha_ttl_s = 120
 ```
+
+- `captcha_required = 1` 时，注册和登录都必须携带服务端下发的图形验证码。
+- 验证码通过未认证方法 `auth.captcha` 获取，一次性使用，默认 120 秒过期。
+- 批量部署/自动化脚本可临时设为 `0`；正式环境建议保持 `1`。
 
 - 缓存键前缀 `eat:v1:<cache_gen>:`。
 - 档案、餐记录、好友写操作会删除相关键；`menu/search` 使用 TTL 抖动。

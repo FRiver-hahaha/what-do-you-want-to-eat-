@@ -37,6 +37,12 @@ std::string BuildHandshakeBody(const TransportConfig& config) {
         if (config.register_account) {
             body.Set("action", protocol::JsonValue::String("register"));
         }
+        if (!config.captcha_id.empty()) {
+            body.Set("captcha_id", protocol::JsonValue::String(config.captcha_id));
+        }
+        if (!config.captcha_code.empty()) {
+            body.Set("captcha_code", protocol::JsonValue::String(config.captcha_code));
+        }
     } else {
         body.Set("access_token", protocol::JsonValue::String(std::string()));
     }
@@ -105,7 +111,7 @@ bool TcpTransport::Connected() const {
     return connected_.load();
 }
 
-bool TcpTransport::ConnectOnce(std::string& error) {
+bool TcpTransport::ConnectSocket(std::string& error) {
 #ifdef _WIN32
     addrinfo hints{};
     hints.ai_family = AF_UNSPEC;
@@ -159,12 +165,40 @@ bool TcpTransport::ConnectOnce(std::string& error) {
         codec_.Reset();
     }
     connected_.store(true);
+    connect_cv_.notify_all();
+    return true;
+}
 
+bool TcpTransport::ConnectOnce(std::string& error) {
+    if (!ConnectSocket(error)) return false;
     if (!Handshake(error)) {
         CloseSocket();
         return false;
     }
-    connect_cv_.notify_all();
+    return true;
+}
+
+bool TcpTransport::StartForCaptcha(std::string& error) {
+#ifdef _WIN32
+    WSADATA data;
+    if (WSAStartup(MAKEWORD(2, 2), &data) != 0) {
+        error = "wsa_startup_failed";
+        return false;
+    }
+#endif
+    running_.store(true);
+    read_thread_ = std::thread([this] { ReadLoop(); });
+    if (!ConnectSocket(error)) {
+        running_.store(false);
+        connect_cv_.notify_all();
+        CloseSocket();
+        FailAllPending();
+        if (read_thread_.joinable()) read_thread_.join();
+#ifdef _WIN32
+        WSACleanup();
+#endif
+        return false;
+    }
     return true;
 }
 
@@ -191,7 +225,15 @@ bool TcpTransport::Handshake(std::string& error) {
         return false;
     }
     if (pending->frame.header.frame_type != protocol::FrameType::HandshakeResp) {
-        error = "handshake_rejected";
+        const auto rejected = protocol::ParseStrictJson(pending->frame.body);
+        if (rejected.ok && rejected.value.IsObject()) {
+            const protocol::JsonValue* detail = rejected.value.Find("message");
+            if (detail == nullptr) detail = rejected.value.Find("reason");
+            if (detail != nullptr && detail->IsString() && !detail->AsString().empty()) {
+                error = detail->AsString();
+            }
+        }
+        if (error.empty() || error == "handshake_rejected") error = "handshake_rejected";
         return false;
     }
     const auto parsed = protocol::ParseStrictJson(pending->frame.body);

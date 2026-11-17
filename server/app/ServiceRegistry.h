@@ -16,6 +16,7 @@
 #include "server/cache/CacheKeyBuilder.h"
 #include "server/database/MySQLPool.h"
 #include "server/database/RedisClient.h"
+#include "server/identity/CaptchaStore.h"
 #include "server/identity/IdentityService.h"
 #include "server/identity/TokenVerifier.h"
 #include "server/tcp/FrameDispatcher.h"
@@ -63,6 +64,7 @@ class ServiceRegistry {
     std::unique_ptr<cache::CacheClient> cache_;
     std::unique_ptr<identity::IdentityService> identity_;
     std::unique_ptr<identity::TokenVerifier> verifier_;
+    std::unique_ptr<identity::CaptchaStore> captcha_;
     std::unique_ptr<business::ProfileService> profile_;
     std::unique_ptr<business::MealService> meal_;
     std::unique_ptr<business::StatsService> stats_;

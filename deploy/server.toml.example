@@ -32,6 +32,8 @@ handshake_per_ip_per_s = 5
 handshake_per_ip_burst = 10
 handshake_global_per_s = 3000
 login_per_min = 5
+captcha_required = 1
+captcha_ttl_s = 120
 
 cache_get_timeout_ms = 20
 cache_connect_timeout_ms = 50

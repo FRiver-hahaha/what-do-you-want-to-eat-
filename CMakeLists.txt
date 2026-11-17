@@ -39,6 +39,7 @@ add_library(eat_server_core STATIC
     server/cache/SingleFlight.cc
     server/cache/TtlPolicy.cc
     server/identity/PasswordHasher.cc
+    server/identity/CaptchaStore.cc
     server/identity/SessionRegistry.cc
     server/identity/TokenVerifier.cc
     server/tcp/ConnContext.cc

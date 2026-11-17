@@ -62,6 +62,8 @@ bool Assign(Config& config, const std::string& key, const std::string& value) {
     if (key == "handshake_per_ip_burst") { std::uint64_t v; if (!need_number(v)) return false; config.handshake_per_ip_burst = static_cast<std::uint32_t>(v); return true; }
     if (key == "handshake_global_per_s") { std::uint64_t v; if (!need_number(v)) return false; config.handshake_global_per_s = static_cast<std::uint32_t>(v); return true; }
     if (key == "login_per_min") { std::uint64_t v; if (!need_number(v)) return false; config.login_per_min = static_cast<std::uint32_t>(v); return true; }
+    if (key == "captcha_required") { std::uint64_t v; if (!need_number(v)) return false; config.captcha_required = v != 0; return true; }
+    if (key == "captcha_ttl_s") { std::uint64_t v; if (!need_number(v)) return false; config.captcha_ttl_s = static_cast<std::uint32_t>(v); return true; }
     if (key == "cache_get_timeout_ms") { std::uint64_t v; if (!need_number(v)) return false; config.cache_get_timeout_ms = static_cast<std::uint32_t>(v); return true; }
     if (key == "cache_connect_timeout_ms") { std::uint64_t v; if (!need_number(v)) return false; config.cache_connect_timeout_ms = static_cast<std::uint32_t>(v); return true; }
     if (key == "cache_breaker_failures") { std::uint64_t v; if (!need_number(v)) return false; config.cache_breaker_failures = static_cast<std::uint32_t>(v); return true; }

@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
+import re
 import sys
 from typing import Any
 
@@ -22,12 +23,23 @@ def check(condition: bool, message: str) -> None:
         raise AssertionError(message)
 
 
+def fetch_captcha(client: TcpFrameClient) -> tuple[str, str]:
+    result = client.request("auth.captcha", {})
+    check(result.get("ok"), f"auth.captcha failed: {result}")
+    data = result.get("data") or {}
+    code = "".join(re.findall(r">([A-Z2-9])</text>", data.get("svg", "")))
+    check(len(code) == 4, f"captcha svg parse failed: {data}")
+    return str(data.get("captcha_id") or ""), code
+
+
 def register(host: str, port: int, suffix: str) -> TcpFrameClient:
     client = TcpFrameClient(host, port, timeout=5.0)
     client.connect()
     login_id = f"routea_{suffix}_{int(datetime.datetime.now().timestamp() * 1000)}@test.local"
+    captcha_id, captcha_code = fetch_captcha(client)
     handshake = client.handshake(login_id=login_id, password=PASSWORD, register=True,
-                                 display_name=f"RouteA {suffix}")
+                                 display_name=f"RouteA {suffix}",
+                                 captcha_id=captcha_id, captcha_code=captcha_code)
     check(bool(handshake.get("user_key")), "handshake returned no user_key")
     return client
 

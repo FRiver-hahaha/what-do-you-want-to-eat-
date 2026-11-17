@@ -306,6 +306,10 @@ class ShellApp {
                 HandleServiceLogin(parsed.value);
                 return;
             }
+            if (type != nullptr && type->IsString() && type->AsString() == "service.captcha") {
+                HandleServiceCaptcha(parsed.value);
+                return;
+            }
         }
         ipc_.Send(utf8);
     }
@@ -321,6 +325,8 @@ class ShellApp {
         config.login_id = StringField(message, "login_id");
         config.password = StringField(message, "password");
         config.display_name = StringField(message, "display_name");
+        config.captcha_id = StringField(message, "captcha_id");
+        config.captcha_code = StringField(message, "captcha_code");
         config.present = true;
         const protocol::JsonValue* port_value = message.Find("port");
         if (port_value != nullptr && port_value->IsInt() && port_value->AsInt() > 0 &&
@@ -352,6 +358,8 @@ class ShellApp {
         transport_config.display_name =
             config.display_name.empty() ? config.login_id : config.display_name;
         transport_config.register_account = config.register_account;
+        transport_config.captcha_id = config.captcha_id;
+        transport_config.captcha_code = config.captcha_code;
         transport_config.device_id = "eat-app";
         transport_config.client_version = "windows-app/1";
 
@@ -391,6 +399,8 @@ class ShellApp {
             config.login_id = StringField(parsed.value, "login_id");
             config.password = StringField(parsed.value, "password");
             config.display_name = StringField(parsed.value, "display_name");
+            config.captcha_id = StringField(parsed.value, "captcha_id");
+            config.captcha_code = StringField(parsed.value, "captcha_code");
             config.present = true;
             const protocol::JsonValue* port_value = parsed.value.Find("port");
             if (port_value != nullptr && port_value->IsInt() && port_value->AsInt() > 0 &&
@@ -421,6 +431,59 @@ class ShellApp {
         if (id != nullptr) response.Set("id", *id);
         response.Set("ok", protocol::JsonValue::Bool(ok));
         response.Set("user_key", protocol::JsonValue::String(session_.user_key));
+        response.Set("message", protocol::JsonValue::String(error));
+        PostToWeb(response.Dump());
+    }
+
+    void HandleServiceCaptcha(const protocol::JsonValue& message) {
+        const std::string host = StringField(message, "host");
+        const protocol::JsonValue* port_value = message.Find("port");
+        std::uint16_t port = 9443;
+        if (port_value != nullptr && port_value->IsInt() && port_value->AsInt() > 0 &&
+            port_value->AsInt() <= 65535) {
+            port = static_cast<std::uint16_t>(port_value->AsInt());
+        }
+        if (host.empty()) {
+            ReplyCaptcha(message, false, "", "", "host is required");
+            return;
+        }
+        client::TransportConfig config;
+        config.host = host;
+        config.port = port;
+        config.device_id = "eat-app";
+        config.client_version = "windows-app/1";
+        client::TcpTransport transport(config);
+        std::string transport_error;
+        if (!transport.StartForCaptcha(transport_error)) {
+            ReplyCaptcha(message, false, "", "", "captcha_connect_failed:" + transport_error);
+            return;
+        }
+        protocol::JsonValue params = protocol::JsonValue::Object();
+        protocol::JsonValue data;
+        protocol::ErrorCode error_code = protocol::ErrorCode::Ok;
+        std::string error_message;
+        const bool ok = transport.Request("auth.captcha", params, data, error_code,
+                                          error_message, 3000);
+        transport.Stop();
+        if (!ok) {
+            ReplyCaptcha(message, false, "", "",
+                         error_message.empty() ? "captcha_failed" : error_message);
+            return;
+        }
+        ReplyCaptcha(message, true, StringField(data, "captcha_id"),
+                     StringField(data, "svg"), "");
+    }
+
+    void ReplyCaptcha(const protocol::JsonValue& message, bool ok,
+                      const std::string& captcha_id, const std::string& svg,
+                      const std::string& error) {
+        protocol::JsonValue response = protocol::JsonValue::Object();
+        response.Set("type", protocol::JsonValue::String("service.captcha.response"));
+        const protocol::JsonValue* id = message.Find("id");
+        if (id != nullptr) response.Set("id", *id);
+        response.Set("ok", protocol::JsonValue::Bool(ok));
+        response.Set("captcha_id", protocol::JsonValue::String(captcha_id));
+        response.Set("svg", protocol::JsonValue::String(svg));
         response.Set("message", protocol::JsonValue::String(error));
         PostToWeb(response.Dump());
     }
@@ -673,6 +736,8 @@ class ShellApp {
         std::string login_id;
         std::string password;
         std::string display_name;
+        std::string captcha_id;
+        std::string captcha_code;
         bool register_account = false;
     };
 

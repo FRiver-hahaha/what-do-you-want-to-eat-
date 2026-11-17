@@ -68,6 +68,41 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build-windows-oneclick.ps1 -S
 首次执行需要外网，耗时主要在 vcpkg 安装 OpenSSL 与 PyInstaller 打包。
 脚本尚未在 Windows 上实测；如果某一步失败，按提示的手动步骤（第 3–5 节）继续即可。
 
+### 2.2 生成安装包（桌面快捷方式）
+
+安装 [Inno Setup 6](https://jrsoftware.org/isdl.php) 后执行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-installer.ps1
+```
+
+产物：
+
+```text
+dist\EatAppSetup-x64.exe
+```
+
+用户双击安装后：
+
+- 程序安装到 `%LOCALAPPDATA%\EatApp`
+- 桌面创建 **Eat App** 快捷方式
+- 开始菜单创建同名入口
+- 安装完成可直接勾选“启动 Eat App”
+
+之后用户只需要双击桌面快捷方式，不需要命令行、不需要改 JSON。
+
+### 2.3 登录与验证码
+
+登录界面包含：
+
+- 服务器地址（默认预填当前服务端 IP，可修改）
+- 端口（默认 `9443`）
+- 账号、密码
+- 图形验证码（点击图片刷新）
+- 首次使用勾选“注册新账号”
+
+验证码由服务端 `auth.captcha` 生成，一次性、默认 120 秒过期；注册和登录都会校验。
+
 ## 3. 编译控制台客户端 `client_smoke.exe`
 
 最简单的方式（不需要 CMake/OpenSSL）：
@@ -187,6 +222,7 @@ Test-NetConnection <服务端IP> -Port 9443
 - 服务器地址：Linux 局域网 IP，例如 `192.168.1.50`
 - 端口：`9443`
 - 账号、密码
+- 图形验证码：输入右侧 4 位字符，点击图片可刷新
 - 首次使用勾选“注册新账号”
 
 点击“连接”后，壳会完成 TCP 握手、保存会话到 `%LOCALAPPDATA%\EatApp\session.json`、注入 TCP 环境变量并启动 Agent。下次启动自动进入，不再询问。

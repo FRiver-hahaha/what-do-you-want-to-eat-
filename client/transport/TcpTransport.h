@@ -22,6 +22,8 @@ struct TransportConfig {
     std::string password;
     std::string display_name;
     bool register_account = false;
+    std::string captcha_id;
+    std::string captcha_code;
     std::string device_id;
     std::string client_version = "windows-app/1";
     std::uint32_t heartbeat_s = 60;
@@ -35,6 +37,7 @@ class TcpTransport {
     ~TcpTransport();
 
     bool Start(std::string& error);
+    bool StartForCaptcha(std::string& error);
     void Stop();
     bool Connected() const;
 
@@ -55,6 +58,7 @@ class TcpTransport {
     };
 
     bool ConnectOnce(std::string& error);
+    bool ConnectSocket(std::string& error);
     bool Handshake(std::string& error);
     void ReadLoop();
     void HeartbeatLoop();

@@ -309,6 +309,9 @@ class AgentHTTPRequestHandler(BaseHTTPRequestHandler):
         if path == "/api/service/login" and method == "POST":
             return 200, app.login_service(body)
 
+        if path == "/api/service/captcha" and method == "POST":
+            return 200, app.captcha(body)
+
         raise AgentError(404, "not_found", f"接口不存在：{method} {path}")
 
 

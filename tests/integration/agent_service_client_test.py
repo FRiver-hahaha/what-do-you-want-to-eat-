@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import re
 import sys
 
 from agent.data.service_client import ServiceClient
@@ -16,6 +17,15 @@ def check(condition: bool, message: str) -> None:
         raise AssertionError(message)
 
 
+def fetch_captcha(client: TcpFrameClient) -> tuple[str, str]:
+    result = client.request("auth.captcha", {})
+    check(result.get("ok"), f"auth.captcha failed: {result}")
+    data = result.get("data") or {}
+    code = "".join(re.findall(r">([A-Z2-9])</text>", data.get("svg", "")))
+    check(len(code) == 4, f"captcha svg parse failed: {data}")
+    return str(data.get("captcha_id") or ""), code
+
+
 def main() -> int:
     host = sys.argv[1] if len(sys.argv) > 1 else "127.0.0.1"
     port = int(sys.argv[2]) if len(sys.argv) > 2 else 19443
@@ -23,8 +33,10 @@ def main() -> int:
     login_id = f"agenttcp_{int(datetime.datetime.now().timestamp() * 1000)}@test.local"
     bootstrap = TcpFrameClient(host, port, timeout=5.0)
     bootstrap.connect()
+    captcha_id, captcha_code = fetch_captcha(bootstrap)
     handshake = bootstrap.handshake(login_id=login_id, password=PASSWORD, register=True,
-                                    display_name="Agent TCP")
+                                    display_name="Agent TCP",
+                                    captcha_id=captcha_id, captcha_code=captcha_code)
     token = str(handshake.get("access_token") or "")
     user_key = str(handshake.get("user_key") or "")
     check(bool(token) and bool(user_key), "handshake did not return a session")

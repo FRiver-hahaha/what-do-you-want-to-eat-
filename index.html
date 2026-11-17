@@ -30,6 +30,10 @@
         </div>
         <label for="serviceLoginId">账号<input id="serviceLoginId" type="text" placeholder="win01@test.local" autocomplete="username" required></label>
         <label for="servicePassword">密码<input id="servicePassword" type="password" placeholder="至少 8 位" autocomplete="current-password" required></label>
+        <div class="service-login-captcha">
+          <label for="serviceCaptchaCode">验证码<input id="serviceCaptchaCode" type="text" maxlength="4" placeholder="输入右侧 4 位" autocomplete="off" required></label>
+          <button class="service-login-captcha-image" id="serviceCaptchaRefresh" type="button" title="点击刷新验证码">加载中…</button>
+        </div>
         <label class="service-login-check"><input id="serviceRegister" type="checkbox"> 首次使用，注册新账号</label>
         <div class="service-login-error" id="serviceLoginError" hidden></div>
         <button class="button primary-button" id="serviceLoginButton" type="submit">连接</button>

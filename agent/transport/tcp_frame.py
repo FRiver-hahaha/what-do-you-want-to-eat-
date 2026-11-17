@@ -137,7 +137,8 @@ class TcpFrameClient:
     def handshake(self, *, access_token: str = "", login_id: str = "",
                   password: str = "", register: bool = False,
                   display_name: str = "", device_id: str = "eat-agent",
-                  client_version: str = "1.0.0") -> dict[str, Any]:
+                  client_version: str = "1.0.0",
+                  captcha_id: str = "", captcha_code: str = "") -> dict[str, Any]:
         with self._lock:
             request_id = self._next_id
             self._next_id += 1
@@ -150,6 +151,10 @@ class TcpFrameClient:
                              "display_name": display_name})
                 if register:
                     body["action"] = "register"
+                if captcha_id:
+                    body["captcha_id"] = captcha_id
+                if captcha_code:
+                    body["captcha_code"] = captcha_code
             self._send(FRAME_HANDSHAKE_REQ, request_id, body)
             frame_type, _, error, raw = self._read_frame()
             parsed = json.loads(raw.decode("utf-8")) if raw else {}

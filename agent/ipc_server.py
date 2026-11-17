@@ -102,6 +102,8 @@ def _service_request(app: AgentApp, path: str, init: dict[str, Any]) -> dict[str
         return app.service.status()
     if route == "/api/service/login" and method == "POST":
         return app.login_service(body)
+    if route == "/api/service/captcha" and method == "POST":
+        return app.captcha(body)
     raise ValueError(f"unknown_path:{route}")
 
 

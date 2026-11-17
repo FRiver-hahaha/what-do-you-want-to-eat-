@@ -2009,11 +2009,14 @@ function initServiceLogin() {
   const portInput = document.getElementById("servicePort");
   const loginInput = document.getElementById("serviceLoginId");
   const passwordInput = document.getElementById("servicePassword");
+  const captchaInput = document.getElementById("serviceCaptchaCode");
+  const captchaImage = document.getElementById("serviceCaptchaRefresh");
   const registerInput = document.getElementById("serviceRegister");
   const errorBox = document.getElementById("serviceLoginError");
   const button = document.getElementById("serviceLoginButton");
+  let captchaId = "";
 
-  hostInput.value = localStorage.getItem("eat-server-host") || hostInput.value;
+  hostInput.value = localStorage.getItem("eat-server-host") || "10.101.17.32";
   loginInput.value = localStorage.getItem("eat-server-login") || loginInput.value;
 
   const showError = message => {
@@ -2021,19 +2024,68 @@ function initServiceLogin() {
     errorBox.textContent = message || "";
   };
 
+  const loginErrorText = raw => {
+    const text = String(raw || "");
+    if (text.includes("captcha_invalid") || text.includes("captcha_required")) {
+      return "验证码错误或已过期，请重新输入";
+    }
+    if (text.includes("invalid_credentials")) return "账号或密码错误";
+    if (text.includes("login_id_exists")) return "账号已存在，请取消勾选注册";
+    if (text.includes("too_many") || text.includes("locked")) return "登录失败次数过多，请稍后再试";
+    if (text.includes("connect_failed") || text.includes("timeout")) {
+      return "无法连接服务端，请检查地址、端口和 WiFi";
+    }
+    return text.replace(/^login_failed:/, "") || "登录失败";
+  };
+
+  async function refreshCaptcha() {
+    captchaId = "";
+    if (captchaInput) captchaInput.value = "";
+    if (!window.eatTransport || !captchaImage) return;
+    captchaImage.textContent = "加载中…";
+    try {
+      const result = await window.eatTransport.captcha({
+        host: hostInput.value.trim(),
+        port: Number(portInput.value) || 9443
+      });
+      if (!result || result.ok === false || !result.svg) {
+        throw new Error((result && result.message) || "验证码加载失败");
+      }
+      captchaId = result.captcha_id || "";
+      captchaImage.innerHTML = result.svg;
+      if (captchaInput) captchaInput.focus();
+    } catch (error) {
+      captchaImage.textContent = "点击刷新";
+      showError(error && error.message ? error.message : "验证码加载失败");
+    }
+  }
+
+  captchaImage?.addEventListener("click", refreshCaptcha);
+  hostInput?.addEventListener("change", refreshCaptcha);
+  portInput?.addEventListener("change", refreshCaptcha);
+
   (async () => {
     if (!window.eatTransport) return;
     try {
       const status = await window.eatTransport.request("/api/service/status");
-      if (status && status.mode === "tcp" && status.user_key) overlay.hidden = true;
+      if (status && status.mode === "tcp" && status.user_key) {
+        overlay.hidden = true;
+        return;
+      }
     } catch {
       // Agent 尚未启动时保留登录界面
     }
+    refreshCaptcha();
   })();
 
   form.addEventListener("submit", async event => {
     event.preventDefault();
     showError("");
+    if (!captchaId) {
+      showError("请先获取验证码");
+      refreshCaptcha();
+      return;
+    }
     button.disabled = true;
     button.textContent = "连接中…";
     try {
@@ -2042,6 +2094,8 @@ function initServiceLogin() {
         port: Number(portInput.value) || 9443,
         login_id: loginInput.value.trim(),
         password: passwordInput.value,
+        captcha_id: captchaId,
+        captcha_code: captchaInput ? captchaInput.value.trim() : "",
         register: registerInput.checked
       });
       if (!result || result.ok === false) {
@@ -2052,7 +2106,8 @@ function initServiceLogin() {
       overlay.hidden = true;
       window.location.reload();
     } catch (error) {
-      showError(error && error.message ? error.message : "无法连接服务端");
+      showError(loginErrorText(error && error.message ? error.message : ""));
+      refreshCaptcha();
     } finally {
       button.disabled = false;
       button.textContent = "连接";

@@ -40,6 +40,9 @@
       } else if (message.type === "service.login.response") {
         const entry = resolvePending(message.id);
         if (entry) entry.resolve(message);
+      } else if (message.type === "service.captcha.response") {
+        const entry = resolvePending(message.id);
+        if (entry) entry.resolve(message);
       }
     });
   }
@@ -120,6 +123,24 @@
     return response.json();
   }
 
+  function appCaptcha(payload) {
+    const id = `c${sequence++}`;
+    return new Promise((resolve, reject) => {
+      pending.set(id, { onEvent: () => {}, resolve, reject });
+      webview.postMessage({ type: "service.captcha", id, ...payload });
+    });
+  }
+
+  async function browserCaptcha(payload) {
+    const response = await fetch(`${baseUrl}/api/service/captcha`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+  }
+
   window.eatTransport = {
     mode: webview ? "app" : "browser",
     base: baseUrl,
@@ -128,6 +149,9 @@
     },
     login(payload) {
       return webview ? appLogin(payload) : browserLogin(payload);
+    },
+    captcha(payload) {
+      return webview ? appCaptcha(payload) : browserCaptcha(payload);
     },
     async request(path, init) {
       if (webview) return appRequest(path, init);

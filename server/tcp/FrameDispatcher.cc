@@ -91,23 +91,25 @@ DispatchOutcome FrameDispatcher::HandleHandshake(ConnContext& context,
 
 DispatchOutcome FrameDispatcher::HandleRequest(ConnContext& context,
                                                const protocol::Frame& frame) {
-    if (!context.IsAuthenticated()) {
-        context.bad_frame_count += 1;
-        return ErrorOutcome(protocol::ErrorCode::HandshakeRequired, "handshake_required", true);
-    }
     const auto parsed = protocol::ParseStrictJson(frame.body);
     if (!parsed.ok) {
         context.bad_frame_count += 1;
         return ErrorOutcome(protocol::ErrorCode::InvalidJson, parsed.reason, false);
     }
     if (!parsed.value.IsObject()) {
+        context.bad_frame_count += 1;
         return ErrorOutcome(protocol::ErrorCode::InvalidJson, "syntax", false);
     }
     const protocol::JsonValue* method = parsed.value.Find("method");
     if (method == nullptr || !method->IsString()) {
+        context.bad_frame_count += 1;
         return ErrorOutcome(protocol::ErrorCode::InvalidParams, "missing_method", false);
     }
     const std::string name = method->AsString();
+    if (!context.IsAuthenticated() && name != "auth.captcha") {
+        context.bad_frame_count += 1;
+        return ErrorOutcome(protocol::ErrorCode::HandshakeRequired, "handshake_required", true);
+    }
     const auto handler = handlers_.find(name);
     if (handler == handlers_.end()) {
         return ErrorOutcome(protocol::ErrorCode::InvalidParams, "unknown_method", false);

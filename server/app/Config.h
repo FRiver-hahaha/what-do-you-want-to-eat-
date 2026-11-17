@@ -42,6 +42,8 @@ struct Config {
     std::uint32_t handshake_per_ip_burst = 10;
     std::uint32_t handshake_global_per_s = 3000;
     std::uint32_t login_per_min = 5;
+    bool captcha_required = true;
+    std::uint32_t captcha_ttl_s = 120;
 
     std::uint32_t cache_get_timeout_ms = 20;
     std::uint32_t cache_connect_timeout_ms = 50;

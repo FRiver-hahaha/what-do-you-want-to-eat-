@@ -57,6 +57,7 @@ bool ServiceRegistry::Init(std::string& error) {
     }
     identity_ = std::make_unique<identity::IdentityService>(*pool_);
     verifier_ = std::make_unique<identity::TokenVerifier>(identity_.get());
+    captcha_ = std::make_unique<identity::CaptchaStore>(config_.captcha_ttl_s);
 
     db::RedisClient::Options redis_options;
     redis_options.pool_size = static_cast<int>(
@@ -189,6 +190,24 @@ void ServiceRegistry::RegisterHandlers() {
                      [this](const std::string& key, const protocol::JsonValue& params) {
                          return ranking_->Friends(key, params);
                      });
+    dispatcher_.Register(
+        "auth.captcha",
+        [this](tcp::ConnContext&, const protocol::JsonValue&, protocol::JsonValue& data,
+               protocol::ErrorCode& error, std::string& message) {
+            if (captcha_ == nullptr) {
+                error = protocol::ErrorCode::InternalError;
+                message = "captcha_unavailable";
+                return false;
+            }
+            const identity::CaptchaStore::Challenge challenge = captcha_->Issue();
+            protocol::JsonValue out = protocol::JsonValue::Object();
+            out.Set("captcha_id", protocol::JsonValue::String(challenge.id));
+            out.Set("svg", protocol::JsonValue::String(challenge.svg));
+            out.Set("expires_in_s",
+                    protocol::JsonValue::Int(static_cast<std::int64_t>(challenge.expires_in_s)));
+            data = out;
+            return true;
+        });
     Log::Write(LogLevel::Info, "service", "handlers_registered");
 }
 
@@ -236,6 +255,18 @@ bool ServiceRegistry::HandleHandshake(tcp::ConnContext& context, const protocol:
         context.user_key = verified.user_key;
         context.session_id_hash = identity::TokenVerifier::Digest(access_token);
     } else if (!login_id.empty() && !password.empty()) {
+        if (config_.captcha_required && captcha_ != nullptr) {
+            std::string captcha_id;
+            std::string captcha_code;
+            ReadStringField(body, "captcha_id", captcha_id);
+            ReadStringField(body, "captcha_code", captcha_code);
+            if (captcha_id.empty() || captcha_code.empty() ||
+                !captcha_->Verify(captcha_id, captcha_code)) {
+                error = protocol::ErrorCode::InvalidParams;
+                message = "captcha_invalid";
+                return false;
+            }
+        }
         if (action == "register") {
             const identity::IdentityStatus status =
                 identity_->Register(login_id, password, display_name, tokens);

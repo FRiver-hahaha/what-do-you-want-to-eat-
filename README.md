@@ -187,6 +187,14 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build-windows-oneclick.ps1
 
 脚本会生成 `dist\eat-app-windows-x64\`（`eat-app.exe`、`eat-agent.exe`、`web\`、OpenSSL DLL、`Start.bat`）与同名 zip。
 
+生成安装包（创建桌面快捷方式）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-installer.ps1
+```
+
+产物 `dist\EatAppSetup-x64.exe`。用户安装后双击桌面 **Eat App** 快捷方式即可启动，不需要命令行或改 JSON。首次启动在界面填写服务端地址、账号、密码和图形验证码。
+
 构建后的运行目录：
 
 ```text

@@ -84,6 +84,36 @@
   font-size: 12px;
 }
 
+.service-login-captcha {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 148px;
+  gap: 10px;
+  align-items: end;
+}
+
+.service-login-captcha label {
+  margin-bottom: 12px;
+}
+
+.service-login-captcha-image {
+  height: 46px;
+  margin-top: 6px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(31, 38, 57, 0.14);
+  border-radius: 10px;
+  background: #f3f6fb;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.service-login-captcha-image svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .service-login-check input {
   width: 16px;
   height: 16px;
