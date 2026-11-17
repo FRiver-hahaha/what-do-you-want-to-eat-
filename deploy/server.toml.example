@@ -1,0 +1,49 @@
+max_connections = 1000000
+listen_backlog = 65535
+heartbeat_interval_s = 60
+idle_timeout_s = 165
+sub_reactors = 16
+epoll_batch = 2048
+
+max_frame_size = 65536
+max_frame_hard_limit = 262144
+read_buffer_limit = 65576
+send_high_watermark = 262144
+send_low_watermark = 65536
+global_send_high_watermark = 536870912
+slow_consumer_timeout_s = 30
+
+business_threads = 16
+business_queue_capacity = 8192
+task_timeout_ms = 3000
+global_inflight_limit = 1024
+
+db_pool_size = 32
+db_pool_max = 64
+db_borrow_timeout_ms = 200
+db_statement_timeout_ms = 2500
+
+rate_per_conn_per_s = 60
+rate_per_conn_burst = 120
+rate_per_user_per_s = 120
+rate_per_user_burst = 240
+rate_global_per_s = 5000
+handshake_per_ip_per_s = 5
+handshake_per_ip_burst = 10
+handshake_global_per_s = 3000
+login_per_min = 5
+
+cache_get_timeout_ms = 20
+cache_connect_timeout_ms = 50
+cache_breaker_failures = 3
+cache_breaker_open_ms = 5000
+cache_gen = 1
+
+tcp_port = 9443
+admin_port = 9080
+mysql_host = 127.0.0.1
+mysql_port = 3306
+mysql_db = eat
+mysql_user = eat
+redis_host = 127.0.0.1
+redis_port = 6379

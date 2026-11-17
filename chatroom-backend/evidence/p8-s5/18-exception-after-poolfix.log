@@ -1,0 +1,40 @@
+PASS  E1 缺 token -> unauthorized
+PASS  E1 错误 token -> unauthorized
+PASS  E1 /health 无需业务 token（探活可用）
+PASS  E2 非法 UID 形状 -> invalid_params
+PASS  E2 路径穿越形态 UID -> invalid_params
+PASS  E2 越权访问他人数据 -> forbidden（先判权后查库）
+PASS  E2 越权修改他人档案 -> forbidden
+PASS  E2 越权请求未改动数据库
+PASS  E3 非法 JSON -> invalid_params
+PASS  E3 body 非对象 -> invalid_params
+PASS  E3 缺 idempotency_key -> invalid_params
+PASS  E3 非法 idempotency_key 字符 -> invalid_params
+PASS  E3 idempotency_key 超长(65) -> invalid_params
+PASS  E3 items 非数组 -> invalid_params
+PASS  E3 items 元素非字符串 -> invalid_params
+PASS  E3 非法日期 -> invalid_params
+PASS  E3 日期越界(1999) -> invalid_params
+PASS  E3 营养值为负 -> invalid_params
+PASS  E3 营养值超上限 -> invalid_params
+PASS  E3 营养值非数字 -> invalid_params
+PASS  E3 空 PATCH 档案 -> invalid_params
+PASS  E3 days=0 -> invalid_params
+PASS  E3 days=91 -> invalid_params
+PASS  E3 未知 API 路由 -> 200 not_found
+PASS  E3 上述非法请求均未写入数据
+PASS  E4 首次提交成功
+PASS  E4 同 key 不同 payload -> idempotency_conflict
+PASS  E4 冲突请求未新增 meal 行
+PASS  E4 冲突请求未新增幂等行
+PASS  E4 同 key 同 payload -> 重放成功且不新增
+PASS  E5 超长 text 截断入库而非 5xx
+PASS  E5 text 长度被截断到 512
+PASS  E5 items 条数被截断到 50
+PASS  E5 超长 items 提交成功而非 5xx
+PASS  E5 items 序列化字节数不超过 1024
+PASS  E6 无孤儿幂等记录（meal 与 idem 同事务）
+PASS  E6 幂等键无重复
+PASS  E6 全过程服务端未返回 5xx
+
+RESULT 38/38 PASS

@@ -1,0 +1,11 @@
+agent_uid	id
+u_demo	2
+u_test_rank_a	3
+u_test_rank_b	4
+u_test_rank_c	5
+u_test_rank_d	6
+user_id	friend_id	status
+2	3	2
+4	2	2
+2	5	2
+2	6	3

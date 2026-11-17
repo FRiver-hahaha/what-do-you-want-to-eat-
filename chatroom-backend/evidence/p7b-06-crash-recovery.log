@@ -1,0 +1,12 @@
+
+== 崩溃恢复 bob@t.com @ 127.0.0.1:8000 ==
+  [PASS] 初始登录成功 {"code":1,"email":"bob@t.com","id":2,"msg":"登录成功","name":"bob","offlin
+  [PASS] 登录后 state=1 state=1
+  kill -9 ...
+  [PASS] 崩溃后 state 残留为 1 state=1
+  重启 ...
+  [PASS] 重启后自动复位 state=0 state=0
+  [PASS] 重启后可正常登录（账号未被锁死） {"code":1,"email":"bob@t.com","id":2,"msg":"登录成功","name":"bob","offlin
+  [PASS] 重启后业务数据完整 3	2 -> 3	2
+
+结果: PASS=6 FAIL=0

@@ -1,0 +1,28 @@
+[Unit]
+Description=Eat TCP server
+Documentation=file:///opt/eat/docs/protocol/v1.md
+After=network-online.target mysql.service redis-server.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=eat
+Group=eat
+LimitNOFILE=1500000
+LimitNPROC=65535
+ExecStart=/opt/eat/bin/eat-server --config /etc/eat/server.toml
+Restart=on-failure
+RestartSec=2
+StartLimitBurst=5
+StartLimitIntervalSec=60
+TimeoutStopSec=20
+KillSignal=SIGTERM
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+StateDirectory=eat
+ReadWritePaths=/var/lib/eat /var/log/eat
+
+[Install]
+WantedBy=multi-user.target

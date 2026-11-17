@@ -1,0 +1,28 @@
+PASS recent: no mock fallback
+PASS recent: contract keys
+PASS recent: days echo
+PASS recent: meals non-empty
+PASS recent: count matches
+PASS recent: meal fields complete
+PASS recent: items list[str]
+PASS recent: nutrition int-convertible
+PASS gap: no mock fallback
+PASS gap: contract keys
+PASS gap: targets keys
+PASS gap: arithmetic consistent
+PASS gap: date is today
+PASS weekly: no mock fallback
+PASS weekly: contract keys
+PASS weekly: numeric fields
+PASS record: no mock fallback
+PASS record: ok true
+PASS record: contract keys
+PASS record: empty date defaults today
+PASS record: meal fields complete
+PASS record: replay same receipt
+PASS record: replay idempotent
+PASS record: client stayed in service mode
+PASS record: no transport error
+PASS profile: no mock fallback
+PASS profile: water_target present
+SUMMARY passed=27 failed=0 total=27

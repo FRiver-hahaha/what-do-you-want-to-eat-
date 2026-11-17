@@ -1,0 +1,9 @@
+PASS  V1 重启后记录行数不变
+PASS  V2 重启后原记录仍存在
+PASS  V3 重启后同 key 重放 idempotent=true
+PASS  V4 重启后重放 receipt 与首次一致
+PASS  V5 重启后重放未新增数据
+PASS  V6 重启后查询接口仍能读到该记录
+PASS  V7 重启后服务仍为真实数据源
+
+RESULT 7/7 PASS

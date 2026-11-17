@@ -1,0 +1,19 @@
+PASS  ServiceClient 处于 service 模式
+PASS  get_friends source=service
+PASS  get_friends 全链路无 mock 回退
+PASS  get_friends 返回 3 位好友
+PASS  get_friends id 集合与真实 DB 一致
+PASS  get_friends 含反向关系的好友 b（b→u_demo）
+PASS  get_friends 排除 status=3 的 d
+PASS  get_friends 每条含 id/name/relation
+PASS  get_friends relation=friend
+PASS  get_friends 展示名正确（含缺档案回退）
+PASS  market.share 可分享给真实好友
+PASS  market.share 返回分享码
+PASS  market.share 拒绝非好友 d
+PASS  market.share 拒绝时无分享码
+PASS  market.share 拒绝 mock 用户 u_lin（未回退 mock）
+PASS  market.share 默认拒绝分享给自己
+PASS  market.shared_with_me 能查到刚分享的技能
+
+RESULT 17/17 PASS

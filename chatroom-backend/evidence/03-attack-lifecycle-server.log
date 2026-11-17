@@ -1,0 +1,198 @@
+I20261113 18:54:38.322671  7600 main.cc:38] Server started on port 8000 worker_threads=4
+I20261113 18:54:57.151878  7605 Reactor.cc:111] New connection fd=31
+I20261113 18:54:57.155964  7605 Reactor.cc:127] Connection closed fd=31 uid=-1
+I20261113 18:54:58.461299  7605 Reactor.cc:111] New connection fd=31
+I20261113 18:54:58.461361  7605 Reactor.cc:111] New connection fd=32
+I20261113 18:54:58.461649  7602 Reactor.cc:111] New connection fd=33
+I20261113 18:54:58.461709  7602 Reactor.cc:111] New connection fd=34
+I20261113 18:54:58.461726  7602 Reactor.cc:111] New connection fd=35
+I20261113 18:54:58.461849  7603 Reactor.cc:111] New connection fd=36
+I20261113 18:54:58.462002  7603 Reactor.cc:111] New connection fd=37
+I20261113 18:54:58.462039  7603 Reactor.cc:111] New connection fd=38
+I20261113 18:54:58.462061  7603 Reactor.cc:111] New connection fd=39
+I20261113 18:54:58.462111  7604 Reactor.cc:111] New connection fd=40
+I20261113 18:54:58.462159  7604 Reactor.cc:111] New connection fd=41
+I20261113 18:54:58.462170  7604 Reactor.cc:111] New connection fd=42
+I20261113 18:54:58.462180  7604 Reactor.cc:111] New connection fd=43
+I20261113 18:54:58.462332  7605 Reactor.cc:111] New connection fd=44
+I20261113 18:54:58.462370  7605 Reactor.cc:111] New connection fd=45
+I20261113 18:54:58.462391  7605 Reactor.cc:111] New connection fd=46
+I20261113 18:54:58.462410  7605 Reactor.cc:111] New connection fd=47
+I20261113 18:54:58.462436  7605 Reactor.cc:111] New connection fd=48
+I20261113 18:54:58.462451  7602 Reactor.cc:111] New connection fd=49
+I20261113 18:54:58.462474  7602 Reactor.cc:111] New connection fd=50
+I20261113 18:54:58.462486  7602 Reactor.cc:111] New connection fd=51
+I20261113 18:54:58.462500  7602 Reactor.cc:111] New connection fd=52
+I20261113 18:54:58.462534  7603 Reactor.cc:111] New connection fd=53
+I20261113 18:54:58.462558  7603 Reactor.cc:111] New connection fd=54
+I20261113 18:54:58.462658  7604 Reactor.cc:111] New connection fd=55
+I20261113 18:54:58.462728  7604 Reactor.cc:111] New connection fd=56
+I20261113 18:54:58.462776  7603 Reactor.cc:111] New connection fd=57
+I20261113 18:54:58.462858  7604 Reactor.cc:111] New connection fd=58
+I20261113 18:54:58.462918  7605 Reactor.cc:111] New connection fd=59
+I20261113 18:54:58.463003  7602 Reactor.cc:111] New connection fd=60
+I20261113 18:54:58.964038  7605 Reactor.cc:127] Connection closed fd=31 uid=-1
+I20261113 18:54:58.964069  7602 Reactor.cc:127] Connection closed fd=33 uid=-1
+I20261113 18:54:58.964115  7603 Reactor.cc:127] Connection closed fd=36 uid=-1
+I20261113 18:54:58.964181  7604 Reactor.cc:127] Connection closed fd=40 uid=-1
+I20261113 18:54:58.964195  7602 Reactor.cc:127] Connection closed fd=34 uid=-1
+I20261113 18:54:58.964289  7603 Reactor.cc:127] Connection closed fd=37 uid=-1
+I20261113 18:54:58.964195  7605 Reactor.cc:127] Connection closed fd=32 uid=-1
+I20261113 18:54:58.964308  7604 Reactor.cc:127] Connection closed fd=41 uid=-1
+I20261113 18:54:58.964262  7602 Reactor.cc:127] Connection closed fd=35 uid=-1
+I20261113 18:54:58.964342  7604 Reactor.cc:127] Connection closed fd=42 uid=-1
+I20261113 18:54:58.964383  7602 Reactor.cc:127] Connection closed fd=49 uid=-1
+I20261113 18:54:58.964365  7604 Reactor.cc:127] Connection closed fd=43 uid=-1
+I20261113 18:54:58.964365  7603 Reactor.cc:127] Connection closed fd=38 uid=-1
+I20261113 18:54:58.964411  7605 Reactor.cc:127] Connection closed fd=44 uid=-1
+I20261113 18:54:58.964426  7604 Reactor.cc:127] Connection closed fd=55 uid=-1
+I20261113 18:54:58.964442  7603 Reactor.cc:127] Connection closed fd=39 uid=-1
+I20261113 18:54:58.964452  7604 Reactor.cc:127] Connection closed fd=56 uid=-1
+I20261113 18:54:58.964464  7603 Reactor.cc:127] Connection closed fd=53 uid=-1
+I20261113 18:54:58.964471  7604 Reactor.cc:127] Connection closed fd=58 uid=-1
+I20261113 18:54:58.964443  7602 Reactor.cc:127] Connection closed fd=50 uid=-1
+I20261113 18:54:58.964443  7605 Reactor.cc:127] Connection closed fd=45 uid=-1
+I20261113 18:54:58.964485  7603 Reactor.cc:127] Connection closed fd=54 uid=-1
+I20261113 18:54:58.964563  7603 Reactor.cc:127] Connection closed fd=57 uid=-1
+I20261113 18:54:58.964540  7602 Reactor.cc:127] Connection closed fd=51 uid=-1
+I20261113 18:54:58.964541  7605 Reactor.cc:127] Connection closed fd=46 uid=-1
+I20261113 18:54:58.964685  7602 Reactor.cc:127] Connection closed fd=52 uid=-1
+I20261113 18:54:58.964708  7605 Reactor.cc:127] Connection closed fd=47 uid=-1
+I20261113 18:54:58.964740  7602 Reactor.cc:127] Connection closed fd=60 uid=-1
+I20261113 18:54:58.964754  7605 Reactor.cc:127] Connection closed fd=48 uid=-1
+I20261113 18:54:58.964795  7605 Reactor.cc:127] Connection closed fd=59 uid=-1
+I20261113 18:55:00.971778  7605 Reactor.cc:111] New connection fd=31
+I20261113 18:55:00.971850  7605 Reactor.cc:111] New connection fd=32
+I20261113 18:55:00.971918  7602 Reactor.cc:111] New connection fd=33
+I20261113 18:55:00.972035  7603 Reactor.cc:111] New connection fd=34
+I20261113 18:55:00.972056  7603 Reactor.cc:111] New connection fd=35
+I20261113 18:55:00.972069  7603 Reactor.cc:111] New connection fd=36
+I20261113 18:55:00.972162  7604 Reactor.cc:111] New connection fd=37
+I20261113 18:55:00.972198  7604 Reactor.cc:111] New connection fd=38
+I20261113 18:55:00.972218  7604 Reactor.cc:111] New connection fd=39
+I20261113 18:55:00.972923  7602 Reactor.cc:111] New connection fd=40
+I20261113 18:55:00.972945  7602 Reactor.cc:111] New connection fd=41
+I20261113 18:55:00.972954  7602 Reactor.cc:111] New connection fd=42
+I20261113 18:55:00.973007  7605 Reactor.cc:111] New connection fd=43
+I20261113 18:55:00.973040  7605 Reactor.cc:111] New connection fd=44
+I20261113 18:55:00.973059  7605 Reactor.cc:111] New connection fd=45
+I20261113 18:55:00.973076  7605 Reactor.cc:111] New connection fd=46
+I20261113 18:55:00.973093  7605 Reactor.cc:111] New connection fd=47
+I20261113 18:55:00.973109  7605 Reactor.cc:111] New connection fd=48
+I20261113 18:55:00.973127  7605 Reactor.cc:111] New connection fd=49
+I20261113 18:55:00.973145  7605 Reactor.cc:111] New connection fd=50
+I20261113 18:55:00.973161  7605 Reactor.cc:111] New connection fd=51
+I20261113 18:55:00.973218  7605 Reactor.cc:111] New connection fd=52
+I20261113 18:55:00.973235  7605 Reactor.cc:111] New connection fd=53
+I20261113 18:55:00.973254  7605 Reactor.cc:111] New connection fd=54
+I20261113 18:55:00.973270  7605 Reactor.cc:111] New connection fd=55
+I20261113 18:55:00.973286  7605 Reactor.cc:111] New connection fd=56
+I20261113 18:55:00.973294  7603 Reactor.cc:111] New connection fd=58
+I20261113 18:55:00.973304  7605 Reactor.cc:111] New connection fd=57
+I20261113 18:55:00.973409  7603 Reactor.cc:111] New connection fd=59
+I20261113 18:55:00.973436  7603 Reactor.cc:111] New connection fd=60
+I20261113 18:55:00.973464  7604 Reactor.cc:111] New connection fd=61
+I20261113 18:55:00.973624  7602 Reactor.cc:111] New connection fd=62
+I20261113 18:55:00.973660  7602 Reactor.cc:111] New connection fd=63
+I20261113 18:55:00.998183  7604 Reactor.cc:111] New connection fd=64
+I20261113 18:55:00.998265  7604 Reactor.cc:111] New connection fd=65
+I20261113 18:55:00.998281  7604 Reactor.cc:111] New connection fd=66
+I20261113 18:55:00.998291  7604 Reactor.cc:111] New connection fd=67
+I20261113 18:55:00.998301  7604 Reactor.cc:111] New connection fd=68
+I20261113 18:55:00.998310  7604 Reactor.cc:111] New connection fd=69
+I20261113 18:55:00.998320  7604 Reactor.cc:111] New connection fd=70
+I20261113 18:55:00.998330  7604 Reactor.cc:111] New connection fd=71
+I20261113 18:55:00.998339  7604 Reactor.cc:111] New connection fd=72
+I20261113 18:55:00.998350  7604 Reactor.cc:111] New connection fd=73
+I20261113 18:55:00.998350  7602 Reactor.cc:111] New connection fd=75
+I20261113 18:55:00.998399  7604 Reactor.cc:111] New connection fd=74
+I20261113 18:55:00.998428  7602 Reactor.cc:111] New connection fd=76
+I20261113 18:55:00.998445  7602 Reactor.cc:111] New connection fd=77
+I20261113 18:55:00.998487  7603 Reactor.cc:111] New connection fd=78
+I20261113 18:55:00.998536  7603 Reactor.cc:111] New connection fd=79
+I20261113 18:55:00.998557  7603 Reactor.cc:111] New connection fd=80
+I20261113 18:55:01.475198  7605 Reactor.cc:127] Connection closed fd=31 uid=-1
+I20261113 18:55:01.475274  7602 Reactor.cc:127] Connection closed fd=33 uid=-1
+I20261113 18:55:01.475322  7603 Reactor.cc:127] Connection closed fd=34 uid=-1
+I20261113 18:55:01.475358  7604 Reactor.cc:127] Connection closed fd=37 uid=-1
+I20261113 18:55:01.475385  7602 Reactor.cc:127] Connection closed fd=40 uid=-1
+I20261113 18:55:01.475392  7605 Reactor.cc:127] Connection closed fd=32 uid=-1
+I20261113 18:55:01.475420  7602 Reactor.cc:127] Connection closed fd=41 uid=-1
+I20261113 18:55:01.475433  7603 Reactor.cc:127] Connection closed fd=35 uid=-1
+I20261113 18:55:01.475455  7602 Reactor.cc:127] Connection closed fd=42 uid=-1
+I20261113 18:55:01.475440  7604 Reactor.cc:127] Connection closed fd=38 uid=-1
+I20261113 18:55:01.475500  7605 Reactor.cc:127] Connection closed fd=43 uid=-1
+I20261113 18:55:01.475500  7603 Reactor.cc:127] Connection closed fd=36 uid=-1
+I20261113 18:55:01.475539  7604 Reactor.cc:127] Connection closed fd=39 uid=-1
+I20261113 18:55:01.475551  7605 Reactor.cc:127] Connection closed fd=44 uid=-1
+I20261113 18:55:01.475584  7605 Reactor.cc:127] Connection closed fd=45 uid=-1
+I20261113 18:55:01.475586  7603 Reactor.cc:127] Connection closed fd=58 uid=-1
+I20261113 18:55:01.475623  7605 Reactor.cc:127] Connection closed fd=46 uid=-1
+I20261113 18:55:01.475642  7603 Reactor.cc:127] Connection closed fd=59 uid=-1
+I20261113 18:55:01.475661  7605 Reactor.cc:127] Connection closed fd=47 uid=-1
+I20261113 18:55:01.475672  7603 Reactor.cc:127] Connection closed fd=60 uid=-1
+I20261113 18:55:01.475703  7602 Reactor.cc:127] Connection closed fd=62 uid=-1
+I20261113 18:55:01.475674  7604 Reactor.cc:127] Connection closed fd=61 uid=-1
+I20261113 18:55:01.475773  7602 Reactor.cc:127] Connection closed fd=63 uid=-1
+I20261113 18:55:01.475697  7605 Reactor.cc:127] Connection closed fd=48 uid=-1
+I20261113 18:55:01.475850  7604 Reactor.cc:127] Connection closed fd=64 uid=-1
+I20261113 18:55:01.475914  7604 Reactor.cc:127] Connection closed fd=65 uid=-1
+I20261113 18:55:01.475927  7602 Reactor.cc:127] Connection closed fd=75 uid=-1
+I20261113 18:55:01.475935  7605 Reactor.cc:127] Connection closed fd=49 uid=-1
+I20261113 18:55:01.475962  7604 Reactor.cc:127] Connection closed fd=66 uid=-1
+I20261113 18:55:01.475981  7603 Reactor.cc:127] Connection closed fd=78 uid=-1
+I20261113 18:55:01.476006  7602 Reactor.cc:127] Connection closed fd=76 uid=-1
+I20261113 18:55:01.476037  7602 Reactor.cc:127] Connection closed fd=77 uid=-1
+I20261113 18:55:01.476039  7603 Reactor.cc:127] Connection closed fd=79 uid=-1
+I20261113 18:55:01.476011  7604 Reactor.cc:127] Connection closed fd=67 uid=-1
+I20261113 18:55:01.476081  7603 Reactor.cc:127] Connection closed fd=80 uid=-1
+I20261113 18:55:01.476011  7605 Reactor.cc:127] Connection closed fd=50 uid=-1
+I20261113 18:55:01.476135  7604 Reactor.cc:127] Connection closed fd=68 uid=-1
+I20261113 18:55:01.476186  7605 Reactor.cc:127] Connection closed fd=51 uid=-1
+I20261113 18:55:01.476187  7604 Reactor.cc:127] Connection closed fd=69 uid=-1
+I20261113 18:55:01.476243  7605 Reactor.cc:127] Connection closed fd=52 uid=-1
+I20261113 18:55:01.476270  7604 Reactor.cc:127] Connection closed fd=70 uid=-1
+I20261113 18:55:01.476289  7605 Reactor.cc:127] Connection closed fd=53 uid=-1
+I20261113 18:55:01.476315  7604 Reactor.cc:127] Connection closed fd=71 uid=-1
+I20261113 18:55:01.476332  7605 Reactor.cc:127] Connection closed fd=54 uid=-1
+I20261113 18:55:01.476359  7604 Reactor.cc:127] Connection closed fd=72 uid=-1
+I20261113 18:55:01.476375  7605 Reactor.cc:127] Connection closed fd=55 uid=-1
+I20261113 18:55:01.476402  7604 Reactor.cc:127] Connection closed fd=73 uid=-1
+I20261113 18:55:01.476419  7605 Reactor.cc:127] Connection closed fd=56 uid=-1
+I20261113 18:55:01.476449  7604 Reactor.cc:127] Connection closed fd=74 uid=-1
+I20261113 18:55:01.476461  7605 Reactor.cc:127] Connection closed fd=57 uid=-1
+I20261113 18:55:21.735462  7605 Reactor.cc:111] New connection fd=31
+E20261113 18:55:21.735841  7605 ChatService.cc:97] Invalid request type=-1
+E20261113 18:55:21.739997  7605 ChatService.cc:97] Invalid request type=99
+E20261113 18:55:21.740881  7605 ChatService.cc:97] Invalid request type=-1
+I20261113 18:55:21.741372  7605 Reactor.cc:127] Connection closed fd=31 uid=-1
+I20261113 18:55:21.741748  7605 Reactor.cc:111] New connection fd=31
+I20261113 18:55:21.743880  7605 Reactor.cc:127] Connection closed fd=31 uid=-1
+I20261113 18:55:21.744218  7605 Reactor.cc:111] New connection fd=31
+W20261113 18:55:21.744326  7605 EmailSender.cc:32] [DRY-RUN] skip smtp, code for ok1794567321@t.com = 576762
+I20261113 18:55:21.783722  7605 Reactor.cc:127] Connection closed fd=31 uid=-1
+I20261113 18:55:21.784235  7605 Reactor.cc:111] New connection fd=31
+W20261113 18:55:21.784417  7605 EmailSender.cc:32] [DRY-RUN] skip smtp, code for brute1794567321@t.com = 506772
+I20261113 18:55:21.790822  7605 Reactor.cc:127] Connection closed fd=31 uid=-1
+I20261113 18:55:53.443914  7605 Reactor.cc:111] New connection fd=31
+I20261113 18:55:53.445164  7602 Reactor.cc:111] New connection fd=32
+I20261113 18:55:53.445187  7602 Reactor.cc:111] New connection fd=33
+I20261113 18:55:53.445509  7603 Reactor.cc:111] New connection fd=34
+I20261113 18:55:53.445531  7603 Reactor.cc:111] New connection fd=35
+I20261113 18:55:53.445767  7604 Reactor.cc:111] New connection fd=36
+I20261113 18:55:53.445864  7605 Reactor.cc:111] New connection fd=37
+I20261113 18:55:53.446573  7604 Reactor.cc:111] New connection fd=38
+I20261113 18:55:53.454578  7602 ChatService.cc:344] SignIn success uid=7 email=carol@t.com
+I20261113 18:55:54.474236  7604 Reactor.cc:127] Connection closed fd=38 uid=-1
+I20261113 18:55:54.474193  7602 Reactor.cc:127] Connection closed fd=32 uid=-1
+I20261113 18:55:54.474184  7605 Reactor.cc:127] Connection closed fd=31 uid=-1
+I20261113 18:55:54.474331  7604 Reactor.cc:127] Connection closed fd=36 uid=-1
+I20261113 18:55:54.474306  7603 Reactor.cc:127] Connection closed fd=35 uid=-1
+I20261113 18:55:54.474419  7603 Reactor.cc:127] Connection closed fd=34 uid=-1
+I20261113 18:55:54.474440  7605 Reactor.cc:127] Connection closed fd=37 uid=-1
+I20261113 18:55:54.516887  7602 Reactor.cc:127] Connection closed fd=33 uid=7
+I20261113 18:56:20.635766  7605 Reactor.cc:111] New connection fd=31
+W20261113 18:56:20.635932  7605 EmailSender.cc:32] [DRY-RUN] skip smtp, code for zed1794567380@t.com = 920983
+I20261113 18:56:20.648900  7605 ChatService.cc:344] SignIn success uid=12 email=zed1794567380@t.com
+I20261113 18:56:20.721674  7605 ChatService.cc:524] SignOut uid=12
+I20261113 18:56:21.279930  7605 Reactor.cc:127] Connection closed fd=31 uid=-1

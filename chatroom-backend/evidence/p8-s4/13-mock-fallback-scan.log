@@ -1,0 +1,28 @@
+=== ServiceClient._request 调用点 ===
+138:        remote = self._request("GET", f"/api/v1/users/{user_id}/health-profile")
+154:        remote = self._request("PATCH", f"/api/v1/users/{user_id}/health-profile", fields)
+169:        remote = self._request("GET", f"/api/v1/users/{user_id}/meals?days={days}")
+178:        remote = self._request("GET", f"/api/v1/users/{user_id}/nutrition-gap?date={target}")
+196:        remote = self._request("GET", f"/api/v1/users/{user_id}/weekly-stats")
+253:        remote = self._request("GET", f"/api/v1/menu?meal_type={urllib.parse.quote(meal_type)}")
+262:        remote = self._request("GET", f"/api/v1/users/{user_id}/ranking?scope={scope}")
+268:        remote = self._request("GET", f"/api/v1/users/{user_id}/friends")
+276:        remote = self._request("POST", f"/api/v1/users/{user_id}/meals", body)
+
+=== Agent 侧其它 /api/v1/ 直连 ===
+agent/core/frontend.py:237:            {"id": "real_service_data", "name": "真实服务端数据", "needed_ui": "无需前端改动", "agent_api": "EAT_SERVER_BASE_URL + /api/v1/*"},
+agent/skills/market.py:327:        data = self.service._request("GET", f"/api/v1/skills/market?{query}")
+
+=== service.xxx 业务调用点 ===
+agent/core/runtime.py:151:            profile = self.service.get_profile(user_id)
+agent/tools/diet_tools.py:25:    data = ctx.service.get_profile(ctx.user_id)
+agent/tools/diet_tools.py:32:    data = ctx.service.get_nutrition_gap(ctx.user_id)
+agent/tools/diet_tools.py:63:    data = ctx.service.get_recent_meals(ctx.user_id, days)
+agent/tools/diet_tools.py:137:    data = ctx.service.search_foods(
+agent/tools/diet_tools.py:155:    data = ctx.service.get_menu(ctx.user_id, str(args.get("meal_type") or ""))
+agent/tools/diet_tools.py:166:    data = ctx.service.get_weekly_stats(ctx.user_id)
+agent/tools/diet_tools.py:182:    data = ctx.service.get_friend_ranking(ctx.user_id, scope)
+agent/tools/diet_tools.py:209:    data = ctx.service.record_meal(ctx.user_id, payload, idempotency_key)
+agent/tools/diet_tools.py:251:    data = ctx.service.update_profile(ctx.user_id, fields)
+agent/skills/market.py:297:            friends = self.service.get_friends(from_user).get("friends") or []
+agent/app.py:280:            + json.dumps(self.service.get_profile(user_id), ensure_ascii=False)

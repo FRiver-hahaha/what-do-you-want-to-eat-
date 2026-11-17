@@ -1,0 +1,57 @@
+== 目标 127.0.0.1:8000 ==
+== A. 账号管理 ==
+  [PASS] 注册 alice（带验证码） {'type': 1, 'code': 1, 'msg': '用户信息创建成功'}
+  [PASS] 重复邮箱被拒 该邮箱已存在
+  [PASS] 注册 bob {'type': 1, 'code': 1, 'msg': '用户信息创建成功'}
+  [PASS] 错密码被拒 密码错误
+  [PASS] 登录 alice 1
+  [PASS] 登录 bob 2
+  [PASS] 密码为 SHA256（非明文） f64551fcd6f07823...
+  [PASS] 并发登录被拒 该账号已在其他设备登录
+  [PASS] 心跳 {'type': 0}
+== B. 好友管理 ==
+  [PASS] alice 发起好友申请 成功发送申请
+  [PASS] bob 实时收到申请(type9 code2) {'code': 2, 'email': 'alice@t.com', 'id': 1, 'msg': '发来好友申请', 'name': 'alice', 'type': 9}
+  [PASS] bob 同意 成功添加为好友
+  [PASS] bob 好友列表含 alice 且 status=2 [{'email': 'alice@t.com', 'id': 1, 'name': 'alice', 'state': 1, 'status': 2}]
+  [PASS] 好友列表 state=1 (alice 在线) [{'email': 'alice@t.com', 'id': 1, 'name': 'alice', 'state': 1, 'status': 2}]
+  [PASS] alice 拉黑 bob 已拉黑
+  [PASS] DB 中 status=3 
+  [PASS] alice 解除拉黑 已取消拉黑
+== C. 群组管理 ==
+  [PASS] 建群 gid=1
+  [PASS] 我的群列表 [{'id': 1, 'name': '研发群'}]
+  [PASS] 邀请 bob 入群 邀请成功
+  [PASS] bob 收到邀请通知(type17 code2) {'code': 2, 'group_id': 1, 'group_name': '研发群', 'msg': '你已被邀请加入群聊', 'type': 17}
+  [PASS] carol 申请入群 入群申请发送成功
+  [PASS] 群主收到入群申请(type18 code2) {'code': 2, 'email': 'carol@t.com', 'id': 3, 'msg': '有新的入群申请', 'name': 'carol', 'type': 18}
+  [PASS] 未入群者查成员被拒 不在该群中
+  [PASS] 群主批准入群 操作成功
+  [PASS] 成员列表 3 人且角色正确 {1: 3, 2: 1, 3: 1}
+  [PASS] 设 bob 为管理员 成功设为管理员
+  [PASS] 管理员无权设管理员 仅群主可操作
+  [PASS] 管理员不能踢群主 不能踢群主
+  [PASS] 管理员踢出成员 已踢出成员
+  [PASS] 被踢者查成员被拒 不在该群中
+  [PASS] 撤销 bob 管理员 已撤销管理员
+  [PASS] bob 退群 已退出群聊
+  [PASS] 群主不能直接退群 群主不能直接退出
+== D. 聊天功能必须不可达 ==
+  [PASS] 私聊 13 不可达 None
+  [PASS] bob 不再收到私聊推送 None
+  [PASS] 历史 14 不可达 None
+  [PASS] 群聊 25 不可达 None
+  [PASS] 群历史 26 不可达 None
+  [PASS] 待收文件 27 不可达 None
+  [PASS] message 表零增量 0 -> 0
+== E. 在线状态 ==
+  [PASS] alice 退出登录 已退出登录
+  [PASS] DB state 归 0 
+  [PASS] bob 看到 alice 离线 [{'email': 'alice@t.com', 'id': 1, 'name': 'alice', 'state': 0, 'status': 2}]
+== F. 数据持久化 ==
+  [PASS] user 表落库 3
+  [PASS] friend 双向关系落库 2
+  [PASS] group_info 落库 
+  [PASS] group_user 成员关系落库 2
+
+结果: PASS=48 FAIL=0
