@@ -56,7 +56,7 @@ node --check app.js bridge.js agent-adapter.js      # ok
 ## 版本库状态（2026-11-17）
 
 - 本地已提交 4 个提交（`08263e9`、`4900801`、`4ad8311`、`ac7271c`），工作区干净。
-- **推送阻断**：HTTPS 无凭据（`could not read Username`），远端仍为 `bc2ecb2`。
-- 已导出 `dist/eat-agent-updates.bundle`（94 KB），可在 Windows 上导入后推送，步骤见 `AGENT_win.md` §8。
+- 已通过 SSH 推送成功：远端 `feat/app-transport-scale` = `3fd8a1d`（2026-11-17）。
+- `dist/eat-agent-updates.bundle` 保留为离线备份，正常 clone 即可获得全部提交。
 - 二进制与依赖不入库：Linux 通过 tarball / Docker 镜像，Windows 通过源码包 + `build-client.ps1` / CI artifact / Release。
 - 企业级基线已入库：README、CONTRIBUTING、SECURITY、CHANGELOG、CODEOWNERS、PR 模板、Linux/Windows CI、EditorConfig、Clang-Format、GitAttributes、build/package 脚本。

@@ -200,18 +200,19 @@ node --check bridge.js
 
 ### 8.1 当前状态（2026-11-17）
 
-Linux 侧已整理并提交（4 个功能提交 + 文档提交，完整列表以 `git log` 为准），但**推送被凭据阻断**（HTTPS 无 token/SSH key）：
+Linux 侧已通过 SSH 推送成功，远端 `feat/app-transport-scale` = `3fd8a1d`。Windows 上直接 clone 即可获得全部提交：
 
 ```
 08263e9 chore(repo): add enterprise metadata, CI and packaging scripts
 4900801 feat(server): merge MySQL identity, profile methods and bounded thread pool
 4ad8311 feat(client): add transport bridge, IPC protocol and Windows shell; align agent contract
 ac7271c chore(deploy): add Docker image, compose stack and migration entrypoint
+3fd8a1d docs: record push blocker, git bundle and Windows import steps
 ```
 
-因此远端仍停在 `bc2ecb2`。最新改动已导出为 `dist/eat-agent-updates.bundle`（约 94 KB），可在 Windows 上导入。
+`dist/eat-agent-updates.bundle` 仅作为离线备份保留，正常联网时**不需要**手动导入。
 
-### 8.2 在 Windows 导入并推送
+### 8.2 可选：离线 bundle 导入（无法直接访问 GitHub 时）
 
 ```powershell
 git clone https://github.com/FRiver-hahaha/what-do-you-want-to-eat-.git
