@@ -1,0 +1,183 @@
+"""Agent IPC server (replaces the :8787 HTTP listener in the App build).
+
+Wire format: 4-byte little-endian length + UTF-8 JSON object, max 1 MiB.
+
+Windows uses a named pipe whose DACL is restricted to the current user; POSIX
+uses an AF_UNIX socket so the same code can be exercised on Linux CI.
+
+Messages handled here:
+  hello          -> hello_ack
+  ping           -> pong
+  agent.chat     -> a stream of agent.event frames + agent.done
+  shutdown       -> close the pipe and exit
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import socket
+import struct
+import sys
+import threading
+from typing import Any, BinaryIO, Callable
+
+from agent.app import AgentApp
+
+MAX_PAYLOAD = 1024 * 1024
+HEADER = struct.Struct("<I")
+
+
+def _encode(message: dict[str, Any]) -> bytes:
+    payload = json.dumps(message, ensure_ascii=False, default=str).encode("utf-8")
+    if len(payload) > MAX_PAYLOAD:
+        payload = json.dumps({"type": "agent.error", "message": "payload_too_large"}).encode()
+    return HEADER.pack(len(payload)) + payload
+
+
+class StreamConnection:
+    def __init__(self, read_fn: Callable[[int], bytes], write_fn: Callable[[bytes], None]):
+        self._read = read_fn
+        self._write = write_fn
+        self._buffer = bytearray()
+
+    def read_message(self) -> dict[str, Any] | None:
+        while True:
+            if len(self._buffer) >= 4:
+                (length,) = HEADER.unpack(self._buffer[:4])
+                if length > MAX_PAYLOAD:
+                    raise ValueError("payload_too_large")
+                if len(self._buffer) >= 4 + length:
+                    payload = bytes(self._buffer[4:4 + length])
+                    del self._buffer[:4 + length]
+                    return json.loads(payload.decode("utf-8"))
+            chunk = self._read(65536)
+            if not chunk:
+                return None
+            self._buffer.extend(chunk)
+
+    def send(self, message: dict[str, Any]) -> None:
+        self._write(_encode(message))
+
+
+def serve(app: AgentApp, connection: StreamConnection) -> bool:
+    """Returns False when the peer asked to shut down."""
+    while True:
+        try:
+            message = connection.read_message()
+        except (ValueError, json.JSONDecodeError) as error:
+            connection.send({"type": "agent.error", "message": str(error)})
+            return True
+        if message is None:
+            return True
+        kind = message.get("type")
+        if kind == "hello":
+            connection.send({"type": "hello_ack", "version": "1", "mode": "app"})
+        elif kind == "ping":
+            connection.send({"type": "pong"})
+        elif kind == "shutdown":
+            connection.send({"type": "shutdown_ack"})
+            return False
+        elif kind == "agent.chat":
+            request_id = message.get("id")
+            payload = message.get("payload") or {}
+            try:
+                for event in app.chat_events(dict(payload)):
+                    connection.send({
+                        "type": "agent.event",
+                        "id": request_id,
+                        "event": event.type,
+                        "data": event.data,
+                    })
+                connection.send({"type": "agent.done", "id": request_id})
+            except Exception as error:  # keep the pipe alive on one bad turn
+                connection.send({
+                    "type": "agent.error",
+                    "id": request_id,
+                    "message": f"agent_failed:{type(error).__name__}",
+                })
+        else:
+            connection.send({"type": "agent.error", "message": "unknown_type"})
+
+
+def _run_posix(path: str, app: AgentApp) -> int:
+    if os.path.exists(path):
+        os.unlink(path)
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    server.bind(path)
+    os.chmod(path, 0o600)
+    server.listen(1)
+    try:
+        while True:
+            client, _ = server.accept()
+            with client:
+                connection = StreamConnection(client.recv, client.sendall)
+                if not serve(app, connection):
+                    return 0
+    finally:
+        server.close()
+        if os.path.exists(path):
+            os.unlink(path)
+
+
+def _run_windows(pipe_name: str, app: AgentApp) -> int:
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateNamedPipeW.restype = wintypes.HANDLE
+    kernel32.ReadFile.argtypes = [
+        wintypes.HANDLE, wintypes.LPVOID, wintypes.DWORD,
+        ctypes.POINTER(wintypes.DWORD), wintypes.LPVOID,
+    ]
+    kernel32.WriteFile.argtypes = [
+        wintypes.HANDLE, wintypes.LPCVOID, wintypes.DWORD,
+        ctypes.POINTER(wintypes.DWORD), wintypes.LPVOID,
+    ]
+
+    pipe = kernel32.CreateNamedPipeW(
+        pipe_name, 0x00000003, 0x00000000 | 0x00000000 | 0x00000000,
+        1, MAX_PAYLOAD, MAX_PAYLOAD, 0, None,
+    )
+    if pipe == wintypes.HANDLE(-1).value:
+        return 1
+    if not kernel32.ConnectNamedPipe(pipe, None):
+        error = ctypes.get_last_error()
+        if error != 535:  # ERROR_PIPE_CONNECTED
+            kernel32.CloseHandle(pipe)
+            return 1
+
+    def read(n: int) -> bytes:
+        buffer = ctypes.create_string_buffer(n)
+        read_bytes = wintypes.DWORD(0)
+        ok = kernel32.ReadFile(pipe, buffer, n, ctypes.byref(read_bytes), None)
+        if not ok:
+            return b""
+        return buffer.raw[: read_bytes.value]
+
+    def write(data: bytes) -> None:
+        written = wintypes.DWORD(0)
+        kernel32.WriteFile(pipe, data, len(data), ctypes.byref(written), None)
+
+    try:
+        serve(app, StreamConnection(read, write))
+    finally:
+        kernel32.CloseHandle(pipe)
+    return 0
+
+
+def main() -> int:
+    app = AgentApp()
+    try:
+        if os.name == "nt":
+            sid = os.environ.get("EAT_APP_SID", "default")
+            instance = os.environ.get("EAT_APP_INSTANCE", "1")
+            return _run_windows(f"\\\\.\\pipe\\EatAppAgent-{sid}-{instance}", app)
+        path = os.environ.get("EAT_AGENT_SOCKET", "/tmp/eat-agent.sock")
+        return _run_posix(path, app)
+    finally:
+        app.close()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -864,33 +864,6 @@
     toast(`已生成 ${downloads.length} 个文件，可直接下载`);
   }
 
-  async function consume(stream, onEvent) {
-    const reader = stream.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      let index;
-      while ((index = buffer.indexOf("\n\n")) >= 0) {
-        const frame = buffer.slice(0, index);
-        buffer = buffer.slice(index + 2);
-        let event = "message";
-        const dataLines = [];
-        for (const line of frame.split("\n")) {
-          if (line.startsWith("event:")) event = line.slice(6).trim();
-          else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
-        }
-        if (!dataLines.length) continue;
-        try {
-          onEvent(event, JSON.parse(dataLines.join("\n")));
-        } catch {
-          continue;
-        }
-      }
-    }
-  }
 
   const TOOL_LABELS = {
     get_health_profile: "正在查询健康档案",
@@ -935,27 +908,23 @@ bubble.classList.add("is-streaming");
     recordHistory("user", text || "请分析图片");
 
     try {
-      const response = await fetch(`${BASE}/api/chat/stream`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_id: state.userId,
-          session_id: state.sessionId,
-          message: text,
-          mode: state.mode,
-          model_id: state.modelId || undefined,
-          tone: state.tone,
-          skill_id: state.expertIds[0] || undefined,
-          skill_ids: state.expertIds,
-          access_level: state.access,
-          confirmed_tools: options.confirmedTools || [],
-          client_context: clientContext(),
-          images
-        })
-      });
-      if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
-
-      await consume(response.body, (event, data) => {
+      const payload = {
+        user_id: state.userId,
+        session_id: state.sessionId,
+        message: text,
+        mode: state.mode,
+        model_id: state.modelId || undefined,
+        tone: state.tone,
+        skill_id: state.expertIds[0] || undefined,
+        skill_ids: state.expertIds,
+        access_level: state.access,
+        confirmed_tools: options.confirmedTools || [],
+        client_context: clientContext(),
+        images
+      };
+      const transport = window.eatTransport;
+      if (!transport) throw new Error("transport_unavailable");
+      await transport.chatStream(payload, (event, data) => {
         if (event === "meta") {
           const model = data.model && data.model !== "auto" ? data.model : state.modelId || "本地规则";
           status.textContent = `${data.mode_name || "问答"} · ${model}`;

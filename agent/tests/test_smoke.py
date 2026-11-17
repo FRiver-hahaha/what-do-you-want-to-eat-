@@ -380,10 +380,10 @@ class TestTools(unittest.TestCase):
         self.assertIn("chatForm", str(contract["dom"]))
         self.assertIn("images", contract["aligned"])
         self.assertIn("markdown", contract["aligned"])
-        self.assertEqual(contract["request_images"]["max_items"], 4)
+        self.assertEqual(contract["request_images"]["max_items"], 10)
         gap_ids = {item["id"] for item in contract["gaps"]}
         self.assertIn("real_service_data", gap_ids)
-        self.assertIn("vision_model", gap_ids)
+        self.assertNotIn("vision_model", gap_ids)
 
 
 class TestMemory(unittest.TestCase):

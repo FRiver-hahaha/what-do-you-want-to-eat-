@@ -425,11 +425,16 @@ class AgentApp:
         mode = str(payload.get("mode") or "qa")
         user_id = str(payload.get("user_id") or DEFAULT_USER_ID)
         session_id = str(payload.get("session_id") or "s_debug")
+        raw_confirmed = payload.get("confirmed", False)
+        if isinstance(raw_confirmed, bool):
+            confirmed = raw_confirmed
+        else:
+            confirmed = str(raw_confirmed).strip().lower() in {"1", "true", "yes", "on"}
         ctx = ToolContext(
             user_id=user_id,
             session_id=session_id,
             mode=mode,
-            confirmed=bool(payload.get("confirmed", False)),
+            confirmed=confirmed,
             service=self.service,
             gateway=self.gateway,
             skills=self.skills,

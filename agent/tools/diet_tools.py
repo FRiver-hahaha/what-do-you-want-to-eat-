@@ -233,8 +233,8 @@ def _delete_meal(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
     hint = f"（内容含「{target['text']}」）" if target["text"] else ""
     return ToolResult(
         ok=True,
-        summary=f"已删除{target['type']}记录{hint}",
-        data={"meal_action": action, "source": "frontend"},
+        summary=f"删除{target['type']}记录已同步到页面{hint}（服务端写接口待接入）",
+        data={"meal_action": action, "source": "frontend", "persisted": False},
     )
 
 
@@ -255,8 +255,8 @@ def _update_meal(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
     parts = [part for part in (new_type, new_text) if part]
     return ToolResult(
         ok=True,
-        summary=f"已把{target['type']}记录更新为：{'、'.join(parts)}",
-        data={"meal_action": action, "source": "frontend"},
+        summary=f"修改{target['type']}记录已同步到页面：{'、'.join(parts)}（服务端写接口待接入）",
+        data={"meal_action": action, "source": "frontend", "persisted": False},
     )
 
 
