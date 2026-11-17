@@ -1,6 +1,0 @@
-GET /api/v1/users/u_demo/friends
-{"friends":[{"id":"u_test_rank_a","name":"甲同学","relation":"friend"},{"id":"u_test_rank_b","name":"乙同学","relation":"friend"},{"id":"u_test_rank_c","name":"测试丙","relation":"friend"}],"ok":true,"source":"service","user_id":"u_demo"}
-GET /api/v1/users/u_nobody/friends
-{"error":"forbidden","message":"single-demo-user mode","ok":false}
-GET /api/v1/users/bad%20uid/friends
-{"error":"invalid_params","message":"invalid user id","ok":false}

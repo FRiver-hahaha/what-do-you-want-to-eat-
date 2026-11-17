@@ -1,14 +1,14 @@
 # AGENT_win.md — Windows 构建与进度同步手册
 
 > 目标：在 Windows 上完成 `client_smoke.exe`（立即可用）与 `eat-app.exe`（WebView2 GUI）的构建、局域网联调，并把进度同步回 GitHub。
-> 当前事实基线：Linux 服务端已通过真实 TCP 验证；**Windows GUI 尚未在任何 Windows 机器上编译验证**。
+> 当前事实基线：Linux 服务端已通过真实 TCP 验证；**Windows GUI 已在开发机用 MinGW + WebView2 SDK 编译并验证启动/页面渲染，业务桥接未接线**。
 
 ## 0. 先明确能力边界
 
 | 目标 | 现在能否完成 |
 |---|---|
 | Windows 控制台客户端连接局域网服务端，跑注册/登录/档案读写 | ✅ 能（`client_smoke.exe`） |
-| Windows WebView2 GUI 启动并显示页面 | ⚠️ 代码就绪，需本机构建验证 |
+| Windows WebView2 GUI 启动并显示页面 | ✅ 已构建验证（MinGW + WebView2 SDK） |
 | GUI 内完成餐记录/菜单/统计/好友等全部业务 | ⛔ 不能。服务端仅帧化了认证 + `profile.*`；Agent 与 TCP 桥接未接线 |
 
 任何“GUI 已跑通全部业务”的结论都必须有截图/日志/请求记录，否则只能写“未验证”。
@@ -157,7 +157,9 @@ EatApp\
 
 ### 5.4 已验证 / 待验证清单（逐项打勾）
 
-- [ ] `eat-app.exe` 能启动并加载本地页面
+- [x] `eat-app.exe` 能启动并加载本地页面
+- [x] WebView2 渲染进程与 `webview-data` 生成
+- [x] 页面视觉与 Web 端一致（PrintWindow 截图验证）
 - [ ] 断网冷启动仍能显示界面（不显示伪造业务数据）
 - [ ] 单实例：重复双击只激活已有窗口
 - [ ] 托盘：关闭窗口后进程仍在，双击托盘恢复
@@ -260,7 +262,7 @@ CI 还会把 `client_smoke.exe` 作为 workflow artifact 产出（见 `.github/w
 2. **Agent↔TCP 未接线**：`eat-agent.exe` 目前只处理 `agent.chat`，业务数据仍需 App 侧桥接；GUI 内菜单/记录接口会失败。
 3. **业务未帧化**：`meal/stats/food/friend/ranking` 未注册，页面业务请求无服务端支持。
 4. **明文 TCP**：仅可信局域网；公网需先接 TLS。
-5. **迁移目录**：001 基线仍在 `chatroom-backend/`，企业化搬迁需同步 Dockerfile/脚本，属破坏性变更，需单独确认。
+5. **迁移目录**：001 基线已迁入 `migrations/base/`，`chatroom-backend/` 已删除；业务 Handler 仍需按历史设计重写。
 
 ## 10. 进度表
 

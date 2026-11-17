@@ -1,41 +1,43 @@
 # 今天你吃了吗（Eat App）
 
-跨端饮食助手：**Linux 服务端**（C++17 + Muduo + MySQL/Redis）+ **Windows 客户端**（Win32 + WebView2）+ **Python Agent**（LLM / RAG / MCP / Skill）。
+跨端饮食助手：**Linux 服务端**（C++17 + Muduo + MySQL）+ **Windows 客户端**（Win32 + WebView2，复用现有 Web 页面）+ **Python Agent**（LLM / RAG / MCP / Skill）。
 
-> 状态（2026-11-17）：三线后端已合并，服务端在 Linux 上完成真实 TCP 验证；Windows GUI 尚未在目标机编译验证。
-> 唯一权威现状见 [`docs/architecture.md`](docs/architecture.md)，交付与阻断见 [`docs/DELIVERY-STATUS.md`](docs/DELIVERY-STATUS.md)。
+> 状态（2026-11-17）：三线后端已合并；服务端认证与档案读写已在 Linux 通过真实 TCP 验证；Windows GUI 已在本机完成编译并验证页面加载；`meal/stats/food/friend/ranking` 仍未帧化，GUI 与业务 TCP 的桥接尚未接线。
 
 ## 功能状态
 
 | 能力 | 状态 |
 |---|---|
-| 注册 / 登录 / 握手鉴权（scrypt + 令牌哈希） | ✅ 已实现并实测 |
-| `profile.get` / `profile.patch`（MySQL 落库、幂等键） | ✅ 已实现并实测 |
-| 餐记录 / 统计 / 菜单 / 好友 / 排行 帧化 | ⛔ 未迁移（仍在 `chatroom-backend/`） |
-| Redis 缓存（单飞、写后失效、熔断降级） | ⛔ 未接线 |
-| Windows WebView2 GUI | ⚠️ 代码已落盘，未在 Windows 编译验证 |
-| Agent（RAG / MCP / Skill / 规则降级） | ✅ 51 项单测通过 |
-| 100 万在线 | ⛔ 阻断，无压测数据 |
+| 注册 / 登录 / 握手鉴权（scrypt + 令牌哈希） | 已实现并实测 |
+| `profile.get` / `profile.patch`（MySQL 落库、幂等键） | 已实现并实测 |
+| 控制台客户端 `client_smoke.exe` | 已生成并验证完整握手/档案流程 |
+| Windows GUI `eat-app.exe` | 已编译并验证启动、窗口与页面渲染 |
+| GUI 业务数据 / Agent↔TCP 桥接 | 未接线（页面当前显示本地模式） |
+| 餐记录 / 统计 / 菜单 / 好友 / 排行 帧化 | 未迁移（P8 历史代码已删除） |
+| Redis 缓存 | 未接线 |
+| 100 万在线 | 阻断，无压测数据 |
 
 ## 架构
 
 ```
-页面（本地资源）── bridge.js ──┬─ 浏览器 fetch/SSE（仅开发）
-                              └─ WebView2 postMessage
-                                        │ 命名管道（4B LE + JSON）
-                                  eat-agent.exe（Python）
-                                        │ LLM HTTPS/SSE
-TcpTransport ── 1 条业务 TCP ──▶ eat-server（Muduo + MySQL/Redis）
+Windows App (Win32 + WebView2)
+  ├─ web/index.html、app.js、bridge.js（与浏览器同一套页面资源）
+  ├─ bridge.js ── postMessage ──▶ 壳
+  └─ 命名管道 ──▶ eat-agent.exe（Python，LLM/RAG/MCP/Skill）
+
+client_smoke.exe ── 1 条业务 TCP ──▶ eat-server (Linux :9443)
+eat-server ── MySQL（账号/档案/事件）
+           ── Redis（规划中，当前 CacheClient 未接线）
 ```
 
-## 快速开始（从零）
+## 从零启动
 
 ### 0. 前置条件
 
 | 端 | 要求 |
 |---|---|
 | 服务端 | Linux x86_64；Docker + Docker Compose（推荐），或 CMake 3.16+、C++17、OpenSSL、MySQL 8、Muduo |
-| 客户端 | Windows 10/11 x64；运行 `client_smoke.exe` 无需额外依赖；自行构建需要 VS2022 或 MSYS2 g++ |
+| 客户端 | Windows 10/11 x64；GUI 需要 WebView2 Runtime（Win11 通常自带）；控制台客户端无额外依赖 |
 | 网络 | 两台机器在同一局域网，服务端 TCP `9443` 可达 |
 
 ### 1. 获取代码
@@ -57,7 +59,7 @@ docker compose -f deploy/docker/docker-compose.yml logs -f eat-server
 ```
 
 - 首次构建会从 GitHub 拉取并编译 Muduo，需要外网。
-- 容器启动时自动执行 `001→006` 迁移。
+- 容器启动时自动执行 `migrations/base/000_init.sql`、`001_p8_business.sql`、`foods_seed.sql` 与 `migrations/add/002→006`。
 - 服务端监听 `0.0.0.0:9443`。
 
 #### 方案 B：裸机
@@ -81,17 +83,17 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DEAT_MUDUO_ROOT=../muduo
 cmake --build build -j"$(nproc)" --target eat-server client_smoke
 ```
 
-初始化数据库。`001` 基线仍在 `chatroom-backend/`，按 Dockerfile 的同一逻辑拼装一次性迁移：
+初始化数据库。SQL 基线已从旧目录迁入 `migrations/base/`：
 
 ```bash
 {
   echo "CREATE DATABASE IF NOT EXISTS eat CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
   echo "USE eat;"
-  sed 's/chatroom/eat/g' chatroom-backend/init.sql | tr -d '\r'; echo
+  sed 's/chatroom/eat/g' migrations/base/000_init.sql | tr -d '\r'; echo
   echo "SET @seed_pwd_hash = SHA2('disabled-login', 256);"
-  tr -d '\r' < chatroom-backend/server/http/migrations/001_p8_business.sql \
+  tr -d '\r' < migrations/base/001_p8_business.sql \
     | sed 's/^--\([^ ]\)/-- \1/'; echo
-  tr -d '\r' < chatroom-backend/server/http/migrations/foods_seed.sql \
+  tr -d '\r' < migrations/base/foods_seed.sql \
     | sed 's/^--\([^ ]\)/-- \1/'; echo
   for f in migrations/add/00{2,3,4,5,6}_*.sql; do
     case "$f" in *_rollback.sql) continue;; esac
@@ -110,7 +112,7 @@ export EAT_MYSQL_USER=root        # 示例配置默认是 eat，按实际账号�
 ./build/eat-server --config deploy/server.toml.example
 ```
 
-#### 确认监听与放行端口
+确认监听与放行端口：
 
 ```bash
 sudo ufw allow 9443/tcp           # 使用 firewalld 时执行对应放行命令
@@ -120,15 +122,37 @@ hostname -I                       # 记下服务端局域网 IP
 
 ### 3. 启动客户端（Windows）
 
-#### 3.1 直接获取 exe
+#### 3.1 GUI `eat-app.exe`（推荐体验页面）
 
-优先使用以下任一来源，避免在目标机安装编译环境：
+从 GitHub Releases 下载 `eat-app-windows-x64.zip`，解压后目录形态：
 
-- 仓库 Release / 构建机上的 `dist/eat-client-windows.zip`；
-- GitHub Actions 的 `client_smoke-windows-x64` artifact；
-- 从其他已构建的 Windows 机器拷贝 `client_smoke.exe`（单文件，静态链接）。
+```text
+eat-app-windows-x64\
+  eat-app.exe
+  WebView2Loader.dll
+  web\              # 与仓库根目录同一套前端资源
+    index.html
+    app.js
+    bridge.js
+    agent-adapter.js
+    styles.css
+    features.css
+    agent.css
+    assets\
+```
 
-解压后得到：
+双击 `eat-app.exe` 即可启动。首次启动会在同目录创建 `webview-data\`。关闭窗口会进入托盘，右键托盘图标选择“退出”才会结束进程。
+
+当前 GUI 边界：
+
+- 窗口、单实例、托盘、本地 WebView2 页面已验证。
+- 页面会提示“本地模式”，因为 `bridge.js` 的 App 模式与业务 TCP 尚未接线。
+- GUI 内暂不能完成服务端注册/档案/餐记录请求；需要真实业务联调时请使用 `client_smoke.exe`。
+- 同目录没有 `eat-agent.exe` 时，Agent 对话不可用；页面仍可正常加载。
+
+#### 3.2 控制台客户端 `client_smoke.exe`
+
+从 Releases 下载 `eat-client-windows.zip`，或从构建机拷贝 `client_smoke.exe`（单文件、静态链接）。解压后：
 
 ```text
 eat-client-windows\
@@ -136,15 +160,21 @@ eat-client-windows\
   README.md
 ```
 
-#### 3.2 自行构建 exe
+运行：
 
-MSVC（“x64 Native Tools Command Prompt for VS 2022”）：
+```powershell
+.\client_smoke.exe --help
+```
+
+#### 3.3 自己构建客户端（开发者）
+
+控制台客户端，MSVC（“x64 Native Tools Command Prompt for VS 2022”）：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1
 ```
 
-MSYS2 / MinGW（静态链接，生成单文件）：
+控制台客户端，MSYS2 / MinGW（生成单文件）：
 
 ```bash
 g++ -std=c++17 -O2 -static -static-libgcc -static-libstdc++ -I. \
@@ -156,19 +186,21 @@ g++ -std=c++17 -O2 -static -static-libgcc -static-libstdc++ -I. \
   -o client_smoke.exe -lws2_32
 ```
 
-#### 3.3 运行
-
-先启动服务端，再启动客户端；`client_smoke` 首次连接失败会直接退出，不会自动重连。
+GUI，标准 CMake + MSVC + WebView2 SDK：
 
 ```powershell
-.\client_smoke.exe --help
+$env:WEBVIEW2_ROOT = "C:\path\to\Microsoft.Web.WebView2\build\native"
+cmake -S . -B build-win -G "Visual Studio 17 2022" -A x64
+cmake --build build-win --config Release --target eat-app
 ```
+
+产物：`build-win\client\app\Release\eat-app.exe`，同目录 `web\` 由 CMake 自动复制。完整 GUI 构建与 MinGW 已验证命令见 [`docs/WINDOWS_CLIENT_LAN_RUNBOOK.md`](docs/WINDOWS_CLIENT_LAN_RUNBOOK.md)。
 
 ### 4. 客户端连接服务端
 
-#### 4.1 网络前提
+#### 4.1 网络检查
 
-在 Windows 上检查：
+在 Windows 上：
 
 ```powershell
 ipconfig
@@ -178,7 +210,7 @@ Test-NetConnection <服务端IP> -Port 9443
 
 `TcpTestSucceeded : True` 才能继续。若为 False，依次检查：服务端是否监听 `0.0.0.0:9443`、Linux 防火墙、两台机器是否同网段、Wi-Fi AP 隔离、VPN/代理是否劫持内网流量。
 
-#### 4.2 首次注册
+#### 4.2 首次注册并写档案
 
 ```powershell
 .\client_smoke.exe --host <服务端IP> --port 9443 `
@@ -192,7 +224,7 @@ Test-NetConnection <服务端IP> -Port 9443
 - `--register` 只在首次使用；之后去掉该参数走登录。
 - 示例密码仅用于本地联调，不要使用真实密码。
 
-#### 4.3 预期输出
+预期输出：
 
 ```text
 handshake_ok user_key=<26位用户键> token=issued
@@ -203,7 +235,7 @@ verify_weight=66
 
 四项全部出现，说明 TCP 帧、握手鉴权、MySQL 读、MySQL 写、幂等键均已打通。
 
-#### 4.4 二次登录与负向用例
+#### 4.3 二次登录与负向用例
 
 ```powershell
 # 二次登录（不带 --register）
@@ -220,7 +252,7 @@ verify_weight=66
   --login win01@test.local --password win-pass-123 --skip-handshake
 ```
 
-#### 4.5 常见失败
+#### 4.4 常见失败
 
 | 现象 | 原因 | 处理 |
 |---|---|---|
@@ -229,45 +261,31 @@ verify_weight=66
 | `handshake_error code=2002` | 账号或密码错误、令牌无效 | 确认密码 ≥8 位；首次是否加了 `--register` |
 | `handshake_error code=2003` | 连续失败导致账号锁定 | 等待锁定窗口结束或换测试账号 |
 | `patch_error code=3001` | 写方法缺 `idem_key` | 去掉 `--omit-idem` |
+| GUI 页面提示“本地模式” | App 桥接尚未接线 | 属当前已知边界，用 `client_smoke.exe` 测业务 |
 
-### 5. 当前可测范围
-
-| 能力 | 状态 |
-|---|---|
-| 注册 / 登录 / 握手鉴权 | ✅ 可测 |
-| `profile.get` / `profile.patch` | ✅ 可测 |
-| 餐记录 / 统计 / 菜单 / 好友 / 排行 | ⛔ 服务端尚未帧化 |
-| Redis 缓存 | ⛔ 未接线 |
-| GUI `eat-app.exe` | ⚠️ 代码已落盘，未在 Windows 验证 |
-| 100 万在线 | ⛔ 无实测数据 |
+## 当前可测范围
 
 本次局域网联调只覆盖「注册 → 登录 → 握手 → 读档案 → 改体重 → 读回」。页面内餐记录、菜单、好友、排行失败属于业务尚未迁移，不是网络故障。
 
-### 6. GUI App（可选，未验证）
-
-GUI 需要 VS2022 + CMake + WebView2 SDK + Python/PyInstaller，构建步骤见 [`AGENT_win.md`](AGENT_win.md)。当前 GUI 只完成 WebView2 壳、托盘、单实例与 IPC，Agent↔TCP 业务桥接未接线，不能用于完整业务验收。
-
-完整流程、失败排查与验收清单见 [`docs/WINDOWS_CLIENT_LAN_RUNBOOK.md`](docs/WINDOWS_CLIENT_LAN_RUNBOOK.md)。
-
 ## 仓库结构
 
-```
-shared/protocol/     帧协议 / CRC32C / 严格 JSON（server、client、bench 同源）
-server/              tcp、identity、app、business、database、cache
-client/              Win32+WebView2 壳、TCP 传输、IPC、KeyVault
-agent/               Python Agent（HTTP 开发入口 + IPC App 入口）
-migrations/          002–006 增量迁移（001 基线仍随旧后端目录）
-deploy/              Docker、systemd、sysctl、preflight
-tests/               protocol / unit / integration / load
-docs/                架构、运行手册、设计、协议
-chatroom-backend/    P7/P8 历史基线（不参与构建，待退役）
+```text
+shared/protocol/      帧协议 / CRC32C / 严格 JSON（server、client、bench 同源）
+server/               tcp、identity、app、business、database、cache
+client/               Win32+WebView2 壳、TCP 传输、IPC、KeyVault
+agent/                Python Agent（HTTP 开发入口 + IPC App 入口）
+migrations/base/      P7/P8 SQL 基线（000_init / 001_p8_business / foods_seed）
+migrations/add/       002–006 增量迁移
+deploy/               Docker、systemd、sysctl、preflight
+tests/                protocol / unit / integration / load
+docs/                 架构、运行手册、设计、协议
 ```
 
 ## 测试
 
 ```bash
-ctest --test-dir build --output-on-failure     # C++：12/12
-python -m unittest agent.tests.test_smoke      # Agent：51/51
+ctest --test-dir build --output-on-failure     # C++ 单元/协议测试
+python -m unittest agent.tests.test_smoke      # Agent 单测
 python tests/integration/ipc_smoke.py          # IPC
 bash tests/integration/s1_smoke.sh             # 真实 TCP（需 MySQL）
 ```
@@ -277,6 +295,8 @@ bash tests/integration/s1_smoke.sh             # 真实 TCP（需 MySQL）
 - 提交规范、分支与 PR 门禁见 [`CONTRIBUTING.md`](CONTRIBUTING.md)。
 - 漏洞与密钥处理见 [`SECURITY.md`](SECURITY.md)。
 - **禁止**提交 `.env`、Key、数据库密码、`dist/` 与构建产物。
+- 当前业务 TCP 为明文，仅建议在可信局域网内使用；公网部署需先接 TLS。
+- 可执行文件与安装包通过 GitHub Releases 分发，仓库只保留源码与构建脚本。
 
 ## 许可
 

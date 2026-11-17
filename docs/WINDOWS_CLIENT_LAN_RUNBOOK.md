@@ -12,7 +12,8 @@
 | 生成 Windows 客户端 exe | **完成**：`dist/eat-client-windows/client_smoke.exe` | 3.1 MB，静态链接 |
 | exe 本机可执行验证 | 完成：`--help` 正常；连接不存在端口返回 `connect_failed`（退出码 3） | 本机实测 |
 | exe 端到端帧验证 | 完成：本地 mock 帧服务端（`127.0.0.1:19443`）跑通握手 → `profile.get` → `profile.patch` → 读回，四项输出正确、CRC32C 校验通过 | 见第 10 节 |
-| 生成 GUI `eat-app.exe` | **未完成**：本机无 MSVC、CMake、WebView2 SDK | 见第 7 节 |
+| 生成 GUI `eat-app.exe` | **完成**：MinGW + WebView2 SDK 编译；窗口与页面渲染已用截图验证 | `dist/eat-app/eat-app.exe` |
+| GUI 业务桥接 | **未完成**：页面仍显示本地模式；Agent↔TCP 未接线 | 见第 7 节 |
 | Linux 服务端 | 未在本机启动（本机无 Linux/Muduo/MySQL） | 需切换 Linux 后执行第 5 节 |
 
 ## 1. 结论先行：现在能测什么
@@ -23,9 +24,9 @@
 |---|---|---|
 | 注册 / 登录 / 握手鉴权 | ✅ 可测 | `client_smoke.exe` 走真实 TCP 帧 |
 | `profile.get` / `profile.patch` | ✅ 可测 | 写库、幂等键、字段白名单 |
-| `meal.*` / `stats.*` / `food.*` / `friend.*` / `ranking.*` | ⛔ 不可测 | 仍在 `chatroom-backend/`，未迁移到新 TCP 服务端 |
+| `meal.*` / `stats.*` / `food.*` / `friend.*` / `ranking.*` | ⛔ 不可测 | P8 历史代码已删除，业务未帧化 |
 | Redis 缓存 | ⛔ 未接线 | 服务端当前不依赖 Redis 也能启动 |
-| GUI `eat-app.exe` | ⚠️ 代码已落盘，未在 Windows 验证 | Agent↔TCP 桥接也未接线 |
+| GUI `eat-app.exe` | ⚠️ 壳与页面已验证 | Agent↔TCP 桥接未接线，页面显示本地模式 |
 | 100 万在线 | ⛔ 阻断 | 无压测数据，不要宣称 |
 
 因此本次局域网联调的目标是：**注册 → 登录 → 握手 → 读档案 → 改体重 → 读回 → 幂等/鉴权负向用例**。不要用 GUI 页面里的餐记录、菜单、好友、排行来判定客户端“坏了”。
@@ -36,9 +37,14 @@
 dist/eat-client-windows/
   client_smoke.exe    # 单文件，静态链接，仅依赖 Windows 系统 DLL
   README.md           # 面向另一台电脑的简版运行说明
+
+dist/eat-app/
+  eat-app.exe         # Win32 + WebView2 GUI
+  WebView2Loader.dll
+  web/                # 与仓库根目录同一套前端资源
 ```
 
-可直接把整个目录拷到目标 Windows 电脑；也可以拷贝 `dist/eat-client-windows.zip` 后解压。
+可直接把整个目录拷到目标 Windows 电脑；也可以拷贝 `dist/eat-client-windows.zip` 或 `dist/eat-app-windows-x64.zip` 后解压。
 
 > `dist/` 与 `*.exe` 被 `.gitignore` 忽略，不会进入 Git。从 GitHub 全新克隆的机器上没有这两个产物，需要按第 4 节重新生成，或下载 GitHub Actions 的 `client_smoke-windows-x64` artifact。
 
@@ -127,7 +133,7 @@ verify_weight=66
 | `handshake_recv_failed reason=recv_failed` | 服务端握手阶段异常断开 | 查服务端日志；确认协议版本 1.0 |
 | `patch_error code=3001` | 写方法缺 `idem_key` | 去掉 `--omit-idem` |
 | `patch_error code=5001` | 写库失败 | 查 MySQL 连接与 `health_profile` 表 |
-| 页面/GUI 业务失败 | 业务未帧化、GUI 未验证 | 属于当前已知边界，见第 1、7 节 |
+| 页面/GUI 业务失败 | 业务未帧化、GUI 业务桥接未接线 | 属于当前已知边界，见第 1、7 节 |
 
 ## 4. 在本机重新生成 exe
 
@@ -216,18 +222,18 @@ cmake --build build -j"$(nproc)" --target eat-server client_smoke
 mysql -uroot -p -e "CREATE DATABASE IF NOT EXISTS eat CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 ```
 
-`001` 基线仍在 `chatroom-backend/`。按 `deploy/docker/Dockerfile` 的同一拼装逻辑生成一次性迁移文件：
+`001` 基线已迁入 `migrations/base/`。按 `deploy/docker/Dockerfile` 的同一拼装逻辑生成一次性迁移文件：
 
 ```bash
 cd /path/to/what-do-you-want-to-eat-
 {
   echo "CREATE DATABASE IF NOT EXISTS eat CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
   echo "USE eat;"
-  sed 's/chatroom/eat/g' chatroom-backend/init.sql | tr -d '\r'; echo
+  sed 's/chatroom/eat/g' migrations/base/000_init.sql | tr -d '\r'; echo
   echo "SET @seed_pwd_hash = SHA2('disabled-login', 256);"
-  tr -d '\r' < chatroom-backend/server/http/migrations/001_p8_business.sql \
+  tr -d '\r' < migrations/base/001_p8_business.sql \
     | sed 's/^--\([^ ]\)/-- \1/'; echo
-  tr -d '\r' < chatroom-backend/server/http/migrations/foods_seed.sql \
+  tr -d '\r' < migrations/base/foods_seed.sql \
     | sed 's/^--\([^ ]\)/-- \1/'; echo
   for f in migrations/add/00{2,3,4,5,6}_*.sql; do
     case "$f" in *_rollback.sql) continue;; esac
@@ -291,53 +297,98 @@ sudo firewall-cmd --reload
 - [ ] 服务端日志能看到对应握手/请求记录，且日志不含明文密码或 token
 - [ ] 负向验证：GUI 页面餐记录/菜单/好友失败属于“业务未帧化”，不是网络故障
 
-## 7. GUI `eat-app.exe` 的构建与运行（未验证）
+## 7. GUI `eat-app.exe` 的构建与运行
 
-本机没有 MSVC、CMake、WebView2 SDK，因此**没有生成 `eat-app.exe`**。以下流程需要在装有 VS2022 的 Windows 目标机执行；即使构建成功，也仍受“Agent↔TCP 未接线、业务未帧化”限制。
+本机已用 MinGW g++ + WebView2 SDK 生成 `dist/eat-app/eat-app.exe`（PE32+ x64，约 208 KB），并完成启动验证：
+
+- 窗口标题为“今天你吃了吗”，进程保持响应；
+- 启动 6 个 `msedgewebview2.exe` 渲染进程；
+- 同目录生成 `webview-data/EBWebView`；
+- `PrintWindow` 截图确认页面完整渲染了同一套 Web UI：食物菜单、聊天输入框、健康报告、好友排行榜等。
+
+GUI 仍受“Agent↔TCP 未接线、业务未帧化”限制：页面会提示“本地模式”，页面内的服务端业务请求不可用。截图验证的是界面与壳，不是完整业务。
 
 ### 7.1 前置
 
-- Visual Studio 2022 Build Tools，勾选“使用 C++ 的桌面开发”和 Windows SDK
-- CMake 3.20+
-- WebView2 SDK（NuGet `Microsoft.Web.WebView2`，设置 `WEBVIEW2_ROOT` 到 `build/native`）
-- Python 3.11 + PyInstaller（打包 `eat-agent.exe`）
-- 目标机安装 WebView2 Runtime（Win11 通常自带）
+- Windows 10/11 x64
+- WebView2 Runtime（Win11 通常自带）
+- 标准路径：Visual Studio 2022 Build Tools + CMake 3.20+
+- 本机已验证路径：MSYS2 UCRT64 g++ 16.1.0 + LLD + WebView2 SDK
+- 可选：Python + PyInstaller（打包 `eat-agent.exe`）
 
-### 7.2 构建
+### 7.2 标准构建（MSVC + CMake）
 
 ```powershell
-cmake -S . -B build-win -G "Visual Studio 17 2022" -A x64 `
-  -DWEBVIEW2_ROOT="C:\path\to\Microsoft.Web.WebView2\build\native"
+$env:WEBVIEW2_ROOT = "C:\path\to\Microsoft.Web.WebView2\build\native"
+cmake -S . -B build-win -G "Visual Studio 17 2022" -A x64
 cmake --build build-win --config Release --target eat-app
 ```
 
-打包 Agent：
+产物：`build-win\client\app\Release\eat-app.exe`，同目录 `web\` 由 CMake 自动复制。
 
-```powershell
-python -m pip install --upgrade pyinstaller
-pyinstaller --noconfirm --onefile --name eat-agent `
-  --add-data "agent;agent" `
-  --hidden-import agent.ipc_server `
-  agent\ipc_server.py
+### 7.3 本机已验证的 MinGW 构建
+
+```bash
+# 1) 下载并解压 WebView2 SDK
+curl -L -o third_party/webview2.nupkg \
+  https://api.nuget.org/v3-flatcontainer/microsoft.web.webview2/1.0.4314.35/microsoft.web.webview2.1.0.4314.35.nupkg
+python -c "import zipfile; zipfile.ZipFile('third_party/webview2.nupkg').extractall('third_party/webview2')"
+
+# 2) MinGW ld 对 WebView2.h 的 selectany 处理有缺陷，去掉该属性
+sed -i 's/__declspec(selectany) //g' third_party/webview2/build/native/include/WebView2.h
+
+# 3) 编译壳（main.cc 已用本地 ComCallbackBase 替代 WRL::Callback）
+g++ -std=c++17 -O2 -municode -DUNICODE -D_UNICODE -I. \
+  -I third_party/webview2/build/native/include \
+  -c client/app/win32/main.cc -o build-win/main.o
+
+# 4) 从 Loader DLL 生成 MinGW 导入库
+cd third_party/webview2/build/native/x64
+gendef WebView2Loader.dll > /dev/null
+dlltool -d WebView2Loader.def -l ../../../../../build-win/libWebView2Loader.a -D WebView2Loader.dll
+cd -
+
+# 5) 使用 LLD 链接（GNU ld 2.46 处理 WebView2 头时会静默失败）
+g++ -std=c++17 -O2 -municode -mwindows -pthread -fuse-ld=lld \
+  build-win/main.o -Lbuild-win -lWebView2Loader \
+  -lole32 -loleaut32 -luser32 -lshell32 -lshlwapi -luuid \
+  -o dist/eat-app/eat-app.exe
 ```
 
-### 7.3 安装目录形态
+若没有 LLD：
+
+```bash
+pacman -S --needed mingw-w64-ucrt-x86_64-lld
+```
+
+组装运行目录：
+
+```bash
+mkdir -p dist/eat-app/web
+cp index.html app.js bridge.js agent-adapter.js styles.css features.css agent.css dist/eat-app/web/
+cp -r assets/. dist/eat-app/web/assets/
+cp third_party/webview2/build/native/x64/WebView2Loader.dll dist/eat-app/
+```
+
+### 7.4 安装目录形态
 
 ```text
-EatApp\
+eat-app-windows-x64\
   eat-app.exe
-  eat-agent.exe
-  web\            # 构建时自动从仓库根复制
+  WebView2Loader.dll
+  web\                # 与仓库根目录同一套页面资源
+  eat-agent.exe       # 可选；缺失时页面仍可加载，Agent 对话不可用
 ```
 
-双击 `eat-app.exe` 后：创建 `webview-data`、加载本地 `web/index.html`、尝试拉起同目录 `eat-agent.exe` 并通过命名管道通信。
+双击 `eat-app.exe` 后：创建 `webview-data`、加载本地 `web/index.html`、尝试拉起同目录 `eat-agent.exe` 并通过命名管道通信。关闭窗口进托盘，右键托盘“退出”才结束进程。
 
-### 7.4 已知阻断
+### 7.5 已知阻断
 
-- GUI 从未在 Windows 实机编译验证（仓库文档明确标注）。
-- `main.cc` 目前只做 WebView2 壳 + 命名管道转发；业务 TCP 请求尚未接入。
-- 页面业务接口（餐记录/菜单/统计/好友/排行）服务端未帧化。
-- 因此 GUI 只能用于验证“壳能启动、页面能加载、IPC 能握手”，不能用于完整业务验收。
+- `main.cc` 只做 WebView2 壳 + 命名管道转发；业务 TCP 请求尚未接入，页面显示“本地模式”。
+- 页面业务接口（餐记录/菜单/统计/好友/排名）服务端未帧化。
+- 本机验证的是 MinGW 构建路径；MSVC/CMake 路径尚未在实机跑通。
+- 未做 MSIX/安装包、代码签名、卸载清理验证。
+- 因此 GUI 可用于验证“壳能启动、页面能加载”，不能用于完整业务验收。
 
 GitHub Actions 的 `gui-app` job 可在 `workflow_dispatch` 下手动触发并产出 `eat-app-windows-x64` artifact，但该 job 配置为 `continue-on-error: true`，不构成已验证结论。
 
@@ -353,11 +404,11 @@ GitHub Actions 的 `gui-app` job 可在 `workflow_dispatch` 下手动触发并�
 
 | 文件 | 作用 | 扫描结论 |
 |---|---|---|
-| `README.md` | 三端架构与功能状态 | 明确 GUI 未验证、业务未帧化、百万在线阻断 |
-| `AGENT_win.md` | Windows 构建/联调/上传手册 | 与本手册流程一致；GUI 验证清单仍未打勾 |
+| `README.md` | 三端架构与功能状态 | 明确 GUI 已编译、业务未帧化、百万在线阻断 |
+| `AGENT_win.md` | Windows 构建/联调/上传手册 | GUI 壳构建已验证；业务验证清单仍未打勾 |
 | `packaging/README-client.md` | 客户端包说明 | 只承诺 `client_smoke.exe` 可跑真实 TCP |
 | `docs/RUNBOOK.md` | 服务端/客户端运行手册 | Docker 与裸机步骤可用；强调明文 TCP |
-| `docs/DELIVERY-STATUS.md` | 交付证据与未完成项 | 记录 Linux 真实请求通过、Windows GUI 未生成 |
+| `docs/DELIVERY-STATUS.md` | 交付证据与未完成项 | 记录 Linux 真实请求通过、Windows GUI 已生成 |
 | `docs/architecture.md` | 当前代码事实权威入口 | 服务端仅 auth/profile；Redis/业务未接线 |
 | `docs/design/02-windows-app.md` | Windows App 方案 | 壳/IPC/托盘设计完整；A-2 首连顺序风险已登记 |
 | `docs/protocol/v1.md` | 40B 帧协议 | 与 `client_smoke` 实际编码一致 |
@@ -368,9 +419,9 @@ GitHub Actions 的 `gui-app` job 可在 `workflow_dispatch` 下手动触发并�
 
 ### 文档与代码的一致性
 
-- **一致**：README、RUNBOOK、DELIVERY-STATUS、architecture 都承认 GUI 未在 Windows 验证、业务未帧化、Redis 未接线、百万在线无实测。
+- **一致**：README、architecture、DELIVERY-STATUS 都承认业务未帧化、Redis 未接线、百万在线无实测；GUI 已完成壳与页面编译验证。
 - **一致**：`client_smoke.cc` 实际只发握手、`profile.get`、`profile.patch`，与文档描述的 S1 范围相同。
-- **风险点**：`AGENT_win.md` 第 5 节的 GUI 构建步骤可执行，但第 5.4 节的验证清单全部未打勾；不要把“构建成功”等同于“业务可用”。
+- **风险点**：`AGENT_win.md` 第 5.4 节的业务验证清单仍未打勾；不要把“GUI 能启动”等同于“业务可用”。
 - **风险点**：Docker 方案依赖构建期从 GitHub 拉取 Muduo；离线 Linux 机器需要预先准备 Muduo 源码或使用已构建镜像。
 ## 10. 本次实际验证输出
 

@@ -11,6 +11,7 @@
 #include <atomic>
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -18,7 +19,6 @@
 
 #include <wrl.h>
 
-using Microsoft::WRL::Callback;
 using Microsoft::WRL::ComPtr;
 
 namespace {
@@ -31,6 +31,80 @@ constexpr int kTrayId = 1;
 constexpr int kMenuShow = 1001;
 constexpr int kMenuExit = 1002;
 constexpr std::size_t kMaxIpcPayload = 1024 * 1024;
+
+// MinGW's WRL only provides ComPtr, not Callback; these small handlers keep the
+// shell buildable with both MSVC and MinGW.
+template <typename Interface, const IID* kIid>
+class ComCallbackBase : public Interface {
+ public:
+    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** object) override {
+        if (object == nullptr) return E_POINTER;
+        if (riid == IID_IUnknown || riid == *kIid) {
+            *object = static_cast<Interface*>(this);
+            AddRef();
+            return S_OK;
+        }
+        *object = nullptr;
+        return E_NOINTERFACE;
+    }
+    ULONG STDMETHODCALLTYPE AddRef() override { return ++refs_; }
+    ULONG STDMETHODCALLTYPE Release() override {
+        const ULONG value = --refs_;
+        if (value == 0) delete this;
+        return value;
+    }
+
+ protected:
+    virtual ~ComCallbackBase() = default;
+
+ private:
+    std::atomic<ULONG> refs_{1};
+};
+
+class EnvironmentCallback final
+    : public ComCallbackBase<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler,
+                            &IID_ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler> {
+ public:
+    using Fn = std::function<HRESULT(HRESULT, ICoreWebView2Environment*)>;
+    explicit EnvironmentCallback(Fn fn) : fn_(std::move(fn)) {}
+    HRESULT STDMETHODCALLTYPE Invoke(HRESULT result,
+                                     ICoreWebView2Environment* environment) override {
+        return fn_(result, environment);
+    }
+
+ private:
+    Fn fn_;
+};
+
+class ControllerCallback final
+    : public ComCallbackBase<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler,
+                            &IID_ICoreWebView2CreateCoreWebView2ControllerCompletedHandler> {
+ public:
+    using Fn = std::function<HRESULT(HRESULT, ICoreWebView2Controller*)>;
+    explicit ControllerCallback(Fn fn) : fn_(std::move(fn)) {}
+    HRESULT STDMETHODCALLTYPE Invoke(HRESULT result,
+                                     ICoreWebView2Controller* controller) override {
+        return fn_(result, controller);
+    }
+
+ private:
+    Fn fn_;
+};
+
+class WebMessageCallback final
+    : public ComCallbackBase<ICoreWebView2WebMessageReceivedEventHandler,
+                            &IID_ICoreWebView2WebMessageReceivedEventHandler> {
+ public:
+    using Fn = std::function<HRESULT(ICoreWebView2*, ICoreWebView2WebMessageReceivedEventArgs*)>;
+    explicit WebMessageCallback(Fn fn) : fn_(std::move(fn)) {}
+    HRESULT STDMETHODCALLTYPE Invoke(
+        ICoreWebView2* sender, ICoreWebView2WebMessageReceivedEventArgs* args) override {
+        return fn_(sender, args);
+    }
+
+ private:
+    Fn fn_;
+};
 
 std::wstring Widen(const std::string& utf8) {
     if (utf8.empty()) return std::wstring();
@@ -268,56 +342,50 @@ class ShellApp {
 
     void CreateWebView() {
         const std::wstring data_dir = ExecutableDir() + L"\\webview-data";
-        CreateCoreWebView2EnvironmentWithOptions(
-            nullptr, data_dir.c_str(), nullptr,
-            Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
-                [this](HRESULT, ICoreWebView2Environment* environment) -> HRESULT {
-                    if (environment == nullptr) return E_FAIL;
-                    environment->CreateCoreWebView2Controller(
-                        window_,
-                        Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
-                            [this](HRESULT, ICoreWebView2Controller* controller) -> HRESULT {
-                                if (controller == nullptr) return E_FAIL;
-                                controller_ = controller;
-                                controller_->AddRef();
-                                Resize();
-                                ComPtr<ICoreWebView2> webview;
-                                controller_->get_CoreWebView2(&webview);
-                                webview->add_WebMessageReceived(
-                                    Callback<ICoreWebView2WebMessageReceivedEventHandler>(
-                                        [this](ICoreWebView2*,
-                                               ICoreWebView2WebMessageReceivedEventArgs* args)
-                                            -> HRESULT {
-                                            LPWSTR json = nullptr;
-                                            if (SUCCEEDED(args->get_WebMessageAsJson(&json)) &&
-                                                json != nullptr) {
-                                                const int size = WideCharToMultiByte(
-                                                    CP_UTF8, 0, json, -1, nullptr, 0, nullptr,
-                                                    nullptr);
-                                                std::string utf8(static_cast<std::size_t>(size),
-                                                                 '\0');
-                                                WideCharToMultiByte(CP_UTF8, 0, json, -1,
-                                                                    &utf8[0], size, nullptr,
-                                                                    nullptr);
-                                                if (!utf8.empty() && utf8.back() == '\0') {
-                                                    utf8.pop_back();
-                                                }
-                                                ipc_.Send(utf8);
-                                                CoTaskMemFree(json);
-                                            }
-                                            return S_OK;
-                                        })
-                                        .Get(),
-                                    nullptr);
-                                const std::wstring url =
-                                    L"file:///" + ExecutableDir() + L"/web/index.html";
-                                webview->Navigate(url.c_str());
+        auto* environment_callback = new EnvironmentCallback(
+            [this](HRESULT, ICoreWebView2Environment* environment) -> HRESULT {
+                if (environment == nullptr) return E_FAIL;
+                auto* controller_callback = new ControllerCallback(
+                    [this](HRESULT, ICoreWebView2Controller* controller) -> HRESULT {
+                        if (controller == nullptr) return E_FAIL;
+                        controller_ = controller;
+                        controller_->AddRef();
+                        Resize();
+                        ComPtr<ICoreWebView2> webview;
+                        controller_->get_CoreWebView2(&webview);
+                        auto* message_callback = new WebMessageCallback(
+                            [this](ICoreWebView2*,
+                                   ICoreWebView2WebMessageReceivedEventArgs* args) -> HRESULT {
+                                LPWSTR json = nullptr;
+                                if (SUCCEEDED(args->get_WebMessageAsJson(&json)) &&
+                                    json != nullptr) {
+                                    const int size = WideCharToMultiByte(
+                                        CP_UTF8, 0, json, -1, nullptr, 0, nullptr, nullptr);
+                                    std::string utf8(static_cast<std::size_t>(size), '\0');
+                                    WideCharToMultiByte(CP_UTF8, 0, json, -1, &utf8[0], size,
+                                                        nullptr, nullptr);
+                                    if (!utf8.empty() && utf8.back() == '\0') {
+                                        utf8.pop_back();
+                                    }
+                                    ipc_.Send(utf8);
+                                    CoTaskMemFree(json);
+                                }
                                 return S_OK;
-                            })
-                            .Get());
-                    return S_OK;
-                })
-                .Get());
+                            });
+                        webview->add_WebMessageReceived(message_callback, nullptr);
+                        message_callback->Release();
+                        const std::wstring url =
+                            L"file:///" + ExecutableDir() + L"/web/index.html";
+                        webview->Navigate(url.c_str());
+                        return S_OK;
+                    });
+                environment->CreateCoreWebView2Controller(window_, controller_callback);
+                controller_callback->Release();
+                return S_OK;
+            });
+        CreateCoreWebView2EnvironmentWithOptions(nullptr, data_dir.c_str(), nullptr,
+                                                 environment_callback);
+        environment_callback->Release();
     }
 
     void Resize() {

@@ -37,19 +37,19 @@ node --check app.js bridge.js agent-adapter.js      # ok
 
 本机实测：通过局域网地址 `10.101.17.32:19443` 完成注册、登录、`profile.get`、`profile.patch`（weight=66）并读回；解包后的 `9443` 服务同样通过。
 
-**Windows GUI exe 未生成**：当前 Linux 环境无 MSVC/WebView2/SDK，无法交叉编译。`client_smoke.exe` 可在 Windows 上用 `build-client.ps1` 一键生成（纯 WinSock，无第三方依赖）；GUI App 需按 `client/app/CMakeLists.txt` 在 Windows 构建。
+**Windows GUI exe 已生成**：在 Windows 开发机用 MinGW + WebView2 SDK 编译 `eat-app.exe`，并验证启动、窗口、WebView2 渲染进程与页面加载；业务 TCP/Agent 桥接仍未接线。
 
 ## 未完成（明确不宣称）
 
-- Windows App：WebView2 壳未在 Windows 编译/安装/签名；DPAPI、托盘、单实例、断网冷启动均未验证。
-- 服务端业务：仅 `profile.get/patch` + 认证；`meal/stats/food/friend/ranking` 仍依赖旧 P8 代码，未帧化。
+- Windows App：WebView2 壳已编译并验证启动/页面渲染；安装/签名、DPAPI、托盘、单实例、断网冷启动、业务桥接均未验证。
+- 服务端业务：仅 `profile.get/patch` + 认证；`meal/stats/food/friend/ranking` 未帧化，P8 历史代码已删除。
 - Redis：仅启动服务，服务端未接入 CacheClient；缓存一致性/降级用例未跑。
-- `chatroom-backend/` 未删除（需确认）；`health_profile` 列名 007 未执行。
+- `chatroom-backend/` 已删除，SQL 基线已迁入 `migrations/base/`；`health_profile` 列名 007 未执行。
 - 100 万连接：**阻断**，无压测数据。
 
 ## 需要用户确认的破坏性操作
 
-1. 删除 `chatroom-backend/`（业务迁完后）。
+1. ~~删除 `chatroom-backend/`~~（已完成；SQL 基线迁入 `migrations/base/`）。
 2. 执行 `007_profile_user_key.sql`（列名 `agent_uid` → `user_key`，影响旧 P8 进程）。
 3. 删除 Config 中 20+ 个未接线字段（需同步模板与文档）。
 4. 将根目录页面资源移入 `client/resources/web/`（App 最终形态）。

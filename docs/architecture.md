@@ -1,13 +1,13 @@
 # Eat 架构说明（合并后 · 2026-11-17）
 
-> 本文是当前代码事实的权威入口。历史文档：`AGENT.md`（Agent 能力）、`AGENT_Linux.md`（上一轮交接）、`chatroom-backend/*.md`（P7/P8 基线，已退役）。
+> 本文是当前代码事实的权威入口。历史文档：`AGENT.md`（Agent 能力）、`AGENT_Linux.md`（上一轮交接）。P7/P8 历史代码已删除，SQL 基线迁入 `migrations/base/`。
 
 ## 1. 三线合并结果
 
 | 原线 | 现状 |
 |---|---|
 | ① 浏览器 + Python Agent | 页面与 Agent 能力保留；页面改为经 `bridge.js` 传输抽象运行，App 内走 IPC，浏览器仅开发调试 |
-| ② `chatroom-backend/` P7/P8 | 业务语义、SQL、测试用例作为迁移源；网络层与 HTTP 语义层退役（目录暂留，未参与构建） |
+| ② `chatroom-backend/` P7/P8 | 已删除；SQL 基线迁入 `migrations/base/`，业务 Handler 未迁移 |
 | ③ 根 `server/` + `shared/protocol` | 唯一服务端实现：Muduo 主从 Reactor + 40B 帧 + JSON + MySQL + 通用线程池 |
 
 ## 2. 运行形态
@@ -63,7 +63,7 @@ EAT_MYSQL_PASSWORD=*** ./build/eat-server --config deploy/server.toml.example
 
 环境变量覆盖：`EAT_MYSQL_HOST/PORT/DB/USER/PASSWORD/SOCKET`、`EAT_REDIS_*`。
 
-## 5. Windows App（S2，未在 Windows 验证）
+## 5. Windows App（S2，壳已编译验证，业务未接线）
 
 - 壳：`client/app/win32/main.cc`（Win32 + WebView2；单实例；托盘；关窗进托盘；`file:///.../web/index.html`）。
 - 页面：根目录资源在构建时复制到安装目录 `web/`，禁止远程首屏。
@@ -81,7 +81,7 @@ EAT_MYSQL_PASSWORD=*** ./build/eat-server --config deploy/server.toml.example
 | Agent 单测 | **51/51 通过** |
 | IPC smoke `tests/integration/ipc_smoke.py` | **通过**（hello/ping/agent.chat，122 事件） |
 | 前端语法 | `node --check` app.js / bridge.js / agent-adapter.js 通过 |
-| Windows App | **未验证**（当前 Linux 无 WebView2/MSVC/DPAPI） |
+| Windows App | 壳与页面已编译验证；业务 TCP/Agent/IPC 未接线 |
 
 ## 7. 已修正的合并缺陷
 
@@ -96,7 +96,7 @@ EAT_MYSQL_PASSWORD=*** ./build/eat-server --config deploy/server.toml.example
 | 项 | 状态 |
 |---|---|
 | Redis `CacheClient`（GET/SETEX/DEL/SingleFlight 接线、写后 DEL、熔断） | 未接线（T5.1/T5.8） |
-| `meal.create/recent`、`stats.*`、`food.*`、`friend.*`、`ranking.*` 帧化 | 未迁移（P8 Service/DAO 仍在 `chatroom-backend`） |
+| `meal.create/recent`、`stats.*`、`food.*`、`friend.*`、`ranking.*` 帧化 | 未迁移（P8 历史代码已删除，需按设计重写） |
 | `meal.patch/delete` 落库 | 未实现；Agent 侧明确标记 `persisted=false` |
 | `health_profile.agent_uid` → `user_key` 列名迁移（007） | 未执行；当前以 `user_key` 值写入旧列名 |
 | TLS/SPKI、Windows 安装包签名 | 未实现 |
@@ -105,8 +105,8 @@ EAT_MYSQL_PASSWORD=*** ./build/eat-server --config deploy/server.toml.example
 
 ## 9. 下一步顺序
 
-1. 完成 `chatroom-backend` 的 Service/DAO 迁移并注册 `meal.*`/`stats.*`/`food.*`/`friend.*`/`ranking.*`。
+1. 按 `migrations/base/` 与历史设计重写 `meal.*`/`stats.*`/`food.*`/`friend.*`/`ranking.*` Handler 并注册到 `ServiceRegistry`。
 2. 接 Redis CacheClient（写后 DEL、负缓存、熔断降级）并跑 S-06/07/08 用例。
-3. 在 Windows 目标机编译运行 App，打通 WebView2 → IPC → Agent → TCP。
-4. 执行 007 列名迁移，删除 `chatroom-backend/`，合并 AGENT.md/AGENT_Linux.md。
+3. 打通 WebView2 → IPC → Agent → TCP（壳与页面已编译运行，业务桥接未接线）。
+4. 执行 007 列名迁移，合并 AGENT.md/AGENT_Linux.md（`chatroom-backend/` 已删除）。
 5. 只有完成上述并留下证据，才可讨论容量宣称与 Web 下线。

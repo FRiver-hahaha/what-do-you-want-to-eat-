@@ -2,12 +2,14 @@
 
 ## Order
 
-1. `001_p8_business.sql` (P8 baseline, existing)
-2. `002_identity.sql`
-3. `003_session.sql`
-4. `004_friend_relation.sql`
-5. `005_meal_partition.sql`
-6. `006_event_outbox.sql`
+1. `migrations/base/000_init.sql`（P7 账号/好友基线）
+2. `migrations/base/001_p8_business.sql`（P8 业务表）
+3. `migrations/base/foods_seed.sql`（食物种子数据）
+4. `002_identity.sql`
+5. `003_session.sql`
+6. `004_friend_relation.sql`
+7. `005_meal_partition.sql`
+8. `006_event_outbox.sql`
 
 Each step has a paired `_rollback.sql`.
 

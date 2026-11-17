@@ -44,7 +44,7 @@ powershell -ExecutionPolicy Bypass -File .\build-client.ps1
 ### GUI App
 
 需在 Windows 上用 VS2022 + CMake + WebView2 SDK 构建（见 `dist/eat-client-windows/README.md`）。
-**当前未在 Windows 实机验证，不能宣称端到端可用。**
+壳已在开发机用 MinGW + WebView2 SDK 构建并验证页面加载；业务桥接尚未接线，不能宣称端到端可用。
 
 ## 三、局域网连通性
 

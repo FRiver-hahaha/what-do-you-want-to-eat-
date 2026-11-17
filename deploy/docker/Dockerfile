@@ -27,10 +27,10 @@ RUN cmake -S /src -B /src/build -DCMAKE_BUILD_TYPE=Release \
 RUN mkdir -p /opt/eat/initdb && { \
         echo "CREATE DATABASE IF NOT EXISTS eat CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"; \
         echo "USE eat;"; \
-        sed 's/chatroom/eat/g' /src/chatroom-backend/init.sql | tr -d '\r'; echo; \
+        sed 's/chatroom/eat/g' /src/migrations/base/000_init.sql | tr -d '\r'; echo; \
         echo "SET @seed_pwd_hash = SHA2('disabled-login', 256);"; \
-        tr -d '\r' < /src/chatroom-backend/server/http/migrations/001_p8_business.sql | sed 's/^--\([^ ]\)/-- \1/'; echo; \
-        tr -d '\r' < /src/chatroom-backend/server/http/migrations/foods_seed.sql | sed 's/^--\([^ ]\)/-- \1/'; echo; \
+        tr -d '\r' < /src/migrations/base/001_p8_business.sql | sed 's/^--\([^ ]\)/-- \1/'; echo; \
+        tr -d '\r' < /src/migrations/base/foods_seed.sql | sed 's/^--\([^ ]\)/-- \1/'; echo; \
         for f in /src/migrations/add/00{2,3,4,5,6}_*.sql; do \
             case "$f" in *_rollback.sql) continue;; esac; \
             tr -d '\r' < "$f" | sed 's/^--\([^ ]\)/-- \1/'; echo; \

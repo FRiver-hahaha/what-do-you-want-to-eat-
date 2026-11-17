@@ -3,7 +3,7 @@
 ## 1. 分支与基线
 
 - 本地工作分支：`feat/app-transport-scale`（未 push、未建 PR、未合并）。
-- 基线：`origin/main`（`fc34b0f`）+ 引入 `origin/feat/backend-p8` 的 `chatroom-backend/` 作为 P8 复用基线。
+- 基线：`origin/main`（`fc34b0f`）+ 引入 `origin/feat/backend-p8` 的 `chatroom-backend/` 作为 P8 复用基线（2026-11-17 已删除，SQL 基线迁入 `migrations/base/`）。
 - 规格与设计：`.codeartsdoer/specs/app_transport_scale/`（R6 `spec.md`、`design.md`、`tasks.md`）。
 
 ## 2. 已落地代码

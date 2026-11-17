@@ -25,11 +25,11 @@ chmod +x "$SERVER_DIR/eat-server" "$SERVER_DIR/client_smoke" "$SERVER_DIR/run.sh
 {
     echo "CREATE DATABASE IF NOT EXISTS eat CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
     echo "USE eat;"
-    sed 's/chatroom/eat/g' "$ROOT/chatroom-backend/init.sql" | tr -d '\r'; echo
+    sed 's/chatroom/eat/g' "$ROOT/migrations/base/000_init.sql" | tr -d '\r'; echo
     echo "SET @seed_pwd_hash = SHA2('disabled-login', 256);"
-    tr -d '\r' < "$ROOT/chatroom-backend/server/http/migrations/001_p8_business.sql" \
+    tr -d '\r' < "$ROOT/migrations/base/001_p8_business.sql" \
         | sed 's/^--\([^ ]\)/-- \1/'; echo
-    tr -d '\r' < "$ROOT/chatroom-backend/server/http/migrations/foods_seed.sql" \
+    tr -d '\r' < "$ROOT/migrations/base/foods_seed.sql" \
         | sed 's/^--\([^ ]\)/-- \1/'; echo
     for f in "$ROOT"/migrations/add/00{2,3,4,5,6}_*.sql; do
         case "$f" in *_rollback.sql) continue;; esac

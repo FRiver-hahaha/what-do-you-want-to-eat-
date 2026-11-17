@@ -1,9 +1,0 @@
-samples=30 ok=30 unavailable=0 wall=0.11s worst=0.10s median=0.03s
-PASS  30 并发请求全部收到响应（无挂死）
-PASS  无任何 5xx/网络异常
-PASS  all responses are HTTP 200 business envelope
-PASS  池超时被限时兜底（worst < 8s）
-PASS  至少部分请求成功（池未完全饿死）
-PASS  突发后实例健康检查恢复 ok
-
-RESULT 6/6 PASS (ok=30/30, 限时拒绝=0)

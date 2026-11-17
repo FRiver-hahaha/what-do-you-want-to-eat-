@@ -23,6 +23,10 @@ dist/
 build-release/
 build-win/
 
+# 本地 WebView2 SDK（构建期依赖，不提交）
+third_party/webview2/
+third_party/*.nupkg
+
 # Windows 构建中间产物
 *.exe
 *.dll

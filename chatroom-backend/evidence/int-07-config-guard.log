@@ -1,9 +1,0 @@
-
-== 配置外置验证 ==
-  [PASS] 错误 MySQL 密码 -> 启动失败 exit=-6
-  [PASS] 日志可定位到 MySQL ['F20261113 19:42:25.334875  9728 ChatService.cc:133] MySQL pool init failed, host=127.0.0.1 port=3306 user=chatv2 db=chatroom']
-  [PASS] 错误 Redis 密码 -> 启动失败 exit=-6
-  [PASS] 日志可定位到 Redis AUTH ['E20261113 19:42:25.466254  9729 Redis.cc:34] Redis AUTH failed: wrong password']
-  [PASS] 未提供密码时按默认空值连接（源码内无可用凭据） exit=-6
-
-结果: PASS=5 FAIL=0

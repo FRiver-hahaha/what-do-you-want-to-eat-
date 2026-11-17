@@ -41,6 +41,7 @@ cmake --build build-win --config Release --target eat-app
 ## 3. 当前边界（重要）
 
 - `client_smoke.exe` 走真实 TCP 帧，已验证可完成注册/登录/握手/档案读写。
-- GUI App 的 WebView2 壳、托盘、单实例、DPAPI 尚未在 Windows 实机编译验证；
-  Agent 与业务 TCP 的桥接也尚未接线，因此 **GUI App 暂不能承诺端到端业务可用**。
+- GUI App 的 WebView2 壳已在开发机编译并验证页面加载；
+  托盘、单实例、DPAPI 尚未验证，Agent 与业务 TCP 的桥接也尚未接线，
+  因此 **GUI App 暂不能承诺端到端业务可用**。
 - 不要把 `--password` 写进脚本或日志；生产环境应改为交互输入/凭据库。

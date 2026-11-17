@@ -1,6 +1,0 @@
-PASS  W1 重启前写入成功
-PASS  W1 写入无 mock 回退
-PASS  W1 数据已落库
-STATE {'run': '2026111710', 'receipt': 'meal-210', 'meal_id': '210', 'rows': '112'}
-
-RESULT 3/3 PASS
