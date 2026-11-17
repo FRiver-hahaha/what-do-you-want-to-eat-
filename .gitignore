@@ -7,6 +7,9 @@ __pycache__/
 .env
 .env.*
 !.env.example
+
+# 本地登录配置（含明文密码，不提交）
+login.json
 *.log
 *.db
 *.db-wal

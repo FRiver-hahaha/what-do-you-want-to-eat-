@@ -143,7 +143,35 @@ py -3.12 -m PyInstaller --noconfirm --onefile --name eat-agent `
 Test-NetConnection <服务端IP> -Port 9443
 ```
 
-GUI 首次连接需要登录。页面协议已就绪，可通过 WebView2 DevTools 或在页面脚本中发送：
+### 6.1 方式 A：`login.json` 自动登录（推荐）
+
+在 `eat-app.exe` 同目录（或 `%LOCALAPPDATA%\EatApp\`）创建 `login.json`：
+
+```json
+{
+  "host": "192.168.1.50",
+  "port": 9443,
+  "login_id": "win01@test.local",
+  "password": "win-pass-123",
+  "display_name": "Windows 用户",
+  "register": true
+}
+```
+
+启动顺序：
+
+1. 壳读取 `login.json`，完成 TCP 握手；
+2. 会话写入 `%LOCALAPPDATA%\EatApp\session.json`；
+3. 注入 `EAT_TCP_HOST/PORT/USER_KEY/SERVER_TOKEN` 与 `EAT_SERVICE_REQUIRED=1`；
+4. 启动 `eat-agent.exe`，页面直接使用服务端真实数据。
+
+首次使用 `"register": true`；账号已存在时改成 `false`。成功后可以删除 `login.json`，下次直接复用 `session.json`。
+
+> `login.json` 含明文密码，已在 `.gitignore` 中忽略；不要提交或随包分发。
+
+### 6.2 方式 B：页面发送 `service.login`
+
+页面协议已就绪，可通过 WebView2 DevTools 或在页面脚本中发送：
 
 ```javascript
 window.chrome.webview.postMessage({
@@ -203,8 +231,8 @@ redis-cli --scan --pattern 'eat:v1:*' | head
 ## 8. 已知限制
 
 - 单 exe 未完成：`eat-app.exe` 仍需要同目录 `web\`、`eat-agent.exe` 与 OpenSSL DLL。
-- 页面登录表单未实现，目前通过 `service.login` 消息或环境变量完成会话。
-- GUI 桥接代码（`service.login`、`service.request`、会话持久化）尚未在 Windows 上编译验证。
+- 页面登录表单未实现，通过 `login.json` 或 `service.login` 完成会话。
+- GUI 桥接代码（`service.login`、`service.request`、`login.json` 自动登录）尚未在 Windows 上编译验证。
 - Windows 上不能运行 `eat-server`；MySQL/Redis 只允许服务端连接。
 - 业务 TCP 为明文，仅建议在可信局域网使用。
 - 如果 `cmake` 报找不到 OpenSSL，确认 `CMAKE_TOOLCHAIN_FILE` 指向 vcpkg，并已安装 `openssl:x64-windows`。

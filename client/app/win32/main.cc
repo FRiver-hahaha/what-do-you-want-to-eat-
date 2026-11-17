@@ -316,52 +316,102 @@ class ShellApp {
     }
 
     void HandleServiceLogin(const protocol::JsonValue& message) {
-        const std::string host = StringField(message, "host");
-        const std::string login_id = StringField(message, "login_id");
-        const std::string password = StringField(message, "password");
-        const std::string display_name = StringField(message, "display_name");
+        LoginConfig config;
+        config.host = StringField(message, "host");
+        config.login_id = StringField(message, "login_id");
+        config.password = StringField(message, "password");
+        config.display_name = StringField(message, "display_name");
+        config.present = true;
         const protocol::JsonValue* port_value = message.Find("port");
-        std::uint16_t port = 9443;
         if (port_value != nullptr && port_value->IsInt() && port_value->AsInt() > 0 &&
             port_value->AsInt() <= 65535) {
-            port = static_cast<std::uint16_t>(port_value->AsInt());
+            config.port = static_cast<std::uint16_t>(port_value->AsInt());
         }
         const protocol::JsonValue* register_value = message.Find("register");
-        const bool register_account = register_value != nullptr && register_value->AsBool();
-        if (host.empty() || login_id.empty() || password.empty()) {
+        config.register_account = register_value != nullptr && register_value->AsBool();
+        if (config.host.empty() || config.login_id.empty() || config.password.empty()) {
             ReplyLogin(message, false, "host/login_id/password are required");
             return;
         }
 
-        client::TransportConfig config;
-        config.host = host;
-        config.port = port;
-        config.login_id = login_id;
-        config.password = password;
-        config.display_name = display_name.empty() ? login_id : display_name;
-        config.register_account = register_account;
-        config.device_id = "eat-app";
-        config.client_version = "windows-app/1";
-
-        client::TcpTransport transport(config);
         std::string error;
-        if (!transport.Start(error)) {
-            ReplyLogin(message, false, "login_failed:" + error);
+        if (!LoginWithCredentials(config, error)) {
+            ReplyLogin(message, false, error);
             return;
         }
-        session_.host = host;
-        session_.port = port;
+        NotifyAgentService();
+        ReplyLogin(message, true, "");
+    }
+
+    bool LoginWithCredentials(const LoginConfig& config, std::string& error) {
+        client::TransportConfig transport_config;
+        transport_config.host = config.host;
+        transport_config.port = config.port;
+        transport_config.login_id = config.login_id;
+        transport_config.password = config.password;
+        transport_config.display_name =
+            config.display_name.empty() ? config.login_id : config.display_name;
+        transport_config.register_account = config.register_account;
+        transport_config.device_id = "eat-app";
+        transport_config.client_version = "windows-app/1";
+
+        client::TcpTransport transport(transport_config);
+        std::string transport_error;
+        if (!transport.Start(transport_error)) {
+            error = "login_failed:" + transport_error;
+            return false;
+        }
+        session_.host = config.host;
+        session_.port = config.port;
         session_.user_key = transport.user_key();
         session_.access_token = transport.access_token();
         transport.Stop();
         if (session_.access_token.empty() || session_.user_key.empty()) {
-            ReplyLogin(message, false, "login_returned_empty_session");
-            return;
+            error = "login_returned_empty_session";
+            return false;
         }
         SaveSession();
         ApplySessionEnvironment();
-        NotifyAgentService();
-        ReplyLogin(message, true, "");
+        error.clear();
+        return true;
+    }
+
+    LoginConfig LoadLoginConfig() const {
+        LoginConfig config;
+        const std::wstring candidates[] = {
+            ExecutableDir() + L"\\login.json",
+            LocalAppDataDir() + L"\\EatApp\\login.json",
+        };
+        for (const auto& path : candidates) {
+            const std::string raw = ReadUtf8File(path);
+            if (raw.empty()) continue;
+            const auto parsed = protocol::ParseStrictJson(raw);
+            if (!parsed.ok || !parsed.value.IsObject()) continue;
+            config.host = StringField(parsed.value, "host");
+            config.login_id = StringField(parsed.value, "login_id");
+            config.password = StringField(parsed.value, "password");
+            config.display_name = StringField(parsed.value, "display_name");
+            config.present = true;
+            const protocol::JsonValue* port_value = parsed.value.Find("port");
+            if (port_value != nullptr && port_value->IsInt() && port_value->AsInt() > 0 &&
+                port_value->AsInt() <= 65535) {
+                config.port = static_cast<std::uint16_t>(port_value->AsInt());
+            }
+            const protocol::JsonValue* register_value = parsed.value.Find("register");
+            config.register_account =
+                register_value != nullptr && register_value->AsBool();
+            return config;
+        }
+        return config;
+    }
+
+    void EnsureSession() {
+        if (!session_.access_token.empty()) return;
+        const LoginConfig config = LoadLoginConfig();
+        if (!config.present) return;
+        if (config.host.empty() || config.login_id.empty() || config.password.empty()) return;
+        std::string error;
+        LoginWithCredentials(config, error);
     }
 
     void ReplyLogin(const protocol::JsonValue& message, bool ok, const std::string& error) {
@@ -474,6 +524,7 @@ class ShellApp {
     void Setup() {
         AddTrayIcon();
         LoadSession();
+        EnsureSession();
         StartAgent();
         CreateWebView();
     }
@@ -614,6 +665,16 @@ class ShellApp {
     ICoreWebView2Controller* controller_ = nullptr;
     IpcClient ipc_;
     HANDLE agent_process_ = nullptr;
+
+    struct LoginConfig {
+        bool present = false;
+        std::string host = "127.0.0.1";
+        std::uint16_t port = 9443;
+        std::string login_id;
+        std::string password;
+        std::string display_name;
+        bool register_account = false;
+    };
 
     struct Session {
         std::string host = "127.0.0.1";
