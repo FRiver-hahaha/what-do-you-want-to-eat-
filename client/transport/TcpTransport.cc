@@ -69,11 +69,18 @@ bool TcpTransport::Start(std::string& error) {
     }
 #endif
     running_.store(true);
+    read_thread_ = std::thread([this] { ReadLoop(); });
     if (!ConnectOnce(error)) {
         running_.store(false);
+        connect_cv_.notify_all();
+        CloseSocket();
+        FailAllPending();
+        if (read_thread_.joinable()) read_thread_.join();
+#ifdef _WIN32
+        WSACleanup();
+#endif
         return false;
     }
-    read_thread_ = std::thread([this] { ReadLoop(); });
     heartbeat_thread_ = std::thread([this] { HeartbeatLoop(); });
     reconnect_thread_ = std::thread([this] { ReconnectLoop(); });
     return true;
@@ -380,6 +387,11 @@ void TcpTransport::ReconnectLoop() {
 void TcpTransport::CloseSocket() {
     std::lock_guard<std::mutex> lock(socket_mutex_);
     if (socket_handle_ != -1) {
+#ifdef _WIN32
+        shutdown(static_cast<SOCKET>(socket_handle_), SD_BOTH);
+#else
+        shutdown(static_cast<int>(socket_handle_), SHUT_RDWR);
+#endif
         CloseHandle(socket_handle_);
         socket_handle_ = -1;
     }

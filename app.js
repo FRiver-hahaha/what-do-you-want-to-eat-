@@ -1979,6 +1979,7 @@ document.addEventListener("visibilitychange", () => {
   else if (!document.body.classList.contains("motion-off")) startConstellation();
 });
 
+initServiceLogin();
 ensurePointsState();
 applyTheme(pointsState.selected || "aurora");
 initDates();
@@ -2000,3 +2001,61 @@ window.eatLocal = {
   getHealthAnalysis,
   showToast
 };
+function initServiceLogin() {
+  const overlay = document.getElementById("serviceLogin");
+  const form = document.getElementById("serviceLoginForm");
+  if (!overlay || !form) return;
+  const hostInput = document.getElementById("serviceHost");
+  const portInput = document.getElementById("servicePort");
+  const loginInput = document.getElementById("serviceLoginId");
+  const passwordInput = document.getElementById("servicePassword");
+  const registerInput = document.getElementById("serviceRegister");
+  const errorBox = document.getElementById("serviceLoginError");
+  const button = document.getElementById("serviceLoginButton");
+
+  hostInput.value = localStorage.getItem("eat-server-host") || hostInput.value;
+  loginInput.value = localStorage.getItem("eat-server-login") || loginInput.value;
+
+  const showError = message => {
+    errorBox.hidden = !message;
+    errorBox.textContent = message || "";
+  };
+
+  (async () => {
+    if (!window.eatTransport) return;
+    try {
+      const status = await window.eatTransport.request("/api/service/status");
+      if (status && status.mode === "tcp" && status.user_key) overlay.hidden = true;
+    } catch {
+      // Agent 尚未启动时保留登录界面
+    }
+  })();
+
+  form.addEventListener("submit", async event => {
+    event.preventDefault();
+    showError("");
+    button.disabled = true;
+    button.textContent = "连接中…";
+    try {
+      const result = await window.eatTransport.login({
+        host: hostInput.value.trim(),
+        port: Number(portInput.value) || 9443,
+        login_id: loginInput.value.trim(),
+        password: passwordInput.value,
+        register: registerInput.checked
+      });
+      if (!result || result.ok === false) {
+        throw new Error((result && result.message) || "登录失败");
+      }
+      localStorage.setItem("eat-server-host", hostInput.value.trim());
+      localStorage.setItem("eat-server-login", loginInput.value.trim());
+      overlay.hidden = true;
+      window.location.reload();
+    } catch (error) {
+      showError(error && error.message ? error.message : "无法连接服务端");
+    } finally {
+      button.disabled = false;
+      button.textContent = "连接";
+    }
+  });
+}

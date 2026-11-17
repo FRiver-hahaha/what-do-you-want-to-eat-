@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="features.css">
   <link rel="stylesheet" href="agent.css">
+  <link rel="stylesheet" href="login.css">
 </head>
 <body>
   <div class="ambient" aria-hidden="true">
@@ -15,6 +16,26 @@
     <div class="aurora aurora-sky"></div>
     <div class="aurora aurora-peach"></div>
     <canvas id="constellationCanvas"></canvas>
+  </div>
+
+  <div class="service-login" id="serviceLogin">
+    <div class="service-login-card">
+      <div class="service-login-mark" aria-hidden="true"><svg class="icon"><use href="#icon-user"></use></svg></div>
+      <h1>连接服务端</h1>
+      <p class="service-login-hint">首次使用请填写同一局域网内的服务端地址，已有会话会自动进入。</p>
+      <form id="serviceLoginForm">
+        <div class="service-login-row">
+          <label for="serviceHost">服务器地址<input id="serviceHost" type="text" placeholder="192.168.1.50" autocomplete="off" required></label>
+          <label for="servicePort">端口<input id="servicePort" type="number" min="1" max="65535" step="1" value="9443" inputmode="numeric" required></label>
+        </div>
+        <label for="serviceLoginId">账号<input id="serviceLoginId" type="text" placeholder="win01@test.local" autocomplete="username" required></label>
+        <label for="servicePassword">密码<input id="servicePassword" type="password" placeholder="至少 8 位" autocomplete="current-password" required></label>
+        <label class="service-login-check"><input id="serviceRegister" type="checkbox"> 首次使用，注册新账号</label>
+        <div class="service-login-error" id="serviceLoginError" hidden></div>
+        <button class="button primary-button" id="serviceLoginButton" type="submit">连接</button>
+      </form>
+      <p class="service-login-foot">账号数据只保存在你的服务端；客户端不会直连 MySQL 或 Redis。</p>
+    </div>
   </div>
 
   <svg class="svg-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -279,8 +300,8 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><svg class="icon"><use href="#icon-check"></use></svg><span></span></div>
-  <script src="app.js"></script>
   <script src="bridge.js"></script>
+  <script src="app.js"></script>
   <script src="agent-adapter.js"></script>
 </body>
 </html>

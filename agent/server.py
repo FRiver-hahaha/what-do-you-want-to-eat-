@@ -306,6 +306,9 @@ class AgentHTTPRequestHandler(BaseHTTPRequestHandler):
         if path == "/api/service/status" and method == "GET":
             return 200, app.service.status()
 
+        if path == "/api/service/login" and method == "POST":
+            return 200, app.login_service(body)
+
         raise AgentError(404, "not_found", f"接口不存在：{method} {path}")
 
 

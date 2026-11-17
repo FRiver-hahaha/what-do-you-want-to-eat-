@@ -501,6 +501,36 @@ class AgentApp:
         result = self.registry.call("pick_random_food", arguments, ctx)
         return self._tool_payload(result)
 
+    def login_service(self, payload: dict[str, Any]) -> dict[str, Any]:
+        from agent.transport.tcp_frame import TcpFrameClient, TcpFrameError
+
+        host = str(payload.get("host") or "").strip()
+        port = int(payload.get("port") or 9443)
+        login_id = str(payload.get("login_id") or "").strip()
+        password = str(payload.get("password") or "")
+        display_name = str(payload.get("display_name") or login_id)
+        register = bool(payload.get("register"))
+        if not host or not login_id or not password:
+            return {"ok": False, "message": "host/login_id/password are required"}
+
+        client = TcpFrameClient(host, port, timeout=5.0)
+        try:
+            client.connect()
+            handshake = client.handshake(login_id=login_id, password=password,
+                                          register=register, display_name=display_name)
+        except (OSError, TcpFrameError, ValueError) as error:
+            return {"ok": False, "message": str(error)}
+        finally:
+            client.close()
+
+        user_key = str(handshake.get("user_key") or "")
+        access_token = str(handshake.get("access_token") or "")
+        if not user_key or not access_token:
+            return {"ok": False, "message": "login_returned_empty_session"}
+        status = self.service.configure_service(host=host, port=port, user_key=user_key,
+                                                access_token=access_token)
+        return {"ok": True, "user_key": user_key, "status": status}
+
     def spend_level(self, user_id: str) -> dict[str, Any]:
         profile = self.service.get_profile(user_id)
         low, high = spend_band(profile)

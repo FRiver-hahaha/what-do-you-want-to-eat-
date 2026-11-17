@@ -37,6 +37,9 @@
       } else if (message.type === "service.response") {
         const entry = resolvePending(message.id);
         if (entry) entry.resolve(message.data);
+      } else if (message.type === "service.login.response") {
+        const entry = resolvePending(message.id);
+        if (entry) entry.resolve(message);
       }
     });
   }
@@ -99,11 +102,32 @@
     });
   }
 
+  function appLogin(payload) {
+    const id = `l${sequence++}`;
+    return new Promise((resolve, reject) => {
+      pending.set(id, { onEvent: () => {}, resolve, reject });
+      webview.postMessage({ type: "service.login", id, ...payload });
+    });
+  }
+
+  async function browserLogin(payload) {
+    const response = await fetch(`${baseUrl}/api/service/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+  }
+
   window.eatTransport = {
     mode: webview ? "app" : "browser",
     base: baseUrl,
     chatStream(payload, onEvent) {
       return webview ? appStream(payload, onEvent) : browserStream(payload, onEvent);
+    },
+    login(payload) {
+      return webview ? appLogin(payload) : browserLogin(payload);
     },
     async request(path, init) {
       if (webview) return appRequest(path, init);

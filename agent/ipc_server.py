@@ -100,6 +100,8 @@ def _service_request(app: AgentApp, path: str, init: dict[str, Any]) -> dict[str
         return app.spend_level(user_id)
     if route == "/api/service/status":
         return app.service.status()
+    if route == "/api/service/login" and method == "POST":
+        return app.login_service(body)
     raise ValueError(f"unknown_path:{route}")
 
 

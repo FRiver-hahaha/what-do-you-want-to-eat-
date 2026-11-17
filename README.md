@@ -207,8 +207,10 @@ eat-app-windows-x64\
 - 窗口、单实例、托盘、本地 WebView2 页面已验证。
 - 页面菜单、随机推荐、消费区间已改走 `eatTransport.request`；App 模式经壳转发给 Agent，再由 Agent 的 TCP 通道访问服务端。
 - 登录协议已就绪：页面可发送 `{type:"service.login", host, port, login_id, password, register}`，壳完成握手后把会话写入 `%LOCALAPPDATA%\EatApp\session.json`，并通过命名管道通知 Agent（`service.configure`）。
-- 推荐在 `eat-app.exe` 同目录放 `login.json` 自动登录（见 [`AGENT_win.md`](AGENT_win.md) 6.1）；`login.json` 已被 `.gitignore` 忽略。
-- 页面暂无登录表单；没有会话时 Agent 仍可能以 mock 开发模式启动，不能作为真实数据验收。
+- 首次启动会显示“连接服务端”表单：填服务端局域网地址、账号、密码即可，不需要改 JSON。
+- 批量部署可在 exe 同目录放 `login.json` 自动登录（见 [`AGENT_win.md`](AGENT_win.md) 6.2）；`login.json` 已被 `.gitignore` 忽略。
+- 页面暂无独立账号设置页；切换账号时删除 `%LOCALAPPDATA%\EatApp\session.json` 后重启。
+- 没有会话时 Agent 仍可能以 mock 开发模式启动，不能作为真实数据验收。
 - 单 exe（资源嵌入、PyInstaller 打包 `eat-agent.exe`）尚未实现。
 
 #### 3.2 控制台客户端 `client_smoke.exe`
