@@ -267,5 +267,5 @@ CI 还会把 `client_smoke.exe` 作为 workflow artifact 产出（见 `.github/w
 | 日期 | 步骤 | 命令摘要 | 结果 | 证据 |
 |---|---|---|---|---|
 | 2026-11-17 | Linux 侧基线 | ctest / unittest / s1_smoke / docker | 通过 | `docs/DELIVERY-STATUS.md` |
-|  |  |  |  |  |
+| 2026-11-17 | Windows 控制台客户端 | MSYS2 g++ 静态编译 `client_smoke.exe`；mock 帧服务端验证握手/档案读写 | 通过 | `docs/WINDOWS_CLIENT_LAN_RUNBOOK.md` |
 |  |  |  |  |  |
