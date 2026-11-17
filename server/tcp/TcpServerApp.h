@@ -3,6 +3,7 @@
 #include <muduo/net/EventLoop.h>
 #include <muduo/net/TcpServer.h>
 
+#include <atomic>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -13,8 +14,8 @@
 #include "server/app/Config.h"
 #include "server/tcp/Backpressure.h"
 #include "server/tcp/ConnContext.h"
-#include "server/tcp/FrameCodec.h"
 #include "server/tcp/FrameDispatcher.h"
+#include "shared/protocol/FrameCodec.h"
 #include "server/tcp/HeartbeatMonitor.h"
 #include "server/tcp/RateLimiter.h"
 
@@ -32,7 +33,7 @@ class TcpServerApp {
  private:
     struct ConnectionState {
         ConnContext context;
-        FrameCodec codec;
+        protocol::FrameCodec codec;
         explicit ConnectionState(std::size_t max_frame_size) : codec(max_frame_size) {}
     };
 
@@ -44,6 +45,8 @@ class TcpServerApp {
     void OnConnection(const muduo::net::TcpConnectionPtr& connection);
     void OnMessage(const muduo::net::TcpConnectionPtr& connection,
                    muduo::net::Buffer* buffer, muduo::Timestamp);
+    void ProcessFrames(const muduo::net::TcpConnectionPtr& connection,
+                       std::shared_ptr<ConnectionState> state);
     void OnTimer();
     void DispatchFrame(const muduo::net::TcpConnectionPtr& connection,
                        std::shared_ptr<ConnectionState> state,
@@ -69,6 +72,7 @@ class TcpServerApp {
 
     std::mutex mutex_;
     std::unordered_map<muduo::net::TcpConnection*, Entry> states_;
+    std::unordered_map<std::uint64_t, muduo::net::TcpConnectionPtr> by_id_;
     std::uint64_t next_conn_id_ = 0;
     std::atomic<std::uint64_t> active_connections_{0};
     bool stopping_ = false;

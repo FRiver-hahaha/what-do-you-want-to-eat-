@@ -7,18 +7,21 @@
 
 #include "server/app/Config.h"
 #include "server/app/Log.h"
-#include "server/app/Metrics.h"
+#include "server/app/ServiceRegistry.h"
 #include "server/tcp/FrameDispatcher.h"
 #include "server/tcp/TcpServerApp.h"
 
 namespace {
 
 eat::app::Config g_config;
-eat::tcp::TcpServerApp* g_app = nullptr;
+muduo::net::EventLoop* g_loop = nullptr;
 
+// Only an async-signal-safe wakeup is issued here; the real shutdown sequence
+// runs on the loop thread after loop() returns, so Stop() never runs inside a
+// signal handler.
 void OnSignal(int) {
-    if (g_app != nullptr) {
-        g_app->Stop();
+    if (g_loop != nullptr) {
+        g_loop->quit();
     }
 }
 
@@ -43,10 +46,17 @@ int main(int argc, char** argv) {
     }
 
     muduo::net::EventLoop loop;
+    g_loop = &loop;
+
     eat::tcp::FrameDispatcher dispatcher;
+    eat::app::ServiceRegistry registry(g_config, dispatcher);
+    if (!registry.Init(error)) {
+        eat::app::Log::Write(eat::app::LogLevel::Error, "main", "service_init_failed:" + error);
+        return 4;
+    }
+    registry.RegisterHandlers();
 
     eat::tcp::TcpServerApp app(&loop, g_config, &dispatcher);
-    g_app = &app;
     if (!app.Start(error)) {
         eat::app::Log::Write(eat::app::LogLevel::Error, "main", "server_start_failed:" + error);
         return 3;
@@ -58,6 +68,7 @@ int main(int argc, char** argv) {
     eat::app::Log::Write(eat::app::LogLevel::Info, "main",
                          "eat-server started on port " + std::to_string(g_config.tcp_port));
     loop.loop();
-    g_app = nullptr;
+    app.Stop();
+    g_loop = nullptr;
     return 0;
 }

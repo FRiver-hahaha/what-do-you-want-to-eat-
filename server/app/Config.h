@@ -55,8 +55,11 @@ struct Config {
     std::uint16_t mysql_port = 3306;
     std::string mysql_db = "eat";
     std::string mysql_user = "eat";
+    std::string mysql_password;
+    std::string mysql_socket;
     std::string redis_host = "127.0.0.1";
     std::uint16_t redis_port = 6379;
+    std::string redis_password;
 
     bool LoadFromFile(const std::string& path, std::string& error);
     bool Validate(std::string& error) const;

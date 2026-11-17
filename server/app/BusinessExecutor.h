@@ -1,18 +1,16 @@
 #pragma once
 
-#include <atomic>
 #include <chrono>
-#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
-#include <deque>
 #include <functional>
-#include <mutex>
-#include <thread>
-#include <vector>
+
+#include "server/app/ThreadPool.h"
 
 namespace eat::app {
 
+// Business-facing facade over ThreadPool: keeps the per-task deadline policy
+// and exposes the counters used by connection governance tests/metrics.
 class BusinessExecutor {
  public:
     BusinessExecutor(std::size_t threads, std::size_t queue_capacity,
@@ -29,23 +27,8 @@ class BusinessExecutor {
     std::uint64_t timed_out() const;
 
  private:
-    struct Task {
-        std::function<void()> fn;
-        std::chrono::steady_clock::time_point deadline;
-    };
-
-    void Worker();
-
-    mutable std::mutex mutex_;
-    std::condition_variable cv_;
-    std::deque<Task> queue_;
-    std::vector<std::thread> workers_;
-    std::size_t queue_capacity_;
+    ThreadPool pool_;
     std::chrono::milliseconds task_timeout_;
-    bool stopping_ = false;
-    std::size_t inflight_ = 0;
-    std::atomic<std::uint64_t> rejected_{0};
-    std::atomic<std::uint64_t> timed_out_{0};
 };
 
 }  // namespace eat::app

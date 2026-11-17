@@ -54,7 +54,7 @@ ALTER TABLE `idempotency_records`
 
 ALTER TABLE `idempotency_records`
   DROP PRIMARY KEY,
-  ADD PRIMARY KEY (`id`, `created_at`),
+  ADD PRIMARY KEY (`id`, `created_day`),
   DROP KEY `uk_uid_key`,
   ADD UNIQUE KEY `uk_uid_key_day` (`user_key`, `idem_key`, `created_day`);
 

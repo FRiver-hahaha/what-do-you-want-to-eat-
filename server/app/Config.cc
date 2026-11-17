@@ -73,9 +73,30 @@ bool Assign(Config& config, const std::string& key, const std::string& value) {
     if (key == "mysql_port") { std::uint64_t v; if (!need_number(v)) return false; config.mysql_port = static_cast<std::uint16_t>(v); return true; }
     if (key == "mysql_db") { config.mysql_db = value; return true; }
     if (key == "mysql_user") { config.mysql_user = value; return true; }
+    if (key == "mysql_password") { config.mysql_password = value; return true; }
+    if (key == "mysql_socket") { config.mysql_socket = value; return true; }
     if (key == "redis_host") { config.redis_host = value; return true; }
     if (key == "redis_port") { std::uint64_t v; if (!need_number(v)) return false; config.redis_port = static_cast<std::uint16_t>(v); return true; }
+    if (key == "redis_password") { config.redis_password = value; return true; }
     return false;
+}
+
+// Secrets are never required in the tracked config file: environment variables
+// win over file values so production can inject them at runtime.
+void ApplyEnvironment(Config& config) {
+    if (const char* v = std::getenv("EAT_MYSQL_HOST")) config.mysql_host = v;
+    if (const char* v = std::getenv("EAT_MYSQL_PORT")) {
+        config.mysql_port = static_cast<std::uint16_t>(std::strtoul(v, nullptr, 10));
+    }
+    if (const char* v = std::getenv("EAT_MYSQL_DB")) config.mysql_db = v;
+    if (const char* v = std::getenv("EAT_MYSQL_USER")) config.mysql_user = v;
+    if (const char* v = std::getenv("EAT_MYSQL_PASSWORD")) config.mysql_password = v;
+    if (const char* v = std::getenv("EAT_MYSQL_SOCKET")) config.mysql_socket = v;
+    if (const char* v = std::getenv("EAT_REDIS_HOST")) config.redis_host = v;
+    if (const char* v = std::getenv("EAT_REDIS_PORT")) {
+        config.redis_port = static_cast<std::uint16_t>(std::strtoul(v, nullptr, 10));
+    }
+    if (const char* v = std::getenv("EAT_REDIS_PASSWORD")) config.redis_password = v;
 }
 
 }  // namespace
@@ -106,6 +127,7 @@ bool Config::LoadFromFile(const std::string& path, std::string& error) {
             return false;
         }
     }
+    ApplyEnvironment(*this);
     return Validate(error);
 }
 

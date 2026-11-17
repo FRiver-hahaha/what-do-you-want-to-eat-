@@ -6,6 +6,8 @@
 
 #include <atomic>
 #include <chrono>
+#include <string>
+#include <vector>
 
 namespace eat::tcp {
 
@@ -77,18 +79,22 @@ void TcpServerApp::OnConnection(const muduo::net::TcpConnectionPtr& connection) 
             std::lock_guard<std::mutex> lock(mutex_);
             state->context.conn_id = ++next_conn_id_;
             states_[connection.get()] = Entry{connection, state};
+            by_id_[state->context.conn_id] = connection;
         }
         heartbeat_.OnFrame(state->context.conn_id, std::chrono::steady_clock::now());
         return;
     }
 
     std::shared_ptr<ConnectionState> state;
+    bool registered = false;
     {
         std::lock_guard<std::mutex> lock(mutex_);
         const auto it = states_.find(connection.get());
         if (it != states_.end()) {
             state = it->second.state;
+            by_id_.erase(state->context.conn_id);
             states_.erase(it);
+            registered = true;
         }
     }
     if (state) {
@@ -96,7 +102,9 @@ void TcpServerApp::OnConnection(const muduo::net::TcpConnectionPtr& connection) 
         rate_limiter_.Remove(std::to_string(state->context.conn_id));
         state->context.Close(protocol::ErrorCode::ProtocolError);
     }
-    active_connections_.fetch_sub(1);
+    if (registered) {
+        active_connections_.fetch_sub(1);
+    }
 }
 
 void TcpServerApp::OnMessage(const muduo::net::TcpConnectionPtr& connection,
@@ -104,7 +112,8 @@ void TcpServerApp::OnMessage(const muduo::net::TcpConnectionPtr& connection,
     auto state = FindState(connection);
     if (!state) return;
 
-    state->codec.Append(buffer->peek(), buffer->readableBytes());
+    state->codec.Append(reinterpret_cast<const std::uint8_t*>(buffer->peek()),
+                        buffer->readableBytes());
     buffer->retrieveAll();
 
     state->context.Touch(std::chrono::steady_clock::now());
@@ -123,8 +132,8 @@ void TcpServerApp::OnMessage(const muduo::net::TcpConnectionPtr& connection,
         protocol::ErrorCode error = protocol::ErrorCode::Ok;
         std::string reason;
         const auto result = state->codec.Next(frame, error, reason);
-        if (result == FrameCodec::Result::NeedMore) return;
-        if (result == FrameCodec::Result::Error) {
+        if (result == protocol::FrameCodec::Result::NeedMore) return;
+        if (result == protocol::FrameCodec::Result::Error) {
             state->context.bad_frame_count += 1;
             CloseWithFrame(connection, frame.header.request_id, error, reason);
             return;
@@ -134,6 +143,36 @@ void TcpServerApp::OnMessage(const muduo::net::TcpConnectionPtr& connection,
     }
     if (state->codec.buffered() >= state->codec.max_frame_size()) {
         CloseWithFrame(connection, 0, protocol::ErrorCode::FrameTooLarge, "buffer_overflow");
+    }
+}
+
+void TcpServerApp::ProcessFrames(const muduo::net::TcpConnectionPtr& connection,
+                                 std::shared_ptr<ConnectionState> state) {
+    for (int processed = 0; processed < 64; ++processed) {
+        protocol::Frame frame;
+        protocol::ErrorCode error = protocol::ErrorCode::Ok;
+        std::string reason;
+        const auto result = state->codec.Next(frame, error, reason);
+        if (result == protocol::FrameCodec::Result::NeedMore) return;
+        if (result == protocol::FrameCodec::Result::Error) {
+            state->context.bad_frame_count += 1;
+            CloseWithFrame(connection, frame.header.request_id, error, reason);
+            return;
+        }
+        state->context.recv_frame_count += 1;
+        DispatchFrame(connection, state, frame);
+    }
+    if (state->codec.buffered() >= state->codec.max_frame_size()) {
+        CloseWithFrame(connection, 0, protocol::ErrorCode::FrameTooLarge, "buffer_overflow");
+        return;
+    }
+    // A single read may deliver more than 64 frames; reschedule instead of
+    // dropping the remainder until the peer sends more bytes.
+    if (state->codec.buffered() > 0) {
+        connection->getLoop()->queueInLoop([this, connection] {
+            auto next = FindState(connection);
+            if (next) ProcessFrames(connection, next);
+        });
     }
 }
 
@@ -218,12 +257,8 @@ void TcpServerApp::OnTimer() {
     {
         std::lock_guard<std::mutex> lock(mutex_);
         for (const std::uint64_t conn_id : expired) {
-            for (auto& item : states_) {
-                if (item.second.state->context.conn_id == conn_id) {
-                    closings.push_back(item.second.connection);
-                    break;
-                }
-            }
+            const auto it = by_id_.find(conn_id);
+            if (it != by_id_.end()) closings.push_back(it->second);
         }
     }
     for (const auto& connection : closings) {
