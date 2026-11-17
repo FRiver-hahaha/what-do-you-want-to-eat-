@@ -19,15 +19,9 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Build with cl.exe
+      - name: Build with MSVC
         shell: pwsh
-        run: |
-          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
-            -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
-            -property installationPath
-          Import-Module "$vs\Common7\Tools\Microsoft.VisualStudio.DevShell.dll"
-          Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments "-arch=x64"
-          powershell -ExecutionPolicy Bypass -File .\dist\eat-client-windows\build-client.ps1 -Out .\client_smoke.exe
+        run: powershell -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

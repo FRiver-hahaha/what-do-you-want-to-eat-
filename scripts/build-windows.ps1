@@ -23,7 +23,14 @@ Enter-Msvc
 Push-Location $root
 try {
     Write-Host "==> building client_smoke.exe"
-    & "$root\dist\eat-client-windows\build-client.ps1" -Out "$root\client_smoke.exe"
+    cl /nologo /std:c++17 /EHsc /O2 /I"$root" `
+        "$root\tests\integration\client_smoke.cc" `
+        "$root\shared\protocol\FrameCodec.cc" `
+        "$root\shared\protocol\Crc32c.cc" `
+        "$root\shared\protocol\JsonValue.cc" `
+        "$root\shared\protocol\StrictJson.cc" `
+        /Fe:"$root\client_smoke.exe" ws2_32.lib
+    if ($LASTEXITCODE -ne 0) { throw "cl failed with $LASTEXITCODE" }
 
     if ($Gui) {
         if (-not $WebView2Root) { throw "WEBVIEW2_ROOT (or -WebView2Root) is required for -Gui" }
