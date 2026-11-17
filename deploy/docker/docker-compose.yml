@@ -1,0 +1,39 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${EAT_MYSQL_ROOT_PASSWORD:?set EAT_MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: eat
+      TZ: Asia/Shanghai
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  eat-server:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    environment:
+      EAT_MYSQL_HOST: mysql
+      EAT_MYSQL_PORT: "3306"
+      EAT_MYSQL_DB: eat
+      EAT_MYSQL_USER: root
+      EAT_MYSQL_PASSWORD: ${EAT_MYSQL_ROOT_PASSWORD:?set EAT_MYSQL_ROOT_PASSWORD}
+      EAT_TCP_PORT: "9443"
+      EAT_SUB_REACTORS: "8"
+      EAT_BUSINESS_THREADS: "16"
+      EAT_DB_POOL_SIZE: "16"
+    ports:
+      - "9443:9443"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  mysql-data:
