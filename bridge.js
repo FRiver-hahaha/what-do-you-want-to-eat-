@@ -43,6 +43,9 @@
       } else if (message.type === "service.captcha.response") {
         const entry = resolvePending(message.id);
         if (entry) entry.resolve(message);
+      } else if (message.type === "service.logout.response") {
+        const entry = resolvePending(message.id);
+        if (entry) entry.resolve(message);
       }
     });
   }
@@ -141,6 +144,20 @@
     return response.json();
   }
 
+  function appLogout() {
+    const id = `o${sequence++}`;
+    return new Promise((resolve, reject) => {
+      pending.set(id, { onEvent: () => {}, resolve, reject });
+      webview.postMessage({ type: "service.logout", id });
+    });
+  }
+
+  async function browserLogout() {
+    const response = await fetch(`${baseUrl}/api/service/logout`, { method: "POST" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+  }
+
   window.eatTransport = {
     mode: webview ? "app" : "browser",
     base: baseUrl,
@@ -152,6 +169,16 @@
     },
     captcha(payload) {
       return webview ? appCaptcha(payload) : browserCaptcha(payload);
+    },
+    logout() {
+      return webview ? appLogout() : browserLogout();
+    },
+    quit() {
+      if (webview) {
+        webview.postMessage({ type: "service.quit" });
+      } else {
+        window.close();
+      }
     },
     async request(path, init) {
       if (webview) return appRequest(path, init);

@@ -100,6 +100,24 @@ def _service_request(app: AgentApp, path: str, init: dict[str, Any]) -> dict[str
         return app.spend_level(user_id)
     if route == "/api/service/status":
         return app.service.status()
+    if route == "/api/profile" and method == "GET":
+        return app.profile_view(user_id)
+    if route == "/api/profile" and method == "PATCH":
+        return app.update_profile_view(user_id, body)
+    if route == "/api/meals" and method == "GET":
+        return app.meals_view(user_id, int(query.get("days", "7")))
+    if route == "/api/stats/weekly" and method == "GET":
+        return app.weekly_view(user_id)
+    if route == "/api/stats/gap" and method == "GET":
+        return app.gap_view(user_id, query.get("date", ""))
+    if route == "/api/friends" and method == "GET":
+        return app.friends_view(user_id)
+    if route == "/api/ranking" and method == "GET":
+        return app.ranking_view(user_id, query.get("scope", "week"))
+    if route.startswith("/api/friend/") and method == "POST":
+        return app.friend_action(user_id, route.rsplit("/", 1)[-1], body)
+    if route == "/api/service/logout" and method == "POST":
+        return app.logout_service()
     if route == "/api/service/login" and method == "POST":
         return app.login_service(body)
     if route == "/api/service/captcha" and method == "POST":
@@ -181,6 +199,14 @@ def serve(app: AgentApp, connection: StreamConnection) -> bool:
                     "id": message.get("id"),
                     "message": f"service_configure_failed:{type(error).__name__}",
                 })
+        elif kind == "service.logout":
+            status = app.logout_service()
+            connection.send({
+                "type": "service.logout.response",
+                "id": message.get("id"),
+                "ok": True,
+                "status": status.get("status", {}),
+            })
         else:
             connection.send({"type": "agent.error", "message": "unknown_type"})
 

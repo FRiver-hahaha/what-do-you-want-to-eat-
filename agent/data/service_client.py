@@ -409,6 +409,37 @@ class ServiceClient:
             return remote
         return {"user_id": user_id, "friends": copy.deepcopy(MOCK_FRIENDS), "source": "mock"}
 
+    def friend_request(self, user_id: str, peer_key: str) -> dict[str, Any]:
+        params = {"peer_key": peer_key,
+                  "idem_key": _idem_key("friend.request", user_id, peer_key)}
+        return self._remote("friend.request", params, "POST",
+                            f"/api/v1/users/{user_id}/friends/request", params) or self._failure()
+
+    def friend_accept(self, user_id: str, peer_key: str) -> dict[str, Any]:
+        params = {"peer_key": peer_key,
+                  "idem_key": _idem_key("friend.accept", user_id, peer_key)}
+        return self._remote("friend.accept", params, "POST",
+                            f"/api/v1/users/{user_id}/friends/accept", params) or self._failure()
+
+    def friend_remove(self, user_id: str, peer_key: str) -> dict[str, Any]:
+        params = {"peer_key": peer_key,
+                  "idem_key": _idem_key("friend.remove", user_id, peer_key)}
+        return self._remote("friend.remove", params, "POST",
+                            f"/api/v1/users/{user_id}/friends/remove", params) or self._failure()
+
+    def friend_block(self, user_id: str, peer_key: str) -> dict[str, Any]:
+        params = {"peer_key": peer_key,
+                  "idem_key": _idem_key("friend.block", user_id, peer_key)}
+        return self._remote("friend.block", params, "POST",
+                            f"/api/v1/users/{user_id}/friends/block", params) or self._failure()
+
+    def logout(self) -> dict[str, Any]:
+        self._close_tcp()
+        self.user_key = ""
+        self.token = ""
+        self.last_error = ""
+        return self.status()
+
     def record_meal(self, user_id: str, payload: dict[str, Any], idempotency_key: str) -> dict[str, Any]:
         body = dict(payload)
         body["idempotency_key"] = idempotency_key

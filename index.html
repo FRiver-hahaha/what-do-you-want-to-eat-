@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="features.css">
   <link rel="stylesheet" href="agent.css">
   <link rel="stylesheet" href="login.css">
+  <link rel="stylesheet" href="redesign.css">
 </head>
 <body>
   <div class="ambient" aria-hidden="true">
@@ -18,28 +19,85 @@
     <canvas id="constellationCanvas"></canvas>
   </div>
 
-  <div class="service-login" id="serviceLogin">
-    <div class="service-login-card">
-      <div class="service-login-mark" aria-hidden="true"><svg class="icon"><use href="#icon-user"></use></svg></div>
-      <h1>连接服务端</h1>
-      <p class="service-login-hint">首次使用请填写同一局域网内的服务端地址，已有会话会自动进入。</p>
-      <form id="serviceLoginForm">
-        <div class="service-login-row">
-          <label for="serviceHost">服务器地址<input id="serviceHost" type="text" placeholder="192.168.1.50" autocomplete="off" required></label>
-          <label for="servicePort">端口<input id="servicePort" type="number" min="1" max="65535" step="1" value="9443" inputmode="numeric" required></label>
-        </div>
-        <label for="serviceLoginId">账号<input id="serviceLoginId" type="text" placeholder="win01@test.local" autocomplete="username" required></label>
-        <label for="servicePassword">密码<input id="servicePassword" type="password" placeholder="至少 8 位" autocomplete="current-password" required></label>
-        <div class="service-login-captcha">
-          <label for="serviceCaptchaCode">验证码<input id="serviceCaptchaCode" type="text" maxlength="4" placeholder="输入右侧 4 位" autocomplete="off" required></label>
-          <button class="service-login-captcha-image" id="serviceCaptchaRefresh" type="button" title="点击刷新验证码">加载中…</button>
-        </div>
-        <label class="service-login-check"><input id="serviceRegister" type="checkbox"> 首次使用，注册新账号</label>
-        <div class="service-login-error" id="serviceLoginError" hidden></div>
-        <button class="button primary-button" id="serviceLoginButton" type="submit">连接</button>
-      </form>
-      <p class="service-login-foot">账号数据只保存在你的服务端；客户端不会直连 MySQL 或 Redis。</p>
+  <div class="boot-splash" id="bootSplash" aria-hidden="true">
+    <div class="boot-mark">
+      <svg viewBox="0 0 80 80"><circle cx="40" cy="40" r="34" fill="#f6efe2"></circle><path d="M18 42h44c-4 16-12 24-22 24s-18-8-22-24Z" fill="#e9dcc9"></path><path d="M26 42c2-12 8-18 14-18s12 6 14 18" fill="#fffaf1"></path><path d="M33 15c-4 5 4 7 0 12M47 15c-4 5 4 7 0 12" stroke="#c98a5e" stroke-width="2" stroke-linecap="round" fill="none" opacity=".6"></path></svg>
     </div>
+    <strong class="boot-name">饭饭</strong>
+    <span class="boot-line">正在准备今天的餐盘</span>
+  </div>
+
+  <div class="auth-stage" id="serviceLogin">
+    <section class="auth-story">
+      <div class="auth-brand">
+        <span class="auth-mark" aria-hidden="true"><svg class="icon"><use href="#icon-utensils"></use></svg></span>
+        <strong>今天你吃了吗</strong>
+      </div>
+      <p class="auth-eyebrow">饭饭 · 日常饮食助手</p>
+      <h1>把每天吃的，<br>记成看得见的变化</h1>
+      <p class="auth-copy">记录一餐，看到营养缺口；和一起吃好的人，互相提醒。饭饭会先认识你，再给建议。</p>
+      <div class="auth-bowl" aria-hidden="true">
+        <svg viewBox="0 0 360 220">
+          <path d="M40 118h280c-16 66-70 92-140 92S56 184 40 118Z" fill="#f1e7d8"></path>
+          <path d="M40 118h280" stroke="#d9c8b2" stroke-width="2"></path>
+          <path d="M78 118c8-48 46-72 102-72s94 24 102 72" fill="#fffaf1" stroke="#e3d4c0" stroke-width="2"></path>
+          <path d="M120 46 96 8M240 46l24-38" stroke="#b98b5e" stroke-width="6" stroke-linecap="round"></path>
+          <circle cx="150" cy="92" r="6" fill="#f2d8a7"></circle>
+          <circle cx="176" cy="82" r="5" fill="#efd0a0"></circle>
+          <circle cx="204" cy="94" r="6" fill="#f2d8a7"></circle>
+          <circle cx="224" cy="80" r="4" fill="#efd0a0"></circle>
+        </svg>
+      </div>
+      <p class="auth-footnote">数据保存在你自己的服务端，客户端不直连数据库</p>
+    </section>
+
+    <section class="auth-card">
+      <div class="auth-tabs" role="tablist" aria-label="账号入口">
+        <button class="auth-tab active" id="authTabLogin" type="button" data-auth-tab="login">登录</button>
+        <button class="auth-tab" id="authTabRegister" type="button" data-auth-tab="register">注册</button>
+      </div>
+
+      <form id="serviceLoginForm" class="auth-form">
+        <label class="auth-field" for="serviceLoginId">账号
+          <input id="serviceLoginId" type="text" placeholder="win01@test.local" autocomplete="username" required>
+        </label>
+        <label class="auth-field" for="servicePassword">密码
+          <input id="servicePassword" type="password" placeholder="至少 8 位" autocomplete="current-password" required>
+        </label>
+        <div class="auth-captcha">
+          <label class="auth-field" for="serviceCaptchaCode">验证码
+            <input id="serviceCaptchaCode" type="text" maxlength="4" placeholder="输入右侧 4 位" autocomplete="off" required>
+          </label>
+          <button class="auth-captcha-image" id="serviceCaptchaRefresh" type="button" title="点击刷新验证码">加载中…</button>
+        </div>
+        <input id="serviceRegister" type="checkbox" hidden>
+        <details class="auth-server">
+          <summary>服务器设置</summary>
+          <div class="auth-server-grid">
+            <label class="auth-field" for="serviceHost">地址
+              <input id="serviceHost" type="text" placeholder="192.168.1.50" autocomplete="off" required>
+            </label>
+            <label class="auth-field" for="servicePort">端口
+              <input id="servicePort" type="number" min="1" max="65535" step="1" value="9443" inputmode="numeric" required>
+            </label>
+          </div>
+        </details>
+        <div class="auth-error" id="serviceLoginError" hidden></div>
+        <button class="auth-submit" id="serviceLoginButton" type="submit">进入饭饭</button>
+      </form>
+
+      <div class="auth-help">
+        <button id="forgotPasswordButton" type="button">找回密码</button>
+        <button id="quitAuthButton" type="button">关闭程序</button>
+      </div>
+
+      <div class="auth-recovery" id="forgotPasswordPanel" hidden>
+        <h2>找回密码</h2>
+        <p>局域网版本不发送邮件。请联系服务端管理员，在服务器上重置密码后回到这里登录。</p>
+        <p class="auth-recovery-note">管理员重置后，旧密码立即失效；账号里的餐记录和好友关系不会丢失。</p>
+        <button id="closeForgotPassword" class="auth-submit" type="button">返回登录</button>
+      </div>
+    </section>
   </div>
 
   <svg class="svg-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -77,7 +135,7 @@
     <symbol id="icon-arrow-left" viewBox="0 0 24 24"><path d="M19 12H5"></path><path d="m12 19-7-7 7-7"></path></symbol>
   </svg>
 
-  <div class="app-shell" id="appShell">
+  <div class="app-shell" id="appShell" hidden>
     <aside class="sidebar glass-panel" id="leftSidebar">
       <div class="brand">
         <div class="brand-mark" aria-hidden="true"><svg class="icon"><use href="#icon-utensils"></use></svg></div>
@@ -120,7 +178,8 @@
         <nav class="top-navigation" aria-label="主要导航">
           <button class="nav-item tooltip active" type="button" data-view="today" data-tooltip="今日饮食" aria-label="今日饮食" aria-current="page"><svg class="icon"><use href="#icon-message"></use></svg></button>
           <button class="nav-item tooltip" type="button" data-view="report" data-tooltip="健康报告" aria-label="健康报告"><svg class="icon"><use href="#icon-report"></use></svg></button>
-          <button class="nav-item tooltip" type="button" data-view="profile" data-tooltip="健康档案" aria-label="健康档案"><svg class="icon"><use href="#icon-user"></use></svg></button>
+          <button class="nav-item tooltip" type="button" data-view="profile" data-tooltip="健康档案" aria-label="健康档案"><svg class="icon"><use href="#icon-activity"></use></svg></button>
+          <button class="nav-item tooltip" type="button" data-view="friends" data-tooltip="好友" aria-label="好友"><svg class="icon"><use href="#icon-user"></use></svg></button>
 
           <button class="nav-item tooltip" type="button" data-view="shop" data-tooltip="积分商城" aria-label="积分商城"><svg class="icon"><use href="#icon-shop"></use></svg></button>
           <button class="nav-item tooltip" id="agentMarketEntry" type="button" data-tooltip="Skill 市场" aria-label="Skill 市场"><svg class="icon"><use href="#icon-download"></use></svg></button>
@@ -165,7 +224,7 @@
             </div>
 
             <form class="composer glass-panel" id="chatForm">
-              <button class="composer-tool model-switch tooltip" id="profileShortcut" type="button" data-tooltip="切换 Skill" aria-label="切换 Skill"><svg class="icon"><use href="#icon-sliders"></use></svg><span id="profileModelLabel">Skill</span></button>
+              <button class="composer-tool model-switch tooltip" id="profileShortcut" type="button" data-tooltip="切换 Skill" aria-label="切换 Skill"><svg class="icon"><use href="#icon-sliders"></use></svg><span id="profileModelLabel">配餐技能</span></button>
               <div class="input-container"><textarea id="chatInput" rows="1" maxlength="2000" placeholder="记一餐，例如：米饭和青菜" aria-label="记录今天吃过的食物"></textarea><span class="input-hint"><span class="input-count" id="inputCount">0/2000</span><kbd class="keycap">Enter</kbd> 发送</span></div>
               <button class="composer-tool photo-button tooltip" id="photoButton" type="button" data-tooltip="拍照上传饭菜" aria-label="拍照上传饭菜"><svg class="icon"><use href="#icon-camera"></use></svg></button>
               <input id="photoInput" type="file" accept="image/*" capture="environment" hidden>
@@ -202,6 +261,35 @@
               <aside class="health-snapshot"><div class="card-title-row"><span class="section-kicker">当前分析依据</span><span class="identity-tag">分析</span></div><h3 id="profileHeadline">均衡饮食，久坐状态</h3><p id="profileDescription">报告会重点观察三餐规律、蔬菜水果、饮水与添加糖摄入。</p><div class="snapshot-metrics"><div><svg class="icon"><use href="#icon-user"></use></svg><span>年龄</span><strong id="snapshotAge">28 岁</strong></div><div><svg class="icon"><use href="#icon-activity"></use></svg><span>身高 / 体重</span><strong id="snapshotBody">170 cm · 60 kg</strong></div><div><svg class="icon"><use href="#icon-water"></use></svg><span>饮水目标</span><strong id="snapshotWater">1800 ml</strong></div><div><svg class="icon"><use href="#icon-moon"></use></svg><span>常态睡眠</span><strong id="snapshotSleep">7 小时</strong></div><div><svg class="icon"><use href="#icon-report"></use></svg><span>今日评分</span><strong id="snapshotScore">82</strong></div></div><button class="edit-body-button" id="editBodyInfo" type="button">编辑身高、体重与年龄</button><div class="snapshot-note"><svg class="icon"><use href="#icon-leaf"></use></svg><p>身体状态会变化，档案也可以随时调整。报告只做生活方式参考。</p></div></aside>
             </form>
             <div class="profile-return"><button class="button secondary-button" id="profileBack" type="button"><svg class="icon"><use href="#icon-arrow-left"></use></svg>返回到主页</button></div>
+          </section>
+
+          <section class="view" id="view-friends" aria-label="好友">
+            <div class="section-intro row-intro">
+              <div><span class="section-kicker">一起吃好的人</span><h2>好友</h2><p>只显示彼此确认过的好友，排行按本周健康均分</p></div>
+              <button class="button secondary-button" id="refreshFriends" type="button"><svg class="icon"><use href="#icon-shuffle"></use></svg>刷新</button>
+            </div>
+            <div class="friends-grid">
+              <section class="friends-panel glass-panel">
+                <header class="friends-heading"><div><h3>我的好友</h3><span id="friendCount">0 位好友</span></div><svg class="icon"><use href="#icon-user"></use></svg></header>
+                <form class="friend-add" id="friendAddForm">
+                  <input id="friendKeyInput" type="text" placeholder="好友的 user_key" autocomplete="off" aria-label="好友的 user_key">
+                  <button class="button primary-button" type="submit">发送申请</button>
+                </form>
+                <form class="friend-add" id="friendAcceptForm">
+                  <input id="friendAcceptKey" type="text" placeholder="收到申请？填对方 user_key" autocomplete="off" aria-label="接受好友申请">
+                  <button class="button secondary-button" type="submit">接受申请</button>
+                </form>
+                <p class="friend-mykey">我的 user_key：<code id="myUserKey">—</code></p>
+                <div class="friend-list" id="friendList"></div>
+                <p class="empty-state" id="friendsEmpty">还没有好友。把对方的 user_key 填在上面，发一条好友申请。</p>
+              </section>
+              <section class="friends-panel glass-panel">
+                <header class="friends-heading"><div><h3>本周排行</h3><span id="friendsRankScope">按健康均分</span></div><svg class="icon"><use href="#icon-trophy"></use></svg></header>
+                <ol class="friend-ranking" id="friendsRanking"></ol>
+                <p class="empty-state" id="friendsRankingEmpty">有好友并开始记录后，这里会出现你们的排名。</p>
+              </section>
+            </div>
+            <div class="view-return"><button class="button secondary-button" data-home-return type="button"><svg class="icon"><use href="#icon-arrow-left"></use></svg>返回到主页</button></div>
           </section>
 
           <section class="view" id="view-history" aria-label="历史记录">
@@ -263,7 +351,7 @@
   <div class="menu-drop-zone" id="menuDropZone" aria-hidden="true"><div><svg class="icon"><use href="#icon-menu"></use></svg><strong>松开，在这里展开食物菜单</strong><span>背景内容会在菜单关闭后恢复</span></div></div>
 
   <dialog class="settings-dialog" id="settingsDialog">
-    <form method="dialog"><header><div><span class="section-kicker">客户端</span><h2>设置</h2></div><button class="icon-button" value="cancel" aria-label="关闭设置"><svg class="icon"><use href="#icon-x"></use></svg></button></header><div class="dialog-content"><label class="setting-row" for="motionToggle"><span><strong>背景动态效果</strong><small>流体极光与缓慢漂移的星座网格</small></span><span class="switch"><input id="motionToggle" type="checkbox" checked><i></i></span></label><div class="setting-row"><span><strong>本地数据</strong><small>清除饮食记录、健康档案和报告</small></span><button class="button danger-button" id="clearDataButton" type="button"><svg class="icon"><use href="#icon-trash"></use></svg>清除</button></div></div><footer><span>所有交互均在浏览器中完成</span><small>Design method · unslop by @heydamir</small></footer></form>
+    <form method="dialog"><header><div><span class="section-kicker">客户端</span><h2>设置</h2></div><button class="icon-button" value="cancel" aria-label="关闭设置"><svg class="icon"><use href="#icon-x"></use></svg></button></header><div class="dialog-content"><label class="setting-row" for="motionToggle"><span><strong>背景动态效果</strong><small>流体极光与缓慢漂移的星座网格</small></span><span class="switch"><input id="motionToggle" type="checkbox" checked><i></i></span></label><div class="setting-row"><span><strong>本地数据</strong><small>清除饮食记录、健康档案和报告</small></span><button class="button danger-button" id="clearDataButton" type="button"><svg class="icon"><use href="#icon-trash"></use></svg>清除</button></div><div class="setting-row"><span><strong>账号</strong><small>退出后需要重新登录</small></span><button class="button danger-button" id="logoutButton" type="button">退出登录</button></div></div><footer><span>所有交互均在浏览器中完成</span><small>Design method · unslop by @heydamir</small></footer></form>
   </dialog>
 
   <dialog class="settings-dialog personal-dialog" id="userInfoDialog" aria-labelledby="personalInfoTitle">
@@ -271,11 +359,11 @@
     <form class="personal-form" id="personalForm">
       <div class="personal-avatar-preview"><span id="personalAvatarPreview">我</span><div><strong id="personalPreviewName">我</strong><small>信息仅保存在当前设备，用于完善健康报告背景</small></div></div>
       <div class="avatar-upload-row"><button class="avatar-upload-button" id="avatarUploadButton" type="button">上传头像</button><input id="avatarUploadInput" type="file" accept="image/*" hidden></div>
-      <div class="personal-field"><label for="nameInput">称呼<input id="nameInput" type="text" maxlength="12" value="我" required></label></div>
+      <div class="personal-field"><label for="nameInput">称呼<input id="nameInput" type="text" maxlength="12" placeholder="怎么称呼你" required></label></div>
       <div class="personal-field-grid">
-        <label for="heightInput">身高 cm<input id="heightInput" type="number" min="120" max="220" step="1" value="170" inputmode="numeric" required></label>
-        <label for="weightInput">体重 kg<input id="weightInput" type="number" min="30" max="250" step="0.1" value="60" inputmode="decimal" required></label>
-        <label for="ageInput">年龄<input id="ageInput" type="number" min="10" max="100" step="1" value="28" inputmode="numeric" required></label>
+        <label for="heightInput">身高 cm<input id="heightInput" type="number" min="120" max="220" step="1" placeholder="如 170" inputmode="numeric" required></label>
+        <label for="weightInput">体重 kg<input id="weightInput" type="number" min="30" max="250" step="0.1" placeholder="如 60" inputmode="decimal" required></label>
+        <label for="ageInput">年龄<input id="ageInput" type="number" min="10" max="100" step="1" placeholder="如 28" inputmode="numeric" required></label>
       </div>
       <div class="personal-field spend-field">
         <div class="spend-heading"><strong>每餐消费区间</strong><small>用于按你的预算推荐菜品</small></div>

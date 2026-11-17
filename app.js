@@ -74,7 +74,7 @@ const rankings = {
 
 const defaultPointsState = {
   week: "",
-  baseEarned: 260,
+  baseEarned: 0,
   spent: 0,
   checkins: {},
   interactions: {},
@@ -94,6 +94,7 @@ const viewTitles = {
   today: "今天吃了什么",
   report: "健康报告",
   profile: "健康档案",
+  friends: "好友",
   history: "历史记录",
   shop: "积分商城"
 };
@@ -118,6 +119,10 @@ let menuDrag = null;
 let suppressMenuClick = false;
 let activeView = "today";
 let previousView = "today";
+let remoteWeekly = null;
+let remoteFriends = [];
+let remoteRanking = [];
+let currentUserKey = "";
 let championCoverSrc = (loadStored(storageKeys.cover, { src: "" }) || {}).src || "";
 let coverDraftSrc = "";
 let randomFoodId = "";
@@ -215,7 +220,7 @@ function getWeeklyAverage() {
 function ensurePointsState() {
   const currentWeek = getWeekKey();
   if (!pointsState.week) {
-    pointsState.week = currentWeek;
+    pointsState = { ...pointsState, week: currentWeek, baseEarned: 0 };
   } else if (pointsState.week !== currentWeek) {
     pointsState = {
       ...defaultPointsState,
@@ -338,6 +343,8 @@ function getGuessSequence() {
 }
 
 function renderInference() {
+  const guessPeriod = document.getElementById("guessPeriod");
+  if (!guessPeriod) return;
   const analysis = getHealthAnalysis();
   const sequence = getGuessSequence();
   const index = guessIndex % sequence.length;
@@ -420,18 +427,39 @@ function renderReport() {
   const analysis = getHealthAnalysis();
   const { nutrition, targets, ratios, score, status, adjustment } = analysis;
   elements.mealCount.textContent = `已记录 ${meals.length} 餐`;
+  const snapshotAge = Number(profile.age);
+  const snapshotHeight = Number(profile.height);
+  const snapshotWeight = Number(profile.weight);
+  document.getElementById("snapshotAge").textContent = snapshotAge > 0 ? `${snapshotAge} 岁` : "未填写";
+  document.getElementById("snapshotBody").textContent =
+    snapshotHeight > 0 && snapshotWeight > 0 ? `${snapshotHeight} cm · ${snapshotWeight} kg` : "未填写";
+  document.getElementById("profileHeadline").textContent =
+    snapshotHeight > 0 ? `${profile.goal}，${profile.activity}状态` : "还没有填写健康档案";
+  document.getElementById("profileDescription").textContent =
+    snapshotHeight > 0
+      ? `报告会结合${profile.activity}活动量、${profile.sleep} 小时睡眠与${profile.goal}目标，观察近期饮食节奏。`
+      : "先填写身高、体重和日常活动量，报告才有可靠的背景。";
+  document.getElementById("snapshotWater").textContent = `${profile.waterTarget} ml`;
+  document.getElementById("snapshotSleep").textContent = `${profile.sleep} 小时`;
+  const initialText = document.getElementById("avatarInitialText");
+  if (initialText) initialText.textContent = (profile.name || "我").trim().slice(0, 1) || "我";
+  if (!meals.length) {
+    document.getElementById("detailScoreValue").textContent = "—";
+    document.getElementById("detailScoreStatus").textContent = "还没有记录";
+    document.getElementById("detailScoreCopy").textContent = "记录今天第一餐后，这里会显示真实评分。";
+    document.getElementById("snapshotScore").textContent = "—";
+    document.getElementById("detailNutritionList").innerHTML = `<div class="empty-state">今天还没有饮食记录</div>`;
+    document.getElementById("reportTags").innerHTML = "";
+    document.getElementById("adjustmentInsight").textContent = "还缺少今天的饮食记录。";
+    document.getElementById("positiveInsight").textContent = "记录一餐后，饭饭会结合你的档案给出建议。";
+    renderTrend(null);
+    renderLeaderboard(0);
+    return;
+  }
   animateNumber(document.getElementById("detailScoreValue"), score);
   document.getElementById("detailScoreStatus").textContent = status;
   document.getElementById("adjustmentInsight").textContent = adjustment;
   animateNumber(document.getElementById("snapshotScore"), score);
-  const initialText = document.getElementById("avatarInitialText");
-  if (initialText) initialText.textContent = (profile.name || "我").trim().slice(0, 1);
-  document.getElementById("snapshotAge").textContent = `${profile.age} 岁`;
-  document.getElementById("snapshotBody").textContent = `${profile.height} cm · ${profile.weight} kg`;
-  document.getElementById("profileHeadline").textContent = `${profile.goal}，${profile.activity}状态`;
-  document.getElementById("profileDescription").textContent = `报告会结合${profile.activity}活动量、${profile.sleep} 小时睡眠与${profile.goal}目标，观察近期饮食节奏。`;
-  document.getElementById("snapshotWater").textContent = `${profile.waterTarget} ml`;
-  document.getElementById("snapshotSleep").textContent = `${profile.sleep} 小时`;
   const values = {
     protein: `${nutrition.protein} / ${targets.protein} g`,
     fiber: `${nutrition.fiber} / ${targets.fiber} g`,
@@ -443,7 +471,7 @@ function renderReport() {
   const tags = [ratios.veggies >= 0.6 ? "蔬菜摄入良好" : "蔬菜待补充", ratios.protein >= 1 ? "蛋白质已达标" : "蛋白质进行中", ratios.water < 0.8 ? "饮水待补充" : "饮水节奏良好"];
   document.getElementById("reportTags").innerHTML = tags.map(tag => `<span>${tag}</span>`).join("");
   renderTrend(score);
-  updateTodayHistory(score);
+  if (!remoteWeekly) updateTodayHistory(score);
   rewardHealthScore(score);
   renderInference();
   renderLeaderboard(score);
@@ -454,10 +482,28 @@ let trendData = null;
 let trendIndex = 6;
 
 function renderTrend(score) {
-  const labels = ["周四", "周五", "周六", "周日", "周一", "周二", "今天"];
-  const values = [74, 80, 77, 83, 79, 86, score];
+  const daily = remoteWeekly && Array.isArray(remoteWeekly.daily)
+    ? remoteWeekly.daily.slice(-7)
+    : [];
+  const labels = daily.map(item => String(item.date || "").slice(5));
+  const values = daily.map(item => Number(item.score) || 0);
+  if (!values.length) {
+    trendData = null;
+    document.getElementById("trendLine").setAttribute("points", "");
+    document.getElementById("trendArea").setAttribute("d", "");
+    document.getElementById("trendDots").innerHTML = "";
+    document.getElementById("trendAverageValue").textContent = "—";
+    document.getElementById("trendSelectedValue").textContent = "—";
+    document.getElementById("trendSelectedDate").textContent = "";
+    document.querySelectorAll(".chart-label").forEach(label => {
+      label.textContent = "";
+      label.classList.remove("active");
+    });
+    return;
+  }
+  const step = values.length > 1 ? 440 / (values.length - 1) : 0;
   const points = values.map((value, index) => {
-    const x = 20 + index * 73.3;
+    const x = values.length > 1 ? 20 + index * step : 240;
     const y = 260 - value * 2.2;
     return [Number(x.toFixed(1)), Number(Math.max(28, y).toFixed(1))];
   });
@@ -473,7 +519,10 @@ function renderTrend(score) {
   trendLine.style.animation = "";
   trendArea.style.animation = "";
   document.getElementById("trendDots").innerHTML = points.map((point, index) => `<circle class="trend-dot${index === trendIndex ? " selected" : ""}" data-index="${index}" cx="${point[0]}" cy="${point[1]}" r="${index === trendIndex ? 6 : 3.5}"></circle>`).join("");
-  document.querySelectorAll(".chart-label").forEach((label, index) => label.classList.toggle("active", index === trendIndex));
+  document.querySelectorAll(".chart-label").forEach((label, index) => {
+    label.textContent = labels[index] || "";
+    label.classList.toggle("active", index === trendIndex);
+  });
   animateNumber(document.getElementById("trendAverageValue"), Math.round(values.reduce((sum, value) => sum + value, 0) / values.length));
   setTrendIndex(trendIndex, false);
 }
@@ -707,6 +756,21 @@ elements.mealTimeline?.addEventListener("keydown", event => {
 function renderLeaderboard(currentScore = getHealthAnalysis().score) {
   const weeklyAverage = getWeeklyAverage();
   const weeklyData = rankings.week.map(item => item.current ? { ...item, score: weeklyAverage } : { ...item }).sort((a, b) => b.score - a.score);
+  const championCover = document.querySelector(".champion-cover");
+  const championScoreEl = document.querySelector(".champion-score");
+  if (!weeklyData.length || remoteFriends.length === 0) {
+    if (championCover) championCover.classList.add("is-empty");
+    if (championScoreEl) championScoreEl.hidden = true;
+    document.getElementById("championAvatar").textContent = "—";
+    document.getElementById("championName").textContent = "还没有好友";
+    document.getElementById("championScore").textContent = "—";
+    document.getElementById("championNote").textContent = "添加好友后显示排行";
+    elements.leaderboardList.innerHTML = "";
+    document.getElementById("rankingSummary").textContent = "添加好友并开始记录后显示排行";
+    return;
+  }
+  if (championCover) championCover.classList.remove("is-empty");
+  if (championScoreEl) championScoreEl.hidden = false;
   currentWeeklyRank = weeklyData.findIndex(item => item.current) + 1;
   const data = activeRanking === "week" ? weeklyData : rankings.today.map(item => item.current ? { ...item, score: currentScore, note: `已记录 ${meals.length} 餐` } : { ...item }).sort((a, b) => b.score - a.score);
   const champion = data[0];
@@ -1290,6 +1354,25 @@ function syncProfileFromAgent(patch) {
   loadAgentMenu();
 }
 
+async function syncProfileToServer(fields) {
+  if (!currentUserKey || !window.eatTransport) return null;
+  try {
+    const result = await window.eatTransport.request("/api/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: currentUserKey, ...fields })
+    });
+    if (result && result.profile) {
+      applyRemoteProfile(result.profile);
+      syncProfileForm();
+      renderReport();
+    }
+    return result;
+  } catch {
+    return null;
+  }
+}
+
 function savePersonalInfo(event) {
   event.preventDefault();
   const form = document.getElementById("personalForm");
@@ -1303,6 +1386,12 @@ function savePersonalInfo(event) {
   };
   draftProfile = { ...profile };
   saveStored(storageKeys.profile, profile);
+  syncProfileToServer({
+    name: profile.name,
+    height: profile.height,
+    weight: profile.weight,
+    age: profile.age
+  });
   renderReport();
   elements.userInfoDialog.close();
   showToast("个人信息已保存，健康档案已同步");
@@ -1324,6 +1413,11 @@ function switchView(view) {
   if (view === "history") renderHistory();
   if (view === "profile") syncProfileForm();
   if (view === "report") renderReport();
+  if (view === "friends") {
+    renderFriends();
+    renderFriendRanking();
+    refreshFriendData();
+  }
   if (view === "shop") renderShop();
   activeView = view;
 }
@@ -1588,7 +1682,7 @@ function initDates() {
   const now = new Date();
   document.getElementById("todayDateLabel").textContent = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 · ${weekdayLabels[now.getDay()]}`;
   document.getElementById("dateNumber").textContent = now.getDate();
-  document.getElementById("dateMonth").textContent = monthLabels[now.getMonth()];
+  document.getElementById("dateMonth").textContent = `${now.getMonth() + 1}月`;
   document.getElementById("reportDateHeading").textContent = `${now.getMonth() + 1} 月 ${now.getDate()} 日 · 综合饮食、活动量与健康目标生成`;
 }
 
@@ -1923,6 +2017,13 @@ document.getElementById("healthForm").addEventListener("submit", event => {
   event.preventDefault();
   profile = { ...draftProfile, note: elements.healthNote.value.trim() };
   saveStored(storageKeys.profile, profile);
+  syncProfileToServer({
+    goal: profile.goal,
+    activity: profile.activity,
+    water_target: profile.waterTarget,
+    sleep: profile.sleep,
+    note: profile.note
+  });
   renderReport();
   const now = new Date();
   document.getElementById("profileSaved").textContent = `上次保存：今天 ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
@@ -2004,6 +2105,8 @@ window.eatLocal = {
 function initServiceLogin() {
   const overlay = document.getElementById("serviceLogin");
   const form = document.getElementById("serviceLoginForm");
+  const appShell = document.getElementById("appShell");
+  const splash = document.getElementById("bootSplash");
   if (!overlay || !form) return;
   const hostInput = document.getElementById("serviceHost");
   const portInput = document.getElementById("servicePort");
@@ -2014,10 +2117,14 @@ function initServiceLogin() {
   const registerInput = document.getElementById("serviceRegister");
   const errorBox = document.getElementById("serviceLoginError");
   const button = document.getElementById("serviceLoginButton");
+  const tabLogin = document.getElementById("authTabLogin");
+  const tabRegister = document.getElementById("authTabRegister");
+  const recovery = document.getElementById("forgotPasswordPanel");
   let captchaId = "";
+  let authMode = "login";
 
   hostInput.value = localStorage.getItem("eat-server-host") || "10.101.17.32";
-  loginInput.value = localStorage.getItem("eat-server-login") || loginInput.value;
+  loginInput.value = localStorage.getItem("eat-server-login") || "";
 
   const showError = message => {
     errorBox.hidden = !message;
@@ -2030,12 +2137,28 @@ function initServiceLogin() {
       return "验证码错误或已过期，请重新输入";
     }
     if (text.includes("invalid_credentials")) return "账号或密码错误";
-    if (text.includes("login_id_exists")) return "账号已存在，请取消勾选注册";
+    if (text.includes("login_id_exists")) return "账号已存在，请切换到登录";
     if (text.includes("too_many") || text.includes("locked")) return "登录失败次数过多，请稍后再试";
     if (text.includes("connect_failed") || text.includes("timeout")) {
       return "无法连接服务端，请检查地址、端口和 WiFi";
     }
     return text.replace(/^login_failed:/, "") || "登录失败";
+  };
+
+  const setMode = mode => {
+    authMode = mode;
+    registerInput.checked = mode === "register";
+    tabLogin.classList.toggle("active", mode === "login");
+    tabRegister.classList.toggle("active", mode === "register");
+    button.textContent = mode === "register" ? "注册并进入" : "进入饭饭";
+    recovery.hidden = true;
+    form.hidden = false;
+  };
+
+  const setAuthenticated = authenticated => {
+    overlay.hidden = authenticated;
+    if (appShell) appShell.hidden = !authenticated;
+    document.body.classList.toggle("is-authenticated", authenticated);
   };
 
   async function refreshCaptcha() {
@@ -2053,30 +2176,59 @@ function initServiceLogin() {
       }
       captchaId = result.captcha_id || "";
       captchaImage.innerHTML = result.svg;
-      if (captchaInput) captchaInput.focus();
     } catch (error) {
       captchaImage.textContent = "点击刷新";
       showError(error && error.message ? error.message : "验证码加载失败");
     }
   }
 
-  captchaImage?.addEventListener("click", refreshCaptcha);
-  hostInput?.addEventListener("change", refreshCaptcha);
-  portInput?.addEventListener("change", refreshCaptcha);
-
-  (async () => {
-    if (!window.eatTransport) return;
+  const boot = async () => {
+    setTimeout(() => splash?.classList.add("is-done"), 900);
+    setTimeout(() => { if (splash) splash.hidden = true; }, 1320);
+    if (!window.eatTransport) {
+      setAuthenticated(false);
+      refreshCaptcha();
+      return;
+    }
     try {
       const status = await window.eatTransport.request("/api/service/status");
       if (status && status.mode === "tcp" && status.user_key) {
-        overlay.hidden = true;
+        setAuthenticated(true);
+        await enterApp(status.user_key);
         return;
       }
     } catch {
       // Agent 尚未启动时保留登录界面
     }
+    setAuthenticated(false);
     refreshCaptcha();
-  })();
+  };
+
+  tabLogin?.addEventListener("click", () => setMode("login"));
+  tabRegister?.addEventListener("click", () => setMode("register"));
+  captchaImage?.addEventListener("click", refreshCaptcha);
+  hostInput?.addEventListener("change", refreshCaptcha);
+  portInput?.addEventListener("change", refreshCaptcha);
+  document.getElementById("forgotPasswordButton")?.addEventListener("click", () => {
+    form.hidden = true;
+    recovery.hidden = false;
+  });
+  document.getElementById("closeForgotPassword")?.addEventListener("click", () => {
+    recovery.hidden = true;
+    form.hidden = false;
+  });
+  document.getElementById("quitAuthButton")?.addEventListener("click", () => {
+    if (window.eatTransport) window.eatTransport.quit();
+    else window.close();
+  });
+  document.getElementById("logoutButton")?.addEventListener("click", async () => {
+    try { document.getElementById("settingsDialog")?.close(); } catch {}
+    try { await window.eatTransport.logout(); } catch {}
+    localStorage.removeItem("eat-server-login");
+    localStorage.removeItem("eat-agent-session");
+    localStorage.removeItem("eat-agent-user");
+    window.location.reload();
+  });
 
   form.addEventListener("submit", async event => {
     event.preventDefault();
@@ -2087,7 +2239,7 @@ function initServiceLogin() {
       return;
     }
     button.disabled = true;
-    button.textContent = "连接中…";
+    button.textContent = "正在连接…";
     try {
       const result = await window.eatTransport.login({
         host: hostInput.value.trim(),
@@ -2096,21 +2248,329 @@ function initServiceLogin() {
         password: passwordInput.value,
         captcha_id: captchaId,
         captcha_code: captchaInput ? captchaInput.value.trim() : "",
-        register: registerInput.checked
+        register: authMode === "register"
       });
       if (!result || result.ok === false) {
         throw new Error((result && result.message) || "登录失败");
       }
       localStorage.setItem("eat-server-host", hostInput.value.trim());
       localStorage.setItem("eat-server-login", loginInput.value.trim());
-      overlay.hidden = true;
+      setAuthenticated(true);
       window.location.reload();
     } catch (error) {
       showError(loginErrorText(error && error.message ? error.message : ""));
       refreshCaptcha();
     } finally {
       button.disabled = false;
-      button.textContent = "连接";
+      button.textContent = authMode === "register" ? "注册并进入" : "进入饭饭";
     }
   });
+
+  setMode("login");
+  boot();
 }
+
+async function enterApp(userKey) {
+  currentUserKey = userKey || "";
+  if (window.eatAgent && window.eatAgent.state) {
+    window.eatAgent.state.userId = currentUserKey;
+  }
+  if (currentUserKey) localStorage.setItem("eat-agent-user", currentUserKey);
+  const myKey = document.getElementById("myUserKey");
+  if (myKey) myKey.textContent = currentUserKey || "—";
+  clearMockContent();
+  await loadRealData(currentUserKey);
+  loadAgentMenu();
+  maybeOnboarding(currentUserKey);
+}
+
+function clearMockContent() {
+  document.querySelectorAll("#conversation .message").forEach(node => node.remove());
+  meals = [];
+  history = [];
+  remoteWeekly = null;
+  remoteFriends = [];
+  remoteRanking = [];
+  rankings.week = [];
+  rankings.today = [];
+  profile = {
+    name: "",
+    height: "",
+    weight: "",
+    age: "",
+    goal: "均衡饮食",
+    activity: "久坐",
+    waterTarget: 1800,
+    sleep: 7,
+    spend_min: 20,
+    spend_max: 35,
+    note: ""
+  };
+  draftProfile = { ...profile };
+  pointsState = { ...defaultPointsState, week: getWeekKey() };
+  saveStored(storageKeys.points, pointsState);
+  renderMeals();
+  syncProfileForm();
+  renderReport();
+  renderLeaderboard(0);
+  renderShop();
+  renderFriends();
+  renderFriendRanking();
+}
+
+async function loadRealData(userKey) {
+  const api = window.eatTransport;
+  if (!api || !userKey) return;
+  const query = encodeURIComponent(userKey);
+  const read = async path => {
+    try {
+      const result = await api.request(path);
+      if (!result || result.ok === false) return null;
+      return result;
+    } catch {
+      return null;
+    }
+  };
+  const [profileData, mealsData, weeklyData, friendsData, rankingData] = await Promise.all([
+    read(`/api/profile?user_id=${query}`),
+    read(`/api/meals?user_id=${query}&days=7`),
+    read(`/api/stats/weekly?user_id=${query}`),
+    read(`/api/friends?user_id=${query}`),
+    read(`/api/ranking?user_id=${query}&scope=week`)
+  ]);
+  applyRemoteProfile(profileData);
+  applyRemoteMeals(mealsData);
+  applyRemoteWeekly(weeklyData);
+  applyRemoteFriends(friendsData);
+  applyRemoteRanking(rankingData);
+  syncProfileForm();
+  renderMeals();
+  renderReport();
+  renderFriends();
+  renderFriendRanking();
+}
+
+function applyRemoteProfile(data) {
+  if (!data) return;
+  profile = {
+    ...profile,
+    name: data.name || "",
+    height: Number(data.height) > 0 ? Number(data.height) : "",
+    weight: Number(data.weight) > 0 ? Number(data.weight) : "",
+    age: Number(data.age) > 0 ? Number(data.age) : "",
+    goal: data.goal || "均衡饮食",
+    activity: data.activity || "久坐",
+    waterTarget: Number(data.water_target) > 0 ? Number(data.water_target) : 1800,
+    sleep: Number.isFinite(parseFloat(data.sleep)) ? parseFloat(data.sleep) : 7,
+    note: data.note || "",
+    spend_min: Number(data.spend_min) >= 0 ? Number(data.spend_min) : 20,
+    spend_max: Number(data.spend_max) > 0 ? Number(data.spend_max) : 35
+  };
+  if (data.user_id) currentUserKey = data.user_id;
+  draftProfile = { ...profile };
+}
+
+function applyRemoteMeals(data) {
+  const today = todayKey();
+  const list = data && Array.isArray(data.meals) ? data.meals : [];
+  meals = list
+    .filter(meal => !meal.date || meal.date === today)
+    .map(meal => ({
+      id: meal.id,
+      version: meal.version,
+      type: meal.type || "加餐",
+      time: meal.time || "",
+      text: meal.text || (Array.isArray(meal.items) ? meal.items.join("、") : ""),
+      protein: Number(meal.protein) || 0,
+      fiber: Number(meal.fiber) || 0,
+      veggies: Number(meal.veggies) || 0,
+      water: Number(meal.water) || 0,
+      penalty: Number(meal.penalty) || 0
+    }));
+}
+
+function applyRemoteWeekly(data) {
+  remoteWeekly = data || null;
+  const daily = data && Array.isArray(data.daily) ? data.daily : [];
+  history = daily.map(item => ({
+    date: item.date,
+    meals: Number(item.meals) || 0,
+    summary: "",
+    score: Number(item.score) || 0
+  }));
+}
+
+function applyRemoteFriends(data) {
+  remoteFriends = data && Array.isArray(data.friends) ? data.friends : [];
+}
+
+function applyRemoteRanking(data) {
+  const rows = data && Array.isArray(data.ranking) ? data.ranking : [];
+  remoteRanking = rows;
+  rankings.week = rows.map(row => ({
+    name: row.user_id === currentUserKey ? "你" : (row.name || row.user_id),
+    score: Number(row.score) || 0,
+    note: row.user_id === currentUserKey ? "我" : `第 ${row.rank} 名`,
+    current: row.user_id === currentUserKey
+  }));
+  rankings.today = rankings.week.map(item => ({ ...item }));
+}
+
+function maybeOnboarding(userKey) {
+  if (!userKey) return;
+  const key = `eat-onboarded:${userKey}`;
+  const conversation = document.getElementById("conversation");
+  if (!conversation) return;
+  const firstTime = localStorage.getItem(key) !== "1";
+  if (firstTime) {
+    localStorage.setItem(key, "1");
+    localStorage.removeItem("eat-agent-session");
+    resetPointsForUser();
+    conversation.insertAdjacentHTML("afterbegin", `
+      <article class="message agent-message onboarding-message">
+        <div class="agent-avatar" aria-hidden="true"><svg class="icon"><use href="#icon-utensils"></use></svg></div>
+        <div class="message-content">
+          <div class="message-meta"><strong>饭饭</strong><span>第一次见面</span></div>
+          <div class="message-bubble">
+            <p>我是饭饭，负责记录你每天吃的，也帮你看看营养够不够。</p>
+            <p>开始前想认识你一下：身高、体重、年龄、日常活动量和需要留意的身体状况。填好之后，菜单和报告才会贴合你。</p>
+            <p>你也可以直接对我说，比如「我 170，60 公斤，久坐，想控制体重」，我来帮你改。</p>
+            <p>记录和完成度会积累积分；好友排行榜只显示彼此确认过的好友，不会公开给其他人。</p>
+            <div class="onboarding-actions">
+              <button class="button primary-button" id="onboardingProfile" type="button">带我去填资料</button>
+              <button class="button secondary-button" id="onboardingTell" type="button">直接告诉饭饭</button>
+            </div>
+          </div>
+        </div>
+      </article>
+    `);
+    document.getElementById("onboardingProfile")?.addEventListener("click", () => {
+      document.getElementById("editBodyInfo")?.click();
+    });
+    document.getElementById("onboardingTell")?.addEventListener("click", () => {
+      document.getElementById("chatInput")?.focus();
+    });
+    return;
+  }
+  conversation.insertAdjacentHTML("afterbegin", `
+    <article class="message agent-message">
+      <div class="agent-avatar" aria-hidden="true"><svg class="icon"><use href="#icon-utensils"></use></svg></div>
+      <div class="message-content">
+        <div class="message-meta"><strong>饭饭</strong></div>
+        <div class="message-bubble"><p>今天想记点什么？直接说吃了什么，或者问我一顿饭怎么搭配。</p></div>
+      </div>
+    </article>
+  `);
+}
+
+function resetPointsForUser() {
+  pointsState = {
+    ...defaultPointsState,
+    week: getWeekKey(),
+    baseEarned: 0,
+    spent: 0,
+    owned: ["aurora"],
+    selected: "aurora"
+  };
+  saveStored(storageKeys.points, pointsState);
+  renderShop();
+}
+
+function renderFriends() {
+  const list = document.getElementById("friendList");
+  const empty = document.getElementById("friendsEmpty");
+  const count = document.getElementById("friendCount");
+  if (!list) return;
+  if (count) count.textContent = `${remoteFriends.length} 位好友`;
+  if (empty) empty.hidden = remoteFriends.length > 0;
+  list.innerHTML = remoteFriends.map(friend => {
+    const name = friend.name || friend.id || friend.user_key || "好友";
+    const id = friend.id || friend.user_key || "";
+    return `<div class="friend-row" data-peer="${escapeHtml(id)}">
+      <span class="friend-avatar">${escapeHtml(name.slice(0, 1))}</span>
+      <div class="friend-copy"><strong>${escapeHtml(name)}</strong><small>${escapeHtml(id)}</small></div>
+      <div class="friend-actions">
+        <button type="button" data-friend-action="remove">移除</button>
+        <button type="button" data-friend-action="block">拉黑</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function renderFriendRanking() {
+  const list = document.getElementById("friendsRanking");
+  const empty = document.getElementById("friendsRankingEmpty");
+  if (!list) return;
+  if (empty) empty.hidden = remoteRanking.length > 0;
+  list.innerHTML = remoteRanking.map(row => {
+    const name = row.user_id === currentUserKey ? "你" : (row.name || row.user_id);
+    return `<li class="friend-rank-row${row.user_id === currentUserKey ? " is-me" : ""}">
+      <span class="rank-number">${row.rank}</span>
+      <span class="friend-avatar">${escapeHtml(name.slice(0, 1))}</span>
+      <span class="friend-copy"><strong>${escapeHtml(name)}</strong><small>${row.user_id === currentUserKey ? "我" : "好友"}</small></span>
+      <strong class="friend-score">${Number(row.score) || 0}<small>分</small></strong>
+    </li>`;
+  }).join("");
+}
+
+async function refreshFriendData() {
+  if (!currentUserKey || !window.eatTransport) return;
+  const query = encodeURIComponent(currentUserKey);
+  try {
+    const friends = await window.eatTransport.request(`/api/friends?user_id=${query}`);
+    applyRemoteFriends(friends);
+    renderFriends();
+    const ranking = await window.eatTransport.request(`/api/ranking?user_id=${query}&scope=week`);
+    applyRemoteRanking(ranking);
+    renderFriendRanking();
+    renderLeaderboard();
+  } catch (error) {
+    showToast("好友数据暂时不可用");
+  }
+}
+
+async function friendAction(peer, action) {
+  if (!peer || !currentUserKey) return;
+  const path = action === "request" ? "/api/friend/request"
+    : action === "accept" ? "/api/friend/accept"
+    : action === "remove" ? "/api/friend/remove"
+    : "/api/friend/block";
+  try {
+    const result = await window.eatTransport.request(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: currentUserKey, peer_key: peer })
+    });
+    if (!result || result.ok === false) {
+      throw new Error((result && result.message) || "操作失败");
+    }
+    showToast(action === "request" ? "好友申请已发送" : action === "remove" ? "已移除好友" : action === "block" ? "已拉黑" : "已接受申请");
+    await refreshFriendData();
+  } catch (error) {
+    showToast(error && error.message ? error.message : "好友操作失败");
+  }
+}
+
+document.getElementById("friendAddForm")?.addEventListener("submit", event => {
+  event.preventDefault();
+  const input = document.getElementById("friendKeyInput");
+  const peer = input ? input.value.trim() : "";
+  if (!peer) return;
+  friendAction(peer, "request");
+  input.value = "";
+});
+document.getElementById("friendAcceptForm")?.addEventListener("submit", event => {
+  event.preventDefault();
+  const input = document.getElementById("friendAcceptKey");
+  const peer = input ? input.value.trim() : "";
+  if (!peer) return;
+  friendAction(peer, "accept");
+  input.value = "";
+});
+document.getElementById("friendList")?.addEventListener("click", event => {
+  const button = event.target.closest("[data-friend-action]");
+  const row = event.target.closest("[data-peer]");
+  if (!button || !row) return;
+  friendAction(row.dataset.peer, button.dataset.friendAction);
+});
+document.getElementById("refreshFriends")?.addEventListener("click", refreshFriendData);

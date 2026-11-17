@@ -175,12 +175,12 @@
     toolbar.className = "agent-toolbar";
     toolbar.innerHTML = `
       <div class="agent-mode" role="group" aria-label="Agent 模式">
-        <button type="button" class="agent-btn" data-mode="qa">问答</button>
+        <button type="button" class="agent-btn" data-mode="qa">聊天</button>
         <div class="agent-work" id="agentWork">
-          <button type="button" class="agent-btn agent-work-main" data-mode="work"><span id="agentWorkLabel">工作 · 手动审批</span></button>
+          <button type="button" class="agent-btn agent-work-main" data-mode="work"><span id="agentWorkLabel">记录 · 确认后修改</span></button>
           <button type="button" class="agent-work-caret" id="agentAccessToggle" aria-label="切换工作方式"><svg class="icon"><use href="#icon-chevron-right"></use></svg></button>
           <div class="agent-access-menu" id="agentAccessMenu">
-            <button type="button" data-access="manual"><span>手动审批</span><small>重要操作由你确认</small></button>
+            <button type="button" data-access="manual"><span>确认后修改</span><small>重要操作由你确认</small></button>
             <button type="button" data-access="full"><span>完全访问</span><small>写操作直接执行</small></button>
           </div>
         </div>
@@ -308,7 +308,7 @@
 
   function updateWorkLabel() {
     const label = document.getElementById("agentWorkLabel");
-    if (label) label.textContent = `工作 · ${state.access === "full" ? "完全访问" : "手动审批"}`;
+    if (label) label.textContent = `记录 · ${state.access === "full" ? "直接修改" : "确认后修改"}`;
     const menu = document.getElementById("agentAccessMenu");
     menu?.querySelectorAll("[data-access]").forEach(button => button.classList.toggle("active", button.dataset.access === state.access));
   }
@@ -348,7 +348,7 @@
     updateWorkLabel();
     syncAccessOptions();
     $("#agentAccessDialog")?.close();
-    toast(state.access === "full" ? "已切换为完全访问" : "已切换为手动审批");
+    toast(state.access === "full" ? "已切换为直接修改" : "已切换为确认后修改");
     refreshContextBadge();
   }
 
@@ -486,10 +486,10 @@
     if (label) {
       const selected = selectedExperts();
       label.textContent = selected.length === 0
-        ? "Skill"
+        ? "配餐技能"
         : selected.length === 1
           ? (selected[0].display_name || selected[0].name)
-          : `Skill ${selected.length}`;
+          : `配餐技能 ${selected.length}`;
     }
     updateExpertChips();
   }
@@ -637,9 +637,9 @@
     accessDialog.className = "agent-access-sheet";
     accessDialog.innerHTML = `
       <form method="dialog" class="agent-access-body">
-        <header><div><span class="section-kicker">工作模式</span><h2>选择访问权限</h2></div><button type="button" id="agentAccessClose" aria-label="关闭">×</button></header>
+        <header><div><span class="section-kicker">记录模式</span><h2>选择访问权限</h2></div><button type="button" id="agentAccessClose" aria-label="关闭">×</button></header>
         <div class="agent-access-options">
-          <button type="button" data-access="manual"><span class="agent-access-mark">手</span><span><strong>手动审批</strong><small>重要操作由你确认</small></span></button>
+          <button type="button" data-access="manual"><span class="agent-access-mark">手</span><span><strong>确认后修改</strong><small>重要操作由你确认</small></span></button>
           <button type="button" data-access="full"><span class="agent-access-mark">全</span><span><strong>完全访问</strong><small>写操作直接执行，三餐上报仍需确认</small></span></button>
         </div>
         <p class="agent-access-note" id="agentAccessNote">签到与早、中、晚餐上报始终需要你手动操作</p>
@@ -927,7 +927,7 @@ bubble.classList.add("is-streaming");
       await transport.chatStream(payload, (event, data) => {
         if (event === "meta") {
           const model = data.model && data.model !== "auto" ? data.model : state.modelId || "本地规则";
-          status.textContent = `${data.mode_name || "问答"} · ${model}`;
+          status.textContent = `${data.mode_name || "聊天"} · ${model}`;
         } else if (event === "worker_start") {
           status.textContent = "已分派 Worker";
         } else if (event === "plan") {
@@ -1000,15 +1000,15 @@ bubble.classList.add("is-streaming");
       bubble.classList.remove("is-streaming");
     } catch (error) {
       console.error("[agent] send failed", error);
-      removeNode(article);
-      removeNode(userArticle);
       state.ready = false;
-      updateConnection("本地模式", "offline");
-      toast(`Agent 不可用，已切回本地分析${error && error.message ? `：${error.message}` : ""}`);
-      window.eatAgent.fallback = true;
-      if (text) {
-        window.eatLocal?.sendPrompt?.(text);
-      }
+      updateConnection("连接失败", "offline");
+      const notice = article.querySelector(".message-bubble") || article;
+      notice.innerHTML = renderMarkdown("暂时连不上饭饭。请检查服务端或网络后再试一次。");
+      article.classList.remove("typing-message");
+      article.classList.add("agent-error-message");
+      recordHistory("agent", "暂时连不上饭饭。请检查服务端或网络后再试一次。");
+      toast(`饭饭暂时不可用${error && error.message ? `：${error.message}` : ""}`);
+      window.eatAgent.fallback = false;
       setTimeout(() => { loadMeta(); }, 3000);
     } finally {
       state.sending = false;
@@ -1393,7 +1393,7 @@ bubble.classList.add("is-streaming");
       list.innerHTML = `<p class="agent-muted">加载中…</p>`;
       if (installedList) installedList.innerHTML = `<p class="agent-muted">加载中…</p>`;
     }
-    if (hint) hint.textContent = state.mode === "work" ? "工作模式：可以安装、导入与卸载技能" : "安装、导入与卸载需要先切换到工作模式";
+    if (hint) hint.textContent = state.mode === "work" ? "记录模式：可以安装、导入与卸载技能" : "安装、导入与卸载需要先切换到记录模式";
     const search = $("#agentMarketSearch")?.value.trim() || "";
     const category = state.marketCategory || "";
     try {
@@ -1540,11 +1540,7 @@ bubble.classList.add("is-streaming");
 
   window.eatAgent = {
     intercept(text) {
-      if (!state.ready) return false;
-      if (this.fallback) {
-        this.fallback = false;
-        return false;
-      }
+      if (this.fallback) this.fallback = false;
       const value = String(text || "").trim();
       if (!value && !state.images.length) return false;
       if (state.sending) {

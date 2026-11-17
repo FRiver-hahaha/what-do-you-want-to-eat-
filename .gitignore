@@ -21,6 +21,9 @@ login.json
 .codeartsdoer/skills/dead-code-eliminator/
 .codeartsdoer/skills/design-pattern-applier/
 .codeartsdoer/skills/ProjectSkillStatus.txt
+# Redis 本地快照
+dump.rdb
+
 # 本地构建产物
 dist/
 build-release/

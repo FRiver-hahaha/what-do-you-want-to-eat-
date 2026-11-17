@@ -40,6 +40,9 @@ class AgentHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         self._dispatch("POST")
 
+    def do_PATCH(self) -> None:
+        self._dispatch("PATCH")
+
     def do_DELETE(self) -> None:
         self._dispatch("DELETE")
 
@@ -119,7 +122,7 @@ class AgentHTTPRequestHandler(BaseHTTPRequestHandler):
         path = parsed.path.rstrip("/") or "/"
         query = {key: values[0] for key, values in parse_qs(parsed.query).items()}
         try:
-            body = self._read_body() if method in ("POST", "DELETE") else {}
+            body = self._read_body() if method in ("POST", "PATCH", "DELETE") else {}
             result = self._route(method, path, query, body)
             if isinstance(result, tuple) and result[0] == "sse":
                 self._send_sse(result[1])
@@ -305,6 +308,35 @@ class AgentHTTPRequestHandler(BaseHTTPRequestHandler):
 
         if path == "/api/service/status" and method == "GET":
             return 200, app.service.status()
+
+        actor = query.get("user_id") or app.service.user_key or "u_demo"
+
+        if path == "/api/profile" and method == "GET":
+            return 200, app.profile_view(actor)
+
+        if path == "/api/profile" and method == "PATCH":
+            return 200, app.update_profile_view(actor, body)
+
+        if path == "/api/meals" and method == "GET":
+            return 200, app.meals_view(actor, int(query.get("days", "7")))
+
+        if path == "/api/stats/weekly" and method == "GET":
+            return 200, app.weekly_view(actor)
+
+        if path == "/api/stats/gap" and method == "GET":
+            return 200, app.gap_view(actor, query.get("date", ""))
+
+        if path == "/api/friends" and method == "GET":
+            return 200, app.friends_view(actor)
+
+        if path == "/api/ranking" and method == "GET":
+            return 200, app.ranking_view(actor, query.get("scope", "week"))
+
+        if path.startswith("/api/friend/") and method == "POST":
+            return 200, app.friend_action(actor, path.rsplit("/", 1)[-1], body)
+
+        if path == "/api/service/logout" and method == "POST":
+            return 200, app.logout_service()
 
         if path == "/api/service/login" and method == "POST":
             return 200, app.login_service(body)

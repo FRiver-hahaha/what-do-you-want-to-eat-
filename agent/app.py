@@ -564,6 +564,47 @@ class AgentApp:
             "menu_price": {"min": 0, "max": 0},
         }
 
+    def profile_view(self, user_id: str) -> dict[str, Any]:
+        return self.service.get_profile(user_id)
+
+    def update_profile_view(self, user_id: str,
+                            payload: dict[str, Any]) -> dict[str, Any]:
+        allowed = ("name", "height", "weight", "age", "goal", "activity",
+                   "water_target", "waterTarget", "sleep", "note",
+                   "allergies", "dislikes", "spend_min", "spend_max")
+        fields = {key: payload[key] for key in allowed if key in payload}
+        return self.service.update_profile(user_id, fields)
+
+    def meals_view(self, user_id: str, days: int = 7) -> dict[str, Any]:
+        return self.service.get_recent_meals(user_id, days)
+
+    def weekly_view(self, user_id: str) -> dict[str, Any]:
+        return self.service.get_weekly_stats(user_id)
+
+    def gap_view(self, user_id: str, day: str = "") -> dict[str, Any]:
+        from datetime import date
+
+        return self.service.get_nutrition_gap(user_id, day or date.today().isoformat())
+
+    def friends_view(self, user_id: str) -> dict[str, Any]:
+        return self.service.get_friends(user_id)
+
+    def ranking_view(self, user_id: str, scope: str = "week") -> dict[str, Any]:
+        return self.service.get_friend_ranking(user_id, scope)
+
+    def friend_action(self, user_id: str, action: str,
+                      payload: dict[str, Any]) -> dict[str, Any]:
+        peer = str(payload.get("peer_key") or payload.get("user_key") or "").strip()
+        if not peer:
+            return {"ok": False, "message": "peer_key is required"}
+        handler = getattr(self.service, f"friend_{action}", None)
+        if handler is None:
+            return {"ok": False, "message": "unknown_action"}
+        return handler(user_id, peer)
+
+    def logout_service(self) -> dict[str, Any]:
+        return {"ok": True, "status": self.service.logout()}
+
     def update_spend_level(self, payload: dict[str, Any]) -> dict[str, Any]:
         self._require_work(payload)
         ctx = self._work_tool_context(payload, confirmed=True)

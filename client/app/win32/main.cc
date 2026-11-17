@@ -310,6 +310,14 @@ class ShellApp {
                 HandleServiceCaptcha(parsed.value);
                 return;
             }
+            if (type != nullptr && type->IsString() && type->AsString() == "service.logout") {
+                HandleServiceLogout(parsed.value);
+                return;
+            }
+            if (type != nullptr && type->IsString() && type->AsString() == "service.quit") {
+                PostMessageW(window_, WM_CLOSE, 0, 0);
+                return;
+            }
         }
         ipc_.Send(utf8);
     }
@@ -485,6 +493,27 @@ class ShellApp {
         response.Set("captcha_id", protocol::JsonValue::String(captcha_id));
         response.Set("svg", protocol::JsonValue::String(svg));
         response.Set("message", protocol::JsonValue::String(error));
+        PostToWeb(response.Dump());
+    }
+
+    void HandleServiceLogout(const protocol::JsonValue& message) {
+        protocol::JsonValue notice = protocol::JsonValue::Object();
+        notice.Set("type", protocol::JsonValue::String("service.logout"));
+        ipc_.Send(notice.Dump());
+
+        session_ = Session{};
+        SetEnvironmentVariableW(L"EAT_TCP_HOST", nullptr);
+        SetEnvironmentVariableW(L"EAT_TCP_PORT", nullptr);
+        SetEnvironmentVariableW(L"EAT_USER_KEY", nullptr);
+        SetEnvironmentVariableW(L"EAT_SERVER_TOKEN", nullptr);
+        SetEnvironmentVariableW(L"EAT_SERVICE_REQUIRED", nullptr);
+        DeleteFileW(SessionPath().c_str());
+
+        protocol::JsonValue response = protocol::JsonValue::Object();
+        response.Set("type", protocol::JsonValue::String("service.logout.response"));
+        const protocol::JsonValue* id = message.Find("id");
+        if (id != nullptr) response.Set("id", *id);
+        response.Set("ok", protocol::JsonValue::Bool(true));
         PostToWeb(response.Dump());
     }
 
