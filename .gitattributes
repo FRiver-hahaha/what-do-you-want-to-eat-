@@ -1,0 +1,25 @@
+# 统一换行：SQL 强制 LF（避免 MySQL 8.4 在 CRLF 下的注释解析问题）
+* text=auto eol=lf
+*.sql text eol=lf
+*.sh  text eol=lf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+
+# 二进制
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.zip binary
+*.tar.gz binary
+*.exe binary
+*.dll binary
+*.db binary
+
+# 生成物/依赖目录不参与 diff
+build/**        linguist-generated=true
+build-release/** linguist-generated=true
+dist/**         linguist-generated=true
+chatroom-backend/evidence/** linguist-documentation=true

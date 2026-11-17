@@ -1,5 +1,8 @@
 # 今天你吃了吗 · Agent 项目说明
 
+> **2026-11-17 状态更新**：仓库已进入三线合并阶段。服务端以根目录 `server/`（Muduo + 40B 帧 + MySQL）为唯一实现，P7/P8 旧后端退役；客户端交付形态改为 Windows App（Win32 + WebView2），页面经 `bridge.js` 传输抽象运行，Agent 改为命名管道入口。
+> 当前事实、构建方式、已打通链路与阻断项见 `docs/architecture.md` 与 `docs/DELIVERY-STATUS.md`。本文件下方内容以 Agent 能力说明为主，部分 Web 时代的启动/端口描述已不再适用。
+
 ## 1. 项目概述
 
 ### 1.1 产品定位

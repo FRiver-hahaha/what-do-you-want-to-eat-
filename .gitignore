@@ -1,6 +1,9 @@
+# 开发与测试临时目录（用户态数据库、日志、快照），不进入版本库
+.dev/
+build/
+data/agent/
 __pycache__/
 *.py[cod]
-data/agent/
 .env
 .env.*
 !.env.example
@@ -8,3 +11,24 @@ data/agent/
 *.db
 *.db-wal
 *.db-shm
+
+# 工具自动下载的技能缓存（非项目源码）
+.codeartsdoer/skills/code-refactoring/
+.codeartsdoer/skills/code-reviewer/
+.codeartsdoer/skills/dead-code-eliminator/
+.codeartsdoer/skills/design-pattern-applier/
+.codeartsdoer/skills/ProjectSkillStatus.txt
+# 本地构建产物
+dist/
+build-release/
+build-win/
+
+# Windows 构建中间产物
+*.exe
+*.dll
+*.pdb
+*.ilk
+*.user
+.vs/
+CMakeUserPresets.json
+webview-data/

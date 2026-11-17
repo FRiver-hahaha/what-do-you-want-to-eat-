@@ -1,0 +1,72 @@
+name: windows-ci
+
+on:
+  push:
+    branches: [main, "feat/**", "fix/**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  console-client:
+    name: Build client_smoke.exe (MSVC)
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build with cl.exe
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+            -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+            -property installationPath
+          Import-Module "$vs\Common7\Tools\Microsoft.VisualStudio.DevShell.dll"
+          Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments "-arch=x64"
+          powershell -ExecutionPolicy Bypass -File .\dist\eat-client-windows\build-client.ps1 -Out .\client_smoke.exe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: client_smoke-windows-x64
+          path: client_smoke.exe
+          if-no-files-found: error
+
+      - name: Agent tests
+        env:
+          EAT_DISABLE_DOTENV: "1"
+          EAT_MCP_DISABLE: "1"
+        run: python -m unittest agent.tests.test_smoke -v
+
+  gui-app:
+    name: Build eat-app.exe (WebView2, non-blocking)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch WebView2 SDK
+        shell: pwsh
+        run: |
+          $url = "https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2/1.0.2592.51"
+          Invoke-WebRequest -Uri $url -OutFile webview2.zip
+          Expand-Archive webview2.zip -DestinationPath webview2
+          "WEBVIEW2_ROOT=$PWD\webview2\build\native" | Out-File -Append $env:GITHUB_ENV
+
+      - name: Configure and build
+        shell: pwsh
+        run: |
+          cmake -S . -B build-win -G "Visual Studio 17 2022" -A x64 `
+            -DWEBVIEW2_ROOT="$env:WEBVIEW2_ROOT"
+          cmake --build build-win --config Release --target eat-app
+
+      - name: Upload eat-app
+        uses: actions/upload-artifact@v4
+        with:
+          name: eat-app-windows-x64
+          path: build-win/client/app/Release/eat-app.exe

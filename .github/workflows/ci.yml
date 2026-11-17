@@ -1,0 +1,67 @@
+name: linux-ci
+
+on:
+  push:
+    branches: [main, "feat/**", "fix/**", "chore/**"]
+  pull_request:
+
+concurrency:
+  group: linux-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake libboost-dev libssl-dev \
+            libmysqlclient-dev libhiredis-dev
+
+      - name: Restore Muduo
+        id: muduo-cache
+        uses: actions/cache@v4
+        with:
+          path: /opt/muduo
+          key: muduo-v1-${{ runner.os }}
+
+      - name: Build Muduo
+        if: steps.muduo-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 https://github.com/chenshuo/muduo.git /opt/muduo
+          cmake -S /opt/muduo -B /opt/muduo/build/release-cpp11 \
+            -DCMAKE_BUILD_TYPE=Release -DMUDUO_BUILD_EXAMPLES=OFF
+          cmake --build /opt/muduo/build/release-cpp11 -j"$(nproc)"
+
+      - name: Configure
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug \
+            -DEAT_MUDUO_ROOT=/opt/muduo
+
+      - name: Build
+        run: cmake --build build -j"$(nproc)"
+
+      - name: C++ tests
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Agent tests
+        env:
+          EAT_DISABLE_DOTENV: "1"
+          EAT_MCP_DISABLE: "1"
+        run: python -m unittest agent.tests.test_smoke -v
+
+      - name: Frontend syntax
+        run: |
+          node --check app.js
+          node --check bridge.js
+          node --check agent-adapter.js
+
+      - name: Python syntax
+        run: |
+          python -m py_compile agent/ipc_server.py
+          python -m py_compile tests/integration/ipc_smoke.py
