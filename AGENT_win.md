@@ -198,6 +198,38 @@ node --check bridge.js
 
 ## 8. 上传 GitHub
 
+### 8.1 当前状态（2026-11-17）
+
+Linux 侧已整理并提交（4 个功能提交 + 文档提交，完整列表以 `git log` 为准），但**推送被凭据阻断**（HTTPS 无 token/SSH key）：
+
+```
+08263e9 chore(repo): add enterprise metadata, CI and packaging scripts
+4900801 feat(server): merge MySQL identity, profile methods and bounded thread pool
+4ad8311 feat(client): add transport bridge, IPC protocol and Windows shell; align agent contract
+ac7271c chore(deploy): add Docker image, compose stack and migration entrypoint
+```
+
+因此远端仍停在 `bc2ecb2`。最新改动已导出为 `dist/eat-agent-updates.bundle`（约 94 KB），可在 Windows 上导入。
+
+### 8.2 在 Windows 导入并推送
+
+```powershell
+git clone https://github.com/FRiver-hahaha/what-do-you-want-to-eat-.git
+cd what-do-you-want-to-eat-
+git checkout feat/app-transport-scale
+
+# 把 bundle 放到仓库根目录后：
+git fetch ..\eat-agent-updates.bundle feat/app-transport-scale:incoming
+git merge --ff-only incoming
+git branch -D incoming
+
+git push -u origin feat/app-transport-scale
+```
+
+首次推送会弹出 Git Credential Manager 登录（浏览器授权），或使用 Personal Access Token（`repo` 权限）作为 HTTPS 密码。**不要**把 token 写进脚本或仓库。
+
+如果从零开始提交（没有 bundle）：
+
 ```powershell
 git status
 git add <files>
@@ -205,9 +237,9 @@ git commit -m "feat(client): build Windows shell"
 git push -u origin feat/app-transport-scale
 ```
 
-若 `git push` 要求认证：使用 Personal Access Token（`repo` 权限）作为 HTTPS 密码，或配置 SSH key。**不要**把 token 写进脚本或仓库。
+### 8.3 发布二进制（不要提交进 Git）
 
-发布二进制（推荐走 Release，而不是提交进 Git）：
+二进制与依赖通过 **GitHub Release** 分发，仓库只保留源码与构建脚本：
 
 ```powershell
 gh release create v0.1.0 `
@@ -217,6 +249,7 @@ gh release create v0.1.0 `
 ```
 
 没有 `gh` 时：GitHub 网页 → Releases → Draft a new release → 上传两个附件。
+CI 还会把 `client_smoke.exe` 作为 workflow artifact 产出（见 `.github/workflows/windows.yml`）。
 
 ## 9. 本轮已知阻断与风险
 

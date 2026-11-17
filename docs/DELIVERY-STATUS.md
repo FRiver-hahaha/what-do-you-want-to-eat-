@@ -53,3 +53,10 @@ node --check app.js bridge.js agent-adapter.js      # ok
 2. 执行 `007_profile_user_key.sql`（列名 `agent_uid` → `user_key`，影响旧 P8 进程）。
 3. 删除 Config 中 20+ 个未接线字段（需同步模板与文档）。
 4. 将根目录页面资源移入 `client/resources/web/`（App 最终形态）。
+## 版本库状态（2026-11-17）
+
+- 本地已提交 4 个提交（`08263e9`、`4900801`、`4ad8311`、`ac7271c`），工作区干净。
+- **推送阻断**：HTTPS 无凭据（`could not read Username`），远端仍为 `bc2ecb2`。
+- 已导出 `dist/eat-agent-updates.bundle`（94 KB），可在 Windows 上导入后推送，步骤见 `AGENT_win.md` §8。
+- 二进制与依赖不入库：Linux 通过 tarball / Docker 镜像，Windows 通过源码包 + `build-client.ps1` / CI artifact / Release。
+- 企业级基线已入库：README、CONTRIBUTING、SECURITY、CHANGELOG、CODEOWNERS、PR 模板、Linux/Windows CI、EditorConfig、Clang-Format、GitAttributes、build/package 脚本。
