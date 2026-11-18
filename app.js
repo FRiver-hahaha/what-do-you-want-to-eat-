@@ -886,7 +886,9 @@ function renderLeaderboard(currentScore = getHealthAnalysis().score) {
   const previousTop = previousCurrent ? previousCurrent.getBoundingClientRect().top : null;
   elements.leaderboardList.innerHTML = data.map((item, index) => {
     const label = item.current ? (profile.name || "我") : item.name;
-    const avatar = item.avatar || item.cover || (item.current ? localStorage.getItem("eat-user-avatar") || "" : "");
+    const media = peerMediaFor(item);
+    const avatar = (media && (media.avatar || media.cover)) || item.avatar || item.cover ||
+      (item.current ? localStorage.getItem("eat-user-avatar") || "" : "");
     const initial = escapeHtml(String(label || "友").slice(0, 1));
     const avatarMarkup = avatar
       ? `<img src="${escapeHtml(avatar)}" alt="" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><span class="friend-initial" hidden>${initial}</span>`
@@ -913,6 +915,7 @@ function renderLeaderboard(currentScore = getHealthAnalysis().score) {
   document.getElementById("rankingSummary").textContent = activeRanking === "week" ? `本周健康均分 ${weeklyAverage} · 当前第 ${rank} 名 · 周奖励预计 +${getWeeklyBonus()}` : `今日健康分 ${currentScore} · 当前第 ${rank} 名`;
   if (document.getElementById("view-shop").classList.contains("active")) renderShop();
   applyChampionCover(champion);
+  syncPeerMedia(data);
 }
 
 function updateTodayHistory(score) {
@@ -1314,11 +1317,73 @@ function confirmRandom() {
   switchView(returnView);
 }
 
+const peerMedia = new Map();
+const mediaInFlight = new Set();
+
+function mediaKeyFor(item) {
+  return String(item.id || (item.current ? currentUserKey : "") || "");
+}
+
+function peerMediaFor(item) {
+  const key = mediaKeyFor(item);
+  return key ? peerMedia.get(key) : null;
+}
+
+function applyOwnMedia(data) {
+  if (!currentUserKey || !data || data.ok === false) return;
+  peerMedia.set(currentUserKey, {
+    cover: String(data.cover || ""),
+    avatar: String(data.avatar || ""),
+    cover_ver: Number(data.cover_ver || 0),
+    avatar_ver: Number(data.avatar_ver || 0)
+  });
+}
+
+async function syncPeerMedia(items) {
+  if (!window.eatTransport || !currentUserKey || !Array.isArray(items)) return;
+  const targets = [];
+  for (const item of items) {
+    const key = mediaKeyFor(item);
+    if (!key || mediaInFlight.has(key)) continue;
+    const cached = peerMedia.get(key);
+    const hasVersion = Boolean(item.cover_ver || item.avatar_ver);
+    if (cached && !hasVersion) continue;
+    const cachedVersion = cached ? `${cached.cover_ver || 0}:${cached.avatar_ver || 0}` : "";
+    const expectedVersion = `${item.cover_ver || 0}:${item.avatar_ver || 0}`;
+    if (cachedVersion === expectedVersion) continue;
+    targets.push(key);
+  }
+  if (!targets.length) return;
+  const results = await Promise.all(targets.map(async key => {
+    mediaInFlight.add(key);
+    try {
+      const res = await window.eatTransport.request(`/api/profile/cover?user_id=${encodeURIComponent(key)}`);
+      if (res && res.ok !== false) {
+        peerMedia.set(key, {
+          cover: String(res.cover || ""),
+          avatar: String(res.avatar || ""),
+          cover_ver: Number(res.cover_ver || 0),
+          avatar_ver: Number(res.avatar_ver || 0)
+        });
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    } finally {
+      mediaInFlight.delete(key);
+    }
+  }));
+  if (results.some(Boolean)) renderLeaderboard();
+}
+
 function applyChampionCover(champion) {
   const coverImg = document.querySelector(".champion-cover img");
   if (!coverImg || !champion) return;
+  const media = peerMediaFor(champion);
   const ownAvatar = localStorage.getItem("eat-user-avatar") || "";
-  const src = champion.cover || (champion.current ? championCoverSrc : "") ||
+  const src = (media && (media.cover || media.avatar)) || champion.cover ||
+    (champion.current ? championCoverSrc : "") ||
     champion.avatar || (champion.current ? ownAvatar : "");
   if (src) {
     coverImg.src = src;
@@ -1329,18 +1394,34 @@ function applyChampionCover(champion) {
   }
 }
 
-function readCoverFile(file, type = "image/jpeg") {
+const MEDIA_MAX_BYTES = 32 * 1024;
+
+function readCoverFile(file, type = "image/jpeg", maxSide = 480, limit = MEDIA_MAX_BYTES) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
       const image = new Image();
       image.onload = () => {
-        const scale = Math.min(1, 640 / Math.max(image.width, image.height));
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.round(image.width * scale);
-        canvas.height = Math.round(image.height * scale);
-        canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL(type, 0.82));
+        let side = Math.min(maxSide, Math.max(image.width, image.height));
+        let quality = 0.82;
+        let dataUrl = "";
+        for (let attempt = 0; attempt < 12; attempt += 1) {
+          const scale = Math.min(1, side / Math.max(image.width, image.height));
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.max(1, Math.round(image.width * scale));
+          canvas.height = Math.max(1, Math.round(image.height * scale));
+          canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+          dataUrl = canvas.toDataURL(type, quality);
+          if (dataUrl.length <= limit) break;
+          side = Math.round(side * 0.75);
+          quality = Math.max(0.55, quality - 0.08);
+          if (side <= 48) break;
+        }
+        if (dataUrl.length > limit) {
+          reject(new Error("image_too_large"));
+          return;
+        }
+        resolve(dataUrl);
       };
       image.onerror = reject;
       image.src = reader.result;
@@ -1376,18 +1457,30 @@ function saveCover() {
     showToast("请先选择一张封面图片");
     return;
   }
-  championCoverSrc = coverDraftSrc;
-  saveStored(storageKeys.cover, { src: championCoverSrc });
+  const draft = coverDraftSrc;
+  championCoverSrc = draft;
+  saveStored(storageKeys.cover, { src: draft });
   if (window.eatTransport && currentUserKey) {
     window.eatTransport.request("/api/profile/cover", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: currentUserKey, cover: championCoverSrc })
+      body: JSON.stringify({ user_id: currentUserKey, cover: draft })
+    }).then(res => {
+      if (!res || res.ok === false) {
+        showToast(res && res.message === "cover_too_large" ? "图片太大，请换一张" : "封面已存到本地，服务端同步失败");
+        return;
+      }
+      applyOwnMedia(res);
+      if (res.cover) {
+        championCoverSrc = res.cover;
+        saveStored(storageKeys.cover, { src: res.cover });
+      }
+      renderLeaderboard();
     }).catch(() => {});
   }
   renderLeaderboard();
   document.getElementById("coverDialog").close();
-  showToast("冠军封面已保存");
+  showToast("冠军封面已保存到服务端");
 }
 
 function resetCover() {
@@ -1400,6 +1493,9 @@ function resetCover() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ user_id: currentUserKey, cover: "" })
+    }).then(res => {
+      if (res && res.ok !== false) applyOwnMedia(res);
+      renderLeaderboard();
     }).catch(() => {});
   }
   renderLeaderboard();
@@ -2064,18 +2160,33 @@ document.getElementById("avatarUploadButton").addEventListener("click", () => do
 document.getElementById("avatarUploadInput").addEventListener("change", event => {
   const file = event.target.files?.[0];
   if (!file) return;
-  readCoverFile(file, "image/png").then(src => {
+  readCoverFile(file, "image/jpeg", 160, 24 * 1024).then(async src => {
+    if (window.eatTransport && currentUserKey) {
+      try {
+        const res = await window.eatTransport.request("/api/profile/cover", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id: currentUserKey, avatar: src })
+        });
+        if (res && res.ok !== false) {
+          applyOwnMedia(res);
+          const saved = res.avatar || src;
+          localStorage.setItem(userAvatarKey, saved);
+          applyUserAvatar(saved);
+          renderLeaderboard();
+          showToast("头像已同步到服务端");
+          return;
+        }
+        if (res && res.message === "avatar_too_large") {
+          showToast("图片太大，请换一张");
+          return;
+        }
+      } catch {}
+    }
     localStorage.setItem(userAvatarKey, src);
     applyUserAvatar(src);
-    if (window.eatTransport && currentUserKey) {
-      window.eatTransport.request("/api/profile/cover", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: currentUserKey, avatar: src })
-      }).catch(() => {});
-    }
     renderLeaderboard();
-    showToast("头像已更新");
+    showToast("头像已保存到本地");
   }).catch(() => showToast("头像读取失败，请换一张试试"));
   event.target.value = "";
 });
@@ -2374,6 +2485,8 @@ const pageHost = location.hostname && location.hostname !== "localhost" && locat
     localStorage.removeItem("eat-server-login");
     localStorage.removeItem("eat-agent-session");
     localStorage.removeItem("eat-agent-user");
+    peerMedia.clear();
+    mediaInFlight.clear();
     ["eat-health-profile-v2", "eat-health-meals-v2", "eat-health-history-v2",
       "eat-health-points-v1", "eat-user-avatar", "eat-champion-cover-v1"].forEach(key => {
       try { localStorage.removeItem(key); } catch {}
@@ -2490,6 +2603,14 @@ async function loadRealData(userKey) {
     read(`/api/ranking?user_id=${query}&scope=week`),
     read(`/api/profile/cover?user_id=${query}`)
   ]);
+  if (coverData && coverData.ok !== false) {
+    peerMedia.set(userKey, {
+      cover: String(coverData.cover || ""),
+      avatar: String(coverData.avatar || ""),
+      cover_ver: Number(coverData.cover_ver || 0),
+      avatar_ver: Number(coverData.avatar_ver || 0)
+    });
+  }
   if (coverData && coverData.cover) {
     championCoverSrc = coverData.cover;
     saveStored(storageKeys.cover, { src: championCoverSrc });
@@ -2507,6 +2628,7 @@ async function loadRealData(userKey) {
   renderReport();
   renderFriends();
   renderFriendRanking();
+  renderLeaderboard();
 }
 
 function applyProfileName() {
@@ -2593,12 +2715,15 @@ function applyRemoteRanking(data) {
   rankings.week = rows.map(row => {
     const current = row.user_id === currentUserKey;
     return {
+      id: row.user_id || "",
       name: current ? (profile.name || "我") : (row.name || row.user_id),
       score: Number(row.score) || 0,
       note: current ? "我" : `第 ${row.rank} 名`,
       current,
       cover: row.cover || "",
-      avatar: row.avatar || ""
+      avatar: row.avatar || "",
+      cover_ver: Number(row.cover_ver || 0),
+      avatar_ver: Number(row.avatar_ver || 0)
     };
   });
   rankings.today = rankings.week.map(item => ({ ...item }));

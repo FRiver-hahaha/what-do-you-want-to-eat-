@@ -51,7 +51,7 @@ ctest --test-dir build --output-on-failure
 
 # 数据库（示例为用户态/容器 MySQL）
 mysql < migrations/base/001_p8_business.sql   # 先 init.sql + 001
-for f in migrations/add/00{2,3,4,5,6}_*.sql; do mysql < "$f"; done
+for f in migrations/add/00{2,3,4,5,6,7}_*.sql; do mysql < "$f"; done
 
 # 启动（密码只走环境变量）
 EAT_MYSQL_PASSWORD=*** ./build/eat-server --config deploy/server.toml.example

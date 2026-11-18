@@ -9,6 +9,7 @@
 #include "server/business/food/FoodService.h"
 #include "server/business/friend/FriendService.h"
 #include "server/business/meal/MealService.h"
+#include "server/business/profile/ProfileMediaService.h"
 #include "server/business/profile/ProfileService.h"
 #include "server/business/ranking/RankingService.h"
 #include "server/business/stats/StatsService.h"
@@ -66,6 +67,7 @@ class ServiceRegistry {
     std::unique_ptr<identity::TokenVerifier> verifier_;
     std::unique_ptr<identity::CaptchaStore> captcha_;
     std::unique_ptr<business::ProfileService> profile_;
+    std::unique_ptr<business::ProfileMediaService> media_;
     std::unique_ptr<business::MealService> meal_;
     std::unique_ptr<business::StatsService> stats_;
     std::unique_ptr<business::FoodService> food_;

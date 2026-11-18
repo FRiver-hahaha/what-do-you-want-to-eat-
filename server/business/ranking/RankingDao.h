@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -10,6 +11,8 @@ namespace eat::business {
 struct RankingMember {
     std::string user_key;
     std::string name;
+    std::uint64_t cover_ver = 0;
+    std::uint64_t avatar_ver = 0;
 };
 
 class RankingDao {

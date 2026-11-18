@@ -235,7 +235,7 @@ cd /path/to/what-do-you-want-to-eat-
     | sed 's/^--\([^ ]\)/-- \1/'; echo
   tr -d '\r' < migrations/base/foods_seed.sql \
     | sed 's/^--\([^ ]\)/-- \1/'; echo
-  for f in migrations/add/00{2,3,4,5,6}_*.sql; do
+  for f in migrations/add/00{2,3,4,5,6,7}_*.sql; do
     case "$f" in *_rollback.sql) continue;; esac
     tr -d '\r' < "$f" | sed 's/^--\([^ ]\)/-- \1/'; echo
   done

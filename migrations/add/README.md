@@ -10,8 +10,12 @@
 6. `004_friend_relation.sql`
 7. `005_meal_partition.sql`
 8. `006_event_outbox.sql`
+9. `007_profile_media.sql`
 
-Each step has a paired `_rollback.sql`.
+Each step has a paired `_rollback.sql`. `007_profile_media` adds the per-user
+`profile_media` table that stores ranking cover/avatar data URLs keyed by
+`user_key`, with millisecond `cover_ver` / `avatar_ver` tokens used by clients to
+decide when to refetch.
 
 ## Preconditions
 

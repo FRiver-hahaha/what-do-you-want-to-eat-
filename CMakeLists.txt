@@ -64,6 +64,8 @@ if(EAT_MYSQL_FOUND)
         server/identity/IdentityService.cc
         server/business/profile/ProfileDao.cc
         server/business/profile/ProfileService.cc
+        server/business/profile/ProfileMediaDao.cc
+        server/business/profile/ProfileMediaService.cc
         server/business/user/UserDao.cc
         server/business/meal/MealDao.cc
         server/business/meal/IdempotencyDao.cc

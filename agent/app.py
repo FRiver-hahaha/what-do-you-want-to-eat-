@@ -579,14 +579,19 @@ class AgentApp:
         return self.service.get_user_cover(user_id)
 
     def save_cover(self, user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-        target = str(payload.get("user_id") or user_id)
+        claimed = str(payload.get("user_id") or "")
+        if claimed and claimed != user_id:
+            return {"ok": False, "error": "forbidden", "message": "cross_user_write_denied"}
+        if self.service.user_key and user_id != self.service.user_key:
+            return {"ok": False, "error": "forbidden", "message": "cross_user_write_denied"}
         cover = payload.get("cover")
         avatar = payload.get("avatar")
-        if cover is not None and len(str(cover)) > 2 * 1024 * 1024:
+        limit = 48 * 1024
+        if cover is not None and len(str(cover)) > limit:
             return {"ok": False, "message": "cover_too_large"}
-        if avatar is not None and len(str(avatar)) > 2 * 1024 * 1024:
+        if avatar is not None and len(str(avatar)) > limit:
             return {"ok": False, "message": "avatar_too_large"}
-        return self.service.save_user_cover(target, cover=cover, avatar=avatar)
+        return self.service.save_user_cover(user_id, cover=cover, avatar=avatar)
 
     def meals_view(self, user_id: str, days: int = 7) -> dict[str, Any]:
         return self.service.get_recent_meals(user_id, days)

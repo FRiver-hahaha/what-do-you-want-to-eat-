@@ -82,6 +82,7 @@ bool ServiceRegistry::Init(std::string& error) {
 
     cache::CacheClient* cache = cache_.get();
     profile_ = std::make_unique<business::ProfileService>(*pool_, *identity_, cache);
+    media_ = std::make_unique<business::ProfileMediaService>(*pool_, *identity_);
     meal_ = std::make_unique<business::MealService>(*pool_, cache);
     stats_ = std::make_unique<business::StatsService>(*pool_, cache);
     food_ = std::make_unique<business::FoodService>(*pool_, cache);
@@ -189,6 +190,14 @@ void ServiceRegistry::RegisterHandlers() {
     RegisterBusiness(protocol::method::kRankingFriends,
                      [this](const std::string& key, const protocol::JsonValue& params) {
                          return ranking_->Friends(key, params);
+                     });
+    RegisterBusiness(protocol::method::kProfileMediaGet,
+                     [this](const std::string& key, const protocol::JsonValue& params) {
+                         return media_->Get(key, params);
+                     });
+    RegisterBusiness(protocol::method::kProfileMediaSet,
+                     [this](const std::string& key, const protocol::JsonValue& params) {
+                         return media_->Set(key, params);
                      });
     dispatcher_.Register(
         "auth.captcha",

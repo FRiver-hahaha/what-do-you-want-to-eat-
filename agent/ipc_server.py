@@ -103,7 +103,7 @@ def _service_request(app: AgentApp, path: str, init: dict[str, Any]) -> dict[str
     if route == "/api/profile/cover" and method == "GET":
         return app.cover_view(user_id)
     if route == "/api/profile/cover" and method == "POST":
-        return app.save_cover(user_id, body)
+        return app.save_cover(app.service.user_key or user_id, body)
     if route == "/api/profile" and method == "GET":
         return app.profile_view(user_id)
     if route == "/api/profile" and method == "PATCH":

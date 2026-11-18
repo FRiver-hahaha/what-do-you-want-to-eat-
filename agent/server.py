@@ -312,10 +312,10 @@ class AgentHTTPRequestHandler(BaseHTTPRequestHandler):
         actor = query.get("user_id") or app.service.user_key or "u_demo"
 
         if path == "/api/profile/cover" and method == "GET":
-            return 200, app.cover_view(query.get("user_id") or actor)
+            return 200, app.cover_view(query.get("user_id") or app.service.user_key or "u_demo")
 
         if path == "/api/profile/cover" and method == "POST":
-            return 200, app.save_cover(actor, body)
+            return 200, app.save_cover(app.service.user_key or "u_demo", body)
 
         if path == "/api/profile" and method == "GET":
             return 200, app.profile_view(actor)

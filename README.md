@@ -243,7 +243,7 @@ docker compose -f deploy/docker/docker-compose.yml logs -f eat-server
 
 - 构建 `eat-server` 多阶段镜像：先编译 Muduo 与服务端，运行阶段只保留二进制与运行库；
 - 启动 `mysql:8.4`，健康检查通过后才启动服务端；
-- 服务端入口脚本等待 MySQL、执行 `00_all.sql`（000→006 全量迁移）、再启动；
+- 服务端入口脚本等待 MySQL、执行 `00_all.sql`（000→007 全量迁移）、再启动；
 - 宿主机暴露 `9443`；MySQL 只在容器网络内可达。
 
 验收：
@@ -275,7 +275,7 @@ eat-server            # Release 二进制
 client_smoke          # 帧级验证客户端
 run.sh                # 启动脚本
 server.toml.example   # 配置模板
-migrations/00_all.sql # 000→006 全量迁移
+migrations/00_all.sql # 000→007 全量迁移
 ```
 
 运行依赖：glibc 2.39+（Ubuntu 24.04/25.04）、`libssl3`、`libmysqlclient`、`libstdc++6`。跨发行版建议用 Docker。
@@ -305,7 +305,7 @@ sed 's/chatroom/eat/g' migrations/base/000_init.sql \
 
 mysql --default-character-set=utf8mb4 -h 127.0.0.1 -uroot -p eat < migrations/base/001_p8_business.sql
 mysql --default-character-set=utf8mb4 -h 127.0.0.1 -uroot -p eat < migrations/base/foods_seed.sql
-for f in migrations/add/00{2,3,4,5,6}_*.sql; do
+for f in migrations/add/00{2,3,4,5,6,7}_*.sql; do
   case "$f" in *_rollback.sql) continue;; esac
   tr -d '\r' < "$f" | sed 's/^--\([^ ]\)/-- \1/' \
     | mysql --default-character-set=utf8mb4 -h 127.0.0.1 -uroot -p eat
@@ -715,7 +715,7 @@ dead-code-eliminator 清理残留
 │   └── keyvault/                 # Windows DPAPI
 ├── agent/                        # Python Agent
 ├── migrations/base/              # 000 / 001 / foods_seed
-├── migrations/add/               # 002–006 增量与回滚
+├── migrations/add/               # 002–007 增量与回滚
 ├── deploy/                       # Docker、systemd、sysctl、配置模板
 ├── scripts/                      # 安装、构建、打包脚本
 ├── packaging/                    # 发布说明、Inno Setup

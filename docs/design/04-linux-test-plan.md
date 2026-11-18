@@ -71,7 +71,7 @@ node --check app.js && node --check agent-adapter.js
 # I：MySQL/Redis 集成（S1 起）
 sudo systemctl start mysql redis-server
 mysql -ueat -p eat < migrations/base/001_p8_business.sql
-for f in migrations/add/00{2,3,4,5,6}_*.sql; do mysql -ueat -p eat < "$f"; done
+for f in migrations/add/00{2,3,4,5,6,7}_*.sql; do mysql -ueat -p eat < "$f"; done
 
 # R：真实帧链路（S1 起）
 ./build/eat-server --config deploy/server.toml.example &

@@ -31,7 +31,7 @@ chmod +x "$SERVER_DIR/eat-server" "$SERVER_DIR/client_smoke" "$SERVER_DIR/run.sh
         | sed 's/^--\([^ ]\)/-- \1/'; echo
     tr -d '\r' < "$ROOT/migrations/base/foods_seed.sql" \
         | sed 's/^--\([^ ]\)/-- \1/'; echo
-    for f in "$ROOT"/migrations/add/00{2,3,4,5,6}_*.sql; do
+    for f in "$ROOT"/migrations/add/00{2,3,4,5,6,7}_*.sql; do
         case "$f" in *_rollback.sql) continue;; esac
         tr -d '\r' < "$f" | sed 's/^--\([^ ]\)/-- \1/'; echo
     done

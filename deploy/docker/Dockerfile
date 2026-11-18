@@ -31,7 +31,7 @@ RUN mkdir -p /opt/eat/initdb && { \
         echo "SET @seed_pwd_hash = SHA2('disabled-login', 256);"; \
         tr -d '\r' < /src/migrations/base/001_p8_business.sql | sed 's/^--\([^ ]\)/-- \1/'; echo; \
         tr -d '\r' < /src/migrations/base/foods_seed.sql | sed 's/^--\([^ ]\)/-- \1/'; echo; \
-        for f in /src/migrations/add/00{2,3,4,5,6}_*.sql; do \
+        for f in /src/migrations/add/00{2,3,4,5,6,7}_*.sql; do \
             case "$f" in *_rollback.sql) continue;; esac; \
             tr -d '\r' < "$f" | sed 's/^--\([^ ]\)/-- \1/'; echo; \
         done; \

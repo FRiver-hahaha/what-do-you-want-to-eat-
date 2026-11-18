@@ -22,6 +22,16 @@ std::string Cell(MYSQL_ROW row, unsigned long* lengths, int index) {
     return std::string(row[index], static_cast<std::size_t>(lengths[index]));
 }
 
+std::uint64_t Version(MYSQL_ROW row, unsigned long* lengths, int index) {
+    const std::string text = Cell(row, lengths, index);
+    if (text.empty()) return 0;
+    try {
+        return static_cast<std::uint64_t>(std::stoull(text));
+    } catch (...) {
+        return 0;
+    }
+}
+
 }  // namespace
 
 RankingDao::Lookup RankingDao::ListFriends(const std::string& user_key,
@@ -32,7 +42,8 @@ RankingDao::Lookup RankingDao::ListFriends(const std::string& user_key,
 
     const std::string sql =
         "SELECT x.`peer_key`, COALESCE(NULLIF(p.`name`,''), NULLIF(a.`display_name`,''), "
-        "x.`peer_key`) AS display_name FROM ("
+        "x.`peer_key`) AS display_name, COALESCE(m.`cover_ver`,0), COALESCE(m.`avatar_ver`,0)"
+        " FROM ("
         " SELECT CASE WHEN `owner_key`=" +
         Quote(conn.get(), user_key) + " THEN `peer_key` ELSE `owner_key` END AS `peer_key`"
         " FROM `friend_relation` WHERE (`owner_key`=" +
@@ -40,6 +51,7 @@ RankingDao::Lookup RankingDao::ListFriends(const std::string& user_key,
         ") AND `status`=2"
         ") x LEFT JOIN `health_profile` p ON p.`agent_uid`=x.`peer_key`"
         " LEFT JOIN `account` a ON a.`user_key`=x.`peer_key`"
+        " LEFT JOIN `profile_media` m ON m.`user_key`=x.`peer_key`"
         " WHERE x.`peer_key`<>" +
         Quote(conn.get(), user_key) + " ORDER BY 1 ASC";
 
@@ -53,6 +65,8 @@ RankingDao::Lookup RankingDao::ListFriends(const std::string& user_key,
         RankingMember member;
         member.user_key = Cell(row, lengths, 0);
         member.name = Cell(row, lengths, 1);
+        member.cover_ver = Version(row, lengths, 2);
+        member.avatar_ver = Version(row, lengths, 3);
         if (member.user_key.empty() || member.user_key == previous) continue;
         previous = member.user_key;
         out.push_back(member);

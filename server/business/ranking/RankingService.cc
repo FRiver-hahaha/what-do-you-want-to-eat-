@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <map>
 #include <string>
 #include <vector>
@@ -11,6 +12,7 @@
 #include "server/business/common/HealthScore.h"
 #include "server/business/meal/MealDao.h"
 #include "server/business/profile/ProfileDao.h"
+#include "server/business/profile/ProfileMediaDao.h"
 #include "server/business/ranking/RankingDao.h"
 #include "server/business/user/UserDao.h"
 
@@ -34,6 +36,8 @@ struct Entry {
     std::string user_key;
     std::string name;
     double score = 0;
+    std::uint64_t cover_ver = 0;
+    std::uint64_t avatar_ver = 0;
 };
 
 }  // namespace
@@ -103,12 +107,21 @@ BusinessResult RankingService::Friends(const std::string& user_key,
     self.user_key = user_key;
     self.name = "我";
     if (!ScoreFor(user_key, scope, self.score)) return errors::Unavailable();
+    ProfileMediaDao media(pool_);
+    ProfileMediaRow self_media;
+    if (media.Load(user_key, self_media) == ProfileMediaDao::Lookup::Unavailable) {
+        return errors::Unavailable();
+    }
+    self.cover_ver = self_media.cover_ver;
+    self.avatar_ver = self_media.avatar_ver;
     entries.push_back(self);
 
     for (const auto& friend_row : friends) {
         Entry entry;
         entry.user_key = friend_row.user_key;
         entry.name = friend_row.name.empty() ? friend_row.user_key : friend_row.name;
+        entry.cover_ver = friend_row.cover_ver;
+        entry.avatar_ver = friend_row.avatar_ver;
         if (!ScoreFor(friend_row.user_key, scope, entry.score)) return errors::Unavailable();
         entries.push_back(entry);
     }
@@ -133,6 +146,10 @@ BusinessResult RankingService::Friends(const std::string& user_key,
         item.Set("user_id", protocol::JsonValue::String(entries[i].user_key));
         item.Set("name", protocol::JsonValue::String(entries[i].name));
         item.Set("score", JsonNumber(entries[i].score));
+        item.Set("cover_ver",
+                 protocol::JsonValue::Int(static_cast<std::int64_t>(entries[i].cover_ver)));
+        item.Set("avatar_ver",
+                 protocol::JsonValue::Int(static_cast<std::int64_t>(entries[i].avatar_ver)));
         list.AsArray().push_back(item);
     }
 

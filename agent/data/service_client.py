@@ -436,40 +436,78 @@ class ServiceClient:
             foods = [food for food in foods if meal_type in food["meal_types"]]
         return {"user_id": user_id, "meal_type": meal_type or "全部", "foods": foods, "count": len(foods), "source": "mock"}
 
-    def save_user_cover(self, user_id: str, cover: str | None = None,
-                        avatar: str | None = None) -> dict[str, Any]:
-        row = query_one("SELECT cover_src, avatar_src FROM user_covers WHERE user_id=?", (user_id,)) or {}
-        cover_src = str(row.get("cover_src") or "")
-        avatar_src = str(row.get("avatar_src") or "")
-        if cover is not None:
-            cover_src = str(cover)
-        if avatar is not None:
-            avatar_src = str(avatar)
+    def _cache_user_cover(self, user_id: str, cover: Any, avatar: Any) -> None:
+        row = query_one("SELECT cover_src, avatar_src FROM user_covers WHERE user_id=?",
+                        (user_id,)) or {}
+        cover_src = str(row.get("cover_src") or "") if cover is None else str(cover)
+        avatar_src = str(row.get("avatar_src") or "") if avatar is None else str(avatar)
         db_execute(
             "INSERT INTO user_covers(user_id, cover_src, avatar_src, updated_at) VALUES(?,?,?,?) "
             "ON CONFLICT(user_id) DO UPDATE SET cover_src=excluded.cover_src, "
             "avatar_src=excluded.avatar_src, updated_at=excluded.updated_at",
             (user_id, cover_src, avatar_src, now_iso()),
         )
-        return {"ok": True, "user_id": user_id, "cover": cover_src,
-                "avatar": avatar_src, "source": "agent"}
+
+    def save_user_cover(self, user_id: str, cover: str | None = None,
+                        avatar: str | None = None) -> dict[str, Any]:
+        fields: dict[str, Any] = {}
+        if cover is not None:
+            fields["cover"] = str(cover)
+        if avatar is not None:
+            fields["avatar"] = str(avatar)
+        if not fields:
+            return {"ok": False, "error": "invalid_params", "message": "no_media_field"}
+        if self.user_key and user_id != self.user_key:
+            return {"ok": False, "error": "forbidden", "message": "cross_user_write_denied",
+                    "source": "agent"}
+
+        params = dict(fields)
+        params["idem_key"] = _idem_key("profile.media", user_id, fields)
+        remote = self._remote("profile.media.set", params, "POST", "/api/profile/cover", fields)
+        if remote and remote.get("ok") is not False:
+            self._cache_user_cover(user_id, remote.get("cover"), remote.get("avatar"))
+            return {"ok": True, "user_id": user_id,
+                    "cover": str(remote.get("cover") or ""),
+                    "avatar": str(remote.get("avatar") or ""),
+                    "cover_ver": int(remote.get("cover_ver") or 0),
+                    "avatar_ver": int(remote.get("avatar_ver") or 0),
+                    "source": remote.get("source", "service")}
+        if remote:
+            return remote
+
+        self._cache_user_cover(user_id, cover, avatar)
+        saved = self.get_user_cover(user_id)
+        return {"ok": True, "user_id": user_id, "cover": saved["cover"],
+                "avatar": saved["avatar"], "source": "agent"}
 
     def get_user_cover(self, user_id: str) -> dict[str, Any]:
-        row = query_one("SELECT cover_src, avatar_src FROM user_covers WHERE user_id=?", (user_id,))
-        return {"ok": True, "user_id": user_id,
+        peer = user_id or self.user_key
+        params = {"peer_key": peer} if peer and peer != self.user_key else {}
+        path = f"/api/profile/cover?user_id={urllib.parse.quote(peer or '')}"
+        remote = self._remote("profile.media.get", params, "GET", path)
+        if remote and remote.get("ok") is not False:
+            self._cache_user_cover(peer, remote.get("cover"), remote.get("avatar"))
+            return {"ok": True, "user_id": peer,
+                    "cover": str(remote.get("cover") or ""),
+                    "avatar": str(remote.get("avatar") or ""),
+                    "cover_ver": int(remote.get("cover_ver") or 0),
+                    "avatar_ver": int(remote.get("avatar_ver") or 0),
+                    "source": remote.get("source", "service")}
+        if remote:
+            return remote
+        row = query_one("SELECT cover_src, avatar_src FROM user_covers WHERE user_id=?", (peer,))
+        return {"ok": True, "user_id": peer,
                 "cover": str(row.get("cover_src") or "") if row else "",
-                "avatar": str(row.get("avatar_src") or "") if row else ""}
+                "avatar": str(row.get("avatar_src") or "") if row else "",
+                "cover_ver": 0, "avatar_ver": 0, "source": "agent"}
 
     def _decorate_ranking(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         for row in rows:
             uid = str(row.get("user_id") or row.get("id") or "")
             if not uid:
                 continue
-            saved = self.get_user_cover(uid)
-            row["cover"] = saved["cover"]
-            row["avatar"] = saved["avatar"]
             prof = query_one("SELECT name FROM user_profiles WHERE user_id=?", (uid,)) or {}
-            if prof.get("name"):
+            if prof.get("name") and not row.get("name"):
                 row["name"] = str(prof["name"])
         return rows
 
