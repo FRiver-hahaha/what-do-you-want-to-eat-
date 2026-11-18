@@ -4,6 +4,7 @@
 |---|---|
 | [README](../README.md) | 项目概览、快速开始、能力边界 |
 | [architecture](architecture.md) | **当前权威架构**：三线合并结果、运行形态、已打通链路、构建与测试现状 |
+| [ROADMAP](ROADMAP.md) | 后续实现路线：真实菜单、用户模型/自定义 API、独立 App、高并发与 io_uring |
 | [DELIVERY-STATUS](DELIVERY-STATUS.md) | 本轮交付物、验证证据、未完成项、待确认的破坏性操作 |
 | [RUNBOOK](RUNBOOK.md) | Linux 服务端（Docker/裸机）与 Windows 客户端运行步骤、局域网排查 |
 | [AGENT_win](../AGENT_win.md) | Windows 构建、GUI 验证清单、进度同步与 GitHub 上传 |
