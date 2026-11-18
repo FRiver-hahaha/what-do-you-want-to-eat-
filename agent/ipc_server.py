@@ -278,6 +278,15 @@ def _run_windows(pipe_name: str, app: AgentApp) -> int:
 
 
 def main() -> int:
+    # Frozen builds reuse this executable as the MCP stdio entry point:
+    # mcp_servers.json resolves "{python}" to sys.executable.
+    if len(sys.argv) >= 3 and sys.argv[1] == "-m" and sys.argv[2] == "agent.mcp.server":
+        sys.argv = [sys.argv[0], *sys.argv[3:]]
+        from agent.mcp.server import main as mcp_main
+
+        mcp_main()
+        return 0
+
     app = AgentApp()
     try:
         if os.name == "nt":

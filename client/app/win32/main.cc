@@ -24,6 +24,7 @@
 #include "shared/protocol/StrictJson.h"
 
 using Microsoft::WRL::ComPtr;
+using namespace eat;
 
 namespace {
 
@@ -259,6 +260,25 @@ class IpcClient {
 
 class ShellApp {
  public:
+    struct LoginConfig {
+        bool present = false;
+        std::string host = "127.0.0.1";
+        std::uint16_t port = 9443;
+        std::string login_id;
+        std::string password;
+        std::string display_name;
+        std::string captcha_id;
+        std::string captcha_code;
+        bool register_account = false;
+    };
+
+    struct Session {
+        std::string host = "127.0.0.1";
+        std::uint16_t port = 9443;
+        std::string user_key;
+        std::string access_token;
+    };
+
     bool Initialize(HINSTANCE instance) {
         instance_ = instance;
         WNDCLASSEXW wc = {};
@@ -685,7 +705,7 @@ class ShellApp {
                                     if (!utf8.empty() && utf8.back() == '\0') {
                                         utf8.pop_back();
                                     }
-                                    self->RouteWebMessage(utf8);
+                                    RouteWebMessage(utf8);
                                     CoTaskMemFree(json);
                                 }
                                 return S_OK;
@@ -758,24 +778,7 @@ class ShellApp {
     IpcClient ipc_;
     HANDLE agent_process_ = nullptr;
 
-    struct LoginConfig {
-        bool present = false;
-        std::string host = "127.0.0.1";
-        std::uint16_t port = 9443;
-        std::string login_id;
-        std::string password;
-        std::string display_name;
-        std::string captcha_id;
-        std::string captcha_code;
-        bool register_account = false;
-    };
 
-    struct Session {
-        std::string host = "127.0.0.1";
-        std::uint16_t port = 9443;
-        std::string user_key;
-        std::string access_token;
-    };
     Session session_;
 };
 
