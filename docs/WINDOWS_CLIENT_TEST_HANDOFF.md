@@ -1,232 +1,450 @@
-# Windows 客户端测试交接说明
+# Windows 客户端测试交接说明（Web + GUI + 二次开发）
 
-> 适用版本：`v0.3.0`（提交 `3e8f5ad`，分支 `feat/app-transport-scale`）
-> 读者：负责在 Windows 电脑上测试 Eat App 客户端的队友，以及提供 Linux 服务端的一方。
-> 结论先行：**只做测试不需要拉代码、不需要改代码**；只有想自行修改界面或客户端行为时才需要克隆全量仓库并重新打包。
+> 服务端：Linux `10.101.17.32`，TCP 端口 `9443`（明文，仅限可信局域网）
+> 代码分支：`feat/app-transport-scale`
+> GUI 安装包 Release：`v0.3.0`（对应提交 `3e8f5ad`，当前分支只比它多一个文档提交）
+> 本文读者：负责 Windows 侧测试与前端改造的队友。
 
----
-
-## 1. 服务端侧准备（Linux，由服务端同学完成）
-
-```bash
-git fetch --tags
-git checkout v0.3.0
-```
-
-Docker 方式（推荐，启动时自动执行迁移）：
-
-```bash
-export EAT_MYSQL_ROOT_PASSWORD='换成一个强密码'
-docker compose -f deploy/docker/docker-compose.yml up -d --build
-docker compose -f deploy/docker/docker-compose.yml logs -f eat-server
-sudo ss -ltnp | grep 9443        # 必须是 0.0.0.0:9443
-sudo ufw allow 9443/tcp          # 使用 ufw 时
-```
-
-裸机方式见 `docs/WINDOWS_CLIENT_LAN_RUNBOOK.md` 第 5.2 节。
-
-提供给 Windows 测试方的信息只有三项：
-
-| 项目 | 示例 |
-|---|---|
-| 服务器地址 | Linux 局域网 IP，如 `192.168.1.50` |
-| 端口 | `9443` |
-| 测试账号 | 如 `win01@test.local`（首次勾选“注册新账号”，之后取消勾选） |
-
-当前服务端未接线 Redis，不需要启动 Redis；Redis 只允许服务端访问，客户端不得直连。
+服务端由 Linux 侧保持运行，不需要队友启动数据库、Redis 或服务端进程。
+队友只需要能访问 `10.101.17.32` 的 `9443`（GUI/Web 业务）和 `8000`（网页）端口。
 
 ---
 
-## 2. 测试路径 A：安装包（推荐，零代码）
+## 0. 先做网络自检
 
-拿到 `EatAppSetup-x64.exe`（由 Windows 构建方生成，约 14MB）。该文件在 `.gitignore` 中，不会随 Git 仓库分发，需要用安装包文件、U 盘或内网共享传递；如需公网分发，请在 GitHub Releases 的 `v0.3.0` 手动上传。
+在 Windows PowerShell 执行：
 
-1. 双击 `EatAppSetup-x64.exe`，按提示安装（无需管理员权限）。
+```powershell
+Test-NetConnection 10.101.17.32 -Port 9443
+Test-NetConnection 10.101.17.32 -Port 8000
+```
+
+预期都是 `TcpTestSucceeded : True`。
+
+- 9443 不通：不同 WiFi/网段、AP 隔离或防火墙。先换到与服务端相同的网络；仍不通就联系服务端同学。
+- 8000 不通但 9443 通：只影响网页测试，不影响 GUI。
+- 服务端机器重启后不会自动恢复，连不上时先找服务端同学确认。
+
+---
+
+## 1. 三种测试路径怎么选
+
+| 路径 | 需要安装 | 能测什么 | 适合谁 |
+|---|---|---|---|
+| A. Web | 浏览器 | 登录、菜单、档案、统计、好友、排行 | 快速验收，5 分钟 |
+| B. Release 安装包 | 下载 exe | 与 A 相同的业务，外加安装、托盘、会话持久化 | 测 GUI 最终形态 |
+| C. 源码构建 | VS2022 等工具链 | 在 B 基础上可改前端 UI、改客户端行为 | 要改 UI / 改代码的人 |
+
+B 和 C 的业务能力相同；区别只是 C 能改代码并重新编译。
+
+---
+
+## 2. 路径 A：Web 测试（零安装）
+
+### 2.1 打开
+
+浏览器访问：
+
+```text
+http://10.101.17.32:8000
+```
+
+不要用 `file://` 双击 HTML，必须走 HTTP。
+
+### 2.2 首次：注册自己的账号（推荐）
+
+1. 页面在“登录”标签，先点“注册”标签。
+2. 展开“服务器设置”，确认地址 `10.101.17.32`、端口 `9443`（默认已填好，IP 变了就手动改）。
+3. 账号填一个自己的，例如 `win02@test.local`。
+4. 密码至少 8 位。
+5. 输入右侧验证码，看不清点图片刷新。
+6. 点“进入饭饭”。
+
+> 已有联调账号 `win01@test.local`，密码向服务端同学单独索取；不要把它写进脚本、日志或截图。
+> 多人测试请各自注册 `win02@...`、`win03@...`，共用账号会互相覆盖档案数据。
+
+### 2.3 之后：直接登录
+
+切回“登录”标签，填账号、密码、验证码即可。地址和账号会记在浏览器本地，下次自动带出。
+
+### 2.4 Web 冒烟清单
+
+- [ ] 页面正常打开，无白屏、无样式错乱
+- [ ] 验证码图片显示，点击可刷新
+- [ ] 注册新账号成功并进入主界面
+- [ ] 退出后重新登录成功
+- [ ] 菜单页显示真实菜品
+- [ ] 档案页修改体重并保存，刷新后仍是新值
+- [ ] 统计页有周报数据（新账号允许为空）
+- [ ] 好友/排行页能打开（新账号列表为空属正常）
+- [ ] 故意输错密码，提示“账号或密码错误”
+- [ ] 故意输错验证码，提示“验证码错误或已过期”
+
+### 2.5 Web 路径限制
+
+- 浏览器连的是 **Linux 侧的共享 Agent（8787）**，它是单会话的：一个人登录会把另一个人的 `user_key` 顶掉。**同一时间只安排一个人做 Web 测试**；多人并行请走 GUI。
+- 页面里点击菜品“记录”只写浏览器 localStorage，不会写服务端（详见第 6 节能力矩阵）。
+- 聊天功能需要 `DEEPSEEK_API_KEY`，服务端未配置，属预期。
+
+---
+
+## 3. 路径 B：Release 安装包（GUI，零构建）
+
+### 3.1 下载
+
+```text
+https://github.com/FRiver-hahaha/what-do-you-want-to-eat-/releases/download/v0.3.0/EatAppSetup-x64.exe
+```
+
+Release 页面（可看说明）：
+
+```text
+https://github.com/FRiver-hahaha/what-do-you-want-to-eat-/releases/tag/v0.3.0
+```
+
+安装包约 14 MB，无需管理员权限。解压/下载后若被 SmartScreen 拦截，选择“更多信息 → 仍要运行”。
+
+### 3.2 安装与启动
+
+1. 双击 `EatAppSetup-x64.exe`，按提示安装到 `%LOCALAPPDATA%\EatApp`。
 2. 双击桌面 **Eat App** 快捷方式。
-3. 在“连接服务端”表单填写：
+3. 首次启动显示“连接服务端”页面。
 
-| 字段 | 填写内容 |
+依赖：Windows 11 自带 WebView2 Runtime；Windows 10 如白屏，安装微软的 WebView2 Evergreen Runtime 后重试。
+
+### 3.3 登录
+
+与 Web 完全一致：
+
+- “登录 / 注册”标签；
+- “服务器设置”里地址 `10.101.17.32`、端口 `9443`；
+- 首次先注册自己的账号，之后用“登录”；
+- 输入图形验证码，点“进入饭饭”。
+
+会话保存在：
+
+```text
+%LOCALAPPDATA%\EatApp\session.json
+```
+
+下次启动直接进主界面。
+
+### 3.4 GUI 冒烟清单
+
+业务项与 2.4 相同，另外补充：
+
+- [ ] 安装完成，桌面快捷方式可启动
+- [ ] 首次启动窗口正常，无白屏
+- [ ] 登录后关闭程序，再次启动免登录
+- [ ] 窗口缩放、最小化、恢复不白屏不闪退
+- [ ] 托盘图标存在且菜单可用（未实现则记录现象）
+- [ ] 重复双击不会开出第二个主窗口
+- [ ] 退出后任务管理器里没有残留的 `eat-app.exe` / `eat-agent.exe`
+
+### 3.5 服务端 IP 变化时
+
+不用重装。删除会话文件后重新打开，在“服务器设置”里填新地址：
+
+```powershell
+Remove-Item "$env:LOCALAPPDATA\EatApp\session.json" -Force -ErrorAction SilentlyContinue
+```
+
+---
+
+## 4. 路径 C：从源码构建 GUI
+
+只有需要改 UI、改客户端行为，或想自己产出安装包时才走这条。
+
+### 4.1 环境要求
+
+| 依赖 | 要求 |
 |---|---|
-| 服务器地址 | Linux 局域网 IP |
-| 端口 | `9443` |
-| 账号 | 测试账号 |
-| 密码 | 至少 8 位 |
-| 验证码 | 输入右侧图片中的 4 位字符，看不清点击刷新 |
-| 注册新账号 | 首次使用勾选，账号已存在时不要勾 |
+| 系统 | Windows 10/11 x64 |
+| Visual Studio 2022 | 勾选“使用 C++ 的桌面开发” |
+| CMake | 3.20+，加入 PATH |
+| Git | 任意较新版本 |
+| Python | 3.11 或 3.12，安装时勾选 Add to PATH |
+| 网络 | 能访问 github.com、nuget.org（脚本要下 vcpkg 和 WebView2 SDK） |
+| Inno Setup 6 | 仅打安装包时需要 |
+| 磁盘 | 预留约 5 GB |
 
-4. 点击“连接”。成功后进入主界面，会话保存到 `%LOCALAPPDATA%\EatApp\session.json`，下次启动不再询问。
-5. 聊天功能需要模型 Key，其余页面不需要：
+### 4.2 获取源码
 
-```powershell
-setx DEEPSEEK_API_KEY "你的Key"
-```
-
-设置后需重新打开 Eat App。
-
----
-
-## 3. 测试路径 B：免安装目录
-
-把 `dist/eat-app-windows-x64/` 整个目录拷到目标机，例如 `C:\EatClient\`，双击其中的 `eat-app.exe` 即可。
-
-目录必须保持完整：
-
-```text
-eat-app-windows-x64\
-  eat-app.exe
-  eat-agent.exe
-  WebView2Loader.dll
-  web\                 # 页面资源，缺失会白屏
-```
-
-不要只复制 `eat-app.exe`，否则会提示找不到 `eat-agent.exe`。
-
----
-
-## 4. 测试路径 C：控制台协议客户端
-
-仅用于验证 TCP 帧与握手链路，不涉及页面。可从 GitHub Actions 的 `client_smoke-windows-x64` artifact 下载，或在 Windows 构建机执行 `scripts\build-windows.ps1` 生成。
-
-```powershell
-.\client_smoke.exe --host <服务端IP> --port 9443 `
-  --login win01@test.local --password win-pass-123 `
-  --register --patch-weight 66
-```
-
-预期输出：
-
-```text
-handshake_ok user_key=<用户键> token=issued
-profile_ok name=我 source=service
-patch_ok
-verify_weight=66
-```
-
-四项全部出现，说明 TCP 帧、握手鉴权、MySQL 读写、幂等键均已打通。
-
----
-
-## 5. 是否需要拉取全部代码、是否需要自己修改
-
-| 目标 | 是否需要拉代码 | 是否需要改代码 |
-|---|---|---|
-| 只测试现有客户端 | 否，用安装包或免安装目录 | 否 |
-| 只验证协议链路 | 否，用 `client_smoke.exe` | 否 |
-| 修改界面 / 交互 / 客户端行为 | 是，需要全量克隆 | 是，改完必须重新打包 |
-
-需要改代码时：
+方式一：
 
 ```powershell
 git clone -b feat/app-transport-scale https://github.com/FRiver-hahaha/what-do-you-want-to-eat-.git
 cd what-do-you-want-to-eat-
 ```
 
-前置环境：Visual Studio 2022（C++ 桌面开发）、CMake 3.20+、vcpkg 安装 `openssl:x64-windows`、WebView2 SDK、Python 3.11/3.12，生成安装包还需 Inno Setup 6。
+方式二（无 Git 权限时，从 Linux 侧下载源码包）：
+
+```text
+http://10.101.17.32:8000/dl/eat-client-src.zip
+```
+
+解压后进入 `eat-client-src` 目录。注意：构建脚本自身仍需要 Git，因为 vcpkg 要用它。
+
+### 4.3 一键构建
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\build-windows-oneclick.ps1
+```
+
+脚本会依次：
+
+1. 检查 CMake / Git / VS2022 MSVC / Python；
+2. 准备 `C:\vcpkg`，安装 `openssl:x64-windows`；
+3. 下载 WebView2 SDK 到 `third_party\webview2`；
+4. CMake 配置 `build-win` 并编译 `eat-app.exe`；
+5. PyInstaller 打包 `eat-agent.exe`；
+6. 组装 `dist\eat-app-windows-x64\`；
+7. 生成 `dist\eat-app-windows-x64.zip`。
+
+可用参数：
+
+```powershell
+# vcpkg 已有且不在默认位置
+powershell -ExecutionPolicy Bypass -File .\scripts\build-windows-oneclick.ps1 -VcpkgRoot D:\vcpkg
+
+# 已有 WebView2 SDK
+powershell -ExecutionPolicy Bypass -File .\scripts\build-windows-oneclick.ps1 -WebView2Root C:\sdk\webview2
+
+# 只编 GUI，不打包 Agent（缺 eat-agent.exe 时程序无法启动，不推荐）
+powershell -ExecutionPolicy Bypass -File .\scripts\build-windows-oneclick.ps1 -SkipAgent
+```
+
+### 4.4 运行
+
+```powershell
+dist\eat-app-windows-x64\Start.bat
+```
+
+目录必须完整：
+
+```text
+eat-app-windows-x64\
+  eat-app.exe
+  eat-agent.exe
+  web\                 # 页面资源，缺失会白屏
+  libcrypto-3-x64.dll
+  libssl-3-x64.dll
+  Start.bat
+  README.txt
+```
+
+### 4.5 打安装包（可选）
+
+```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\build-installer.ps1
 ```
 
-产物：
+产物：`dist\EatAppSetup-x64.exe`。
 
-```text
-dist\eat-app-windows-x64\
-dist\EatAppSetup-x64.exe
-```
+---
 
-同步最新代码：
+## 5. 修改前端 UI 并重新编译启动（重点）
+
+### 5.1 可以改的文件
+
+页面资源都在仓库根目录，Web 与 GUI 共用同一套：
+
+| 文件 | 作用 |
+|---|---|
+| `index.html` | 页面结构 |
+| `app.js` | 页面交互与业务逻辑 |
+| `bridge.js` | Web / WebView2 双端传输适配 |
+| `agent-adapter.js` | Agent 请求适配 |
+| `styles.css` / `features.css` / `agent.css` / `login.css` / `redesign.css` | 样式 |
+| `assets/` | 图片与图标 |
+| `agent/` | Python Agent 逻辑（需要重新打包 eat-agent.exe） |
+| `client/app/win32/main.cc` | Win32 窗口壳、登录桥接（需要重新编译） |
+
+**不要改**：
+
+- `shared/protocol/`：40 字节定长头 + CRC32C 帧格式；
+- `server/`：服务端业务语义；
+- 任何“客户端直连 MySQL / Redis”的改动。
+
+### 5.2 开发循环：快速预览（不重新编译）
+
+页面在 GUI 里是从 exe 同目录的 `web\` 加载的（`file:///<安装目录>/web/index.html`），所以改完可以直接替换运行目录中的文件：
+
+1. 修改仓库根目录的 `index.html`、`*.css`、`*.js`；
+2. 把改过的文件覆盖到：
+   - 源码构建版：`dist\eat-app-windows-x64\web\`
+   - 安装版：`%LOCALAPPDATA%\EatApp\web\`
+3. 完全退出 Eat App 再启动（不是最小化）；
+4. 看到改动即成功。
+
+说明：
+
+- `web\` 目录里必须同时包含 `index.html`、`app.js`、`bridge.js`、`agent-adapter.js`、5 个 CSS 和 `assets\`；
+- GUI 的 WebView2 用户数据在 exe 同目录的 `webview-data\`，若页面仍是旧版，退出程序后删除该目录再启动；
+- 快速预览只用于看效果，最终交付仍要重新构建，否则别人安装到的还是旧页面。
+
+### 5.3 正式重建（页面改动）
 
 ```powershell
-git fetch origin
-git pull --ff-only origin feat/app-transport-scale
+powershell -ExecutionPolicy Bypass -File .\scripts\build-windows-oneclick.ps1
+dist\eat-app-windows-x64\Start.bat
 ```
 
----
+脚本会把根目录最新页面复制到 `dist\eat-app-windows-x64\web\`。CMake 的复制清单固定为：
 
-## 6. 允许修改的范围
-
-| 可以改 | 不要改 |
-|---|---|
-| 根目录 `index.html`、`app.js`、`bridge.js`、`agent-adapter.js`、`*.css`、`assets/` | `shared/protocol/`（40 字节定长头 + CRC32C 帧格式） |
-| `client/app/win32/`（窗口壳、托盘、登录流程） | `server/` 的协议语义与服务端业务方法 |
-| `agent/`（Agent 逻辑、`agent/ipc_server.py` 路由） | 客户端直连 MySQL / Redis 的任何改动 |
-
-关键注意点：
-
-- 构建产物中的 `web/` 是**拷贝**，不是软链接。改完根目录页面后必须重新执行打包脚本，否则运行的是旧页面。
-- 客户端不得新增对 MySQL / Redis 的直连；客户端到服务端只走 TCP 帧。
-- 不要提交 `DEEPSEEK_API_KEY`、`login.json`、明文密码或任何令牌；`login.json` 已在 `.gitignore` 中。
-- 测试密码不要写入脚本、日志、截图或聊天记录。
-
----
-
-## 7. 验收清单
-
-按顺序执行并记录结果：
-
-- [ ] Linux：`ss -ltn | grep 9443` 显示 `0.0.0.0:9443`
-- [ ] Linux：防火墙已放行 9443
-- [ ] Windows：`Test-NetConnection <服务端IP> -Port 9443` 为 `TcpTestSucceeded : True`
-- [ ] Windows：首次注册并登录成功，可进入主界面
-- [ ] Windows：在档案页修改体重并保存
-- [ ] Linux：能查到刚落库的档案
-
-```bash
-mysql -uroot -p -e "use eat; select agent_uid,weight,updated_at from health_profile order by updated_at desc limit 5;"
+```text
+index.html, app.js, bridge.js, agent-adapter.js,
+styles.css, features.css, agent.css, login.css, redesign.css, assets/
 ```
 
-- [ ] Windows：重新读取档案，体重仍为修改后的值
-- [ ] Windows：去掉 `--register` 再次登录成功
-- [ ] Windows：`--omit-idem` 返回 `patch_error code=3001`
-- [ ] Windows：`--skip-handshake` 返回 `pre_handshake_error code=2001`
-- [ ] Windows：错误密码返回 `handshake_error code=2002`
-- [ ] 服务端日志能看到对应握手/请求记录，且不含明文密码或令牌
+如果你新增了新的 CSS/JS 文件，**必须同时修改 `client/app/CMakeLists.txt` 的复制列表**，否则 GUI 里加载不到。
+
+### 5.4 正式重建（改了 C++ 壳或 Agent）
+
+- 只改 `client/app/win32/`：重跑 `build-windows-oneclick.ps1`；
+- 改了 `agent/`：同样重跑脚本，它会重新生成 `eat-agent.exe`；
+- 只改页面：脚本仍会重新编译，但速度可接受；也可以用 5.2 的快速预览先验证。
+
+### 5.5 安装版如何看到新改动
+
+两条路：
+
+1. 重新构建安装包并重装：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-installer.ps1
+# 双击新的 dist\EatAppSetup-x64.exe 覆盖安装
+```
+
+2. 不重装，直接把新 `web\` 覆盖到 `%LOCALAPPDATA%\EatApp\web\`，然后重启程序。这适合自己验证，不适合分发给别人。
+
+### 5.6 改 UI 后的自检
+
+- [ ] 页面有可见变化（标题、颜色、文案任选一处明显标记）
+- [ ] 浏览器打开 `http://10.101.17.32:8000` 看到同样变化（说明根目录文件已改对）
+- [ ] GUI 重启后看到同样变化（说明 `web\` 已更新）
+- [ ] 登录、菜单、档案保存仍正常（改 UI 不能破坏业务）
+- [ ] 重新执行构建脚本后，`dist\eat-app-windows-x64\web\` 内是修改后的文件
+
+> 推送代码前先提交到自己的分支，不要直接改 `feat/app-transport-scale` 主分支；需要合并时提 PR。
 
 ---
 
-## 8. 已知边界（这些失败属预期，不是 bug）
+## 6. 业务能力矩阵（2026-11-18 实测）
 
-| 项目 | 现状 |
-|---|---|
-| 注册 / 登录 / 验证码 / 握手 | 可用 |
-| `profile.get` / `profile.patch` | 可用 |
-| 菜单、餐记录、统计、好友、排行 | 服务端尚未帧化这些方法，页面调用会报错 |
-| Redis 缓存 | 服务端未接线 |
-| 100 万在线 | 无压测数据，不作承诺 |
-| TCP 传输 | 明文，仅限可信局域网 |
-| GUI 托盘、单实例、DPAPI | 部分未在真实 Windows 环境完成验证 |
+服务端已注册的方法：登录/注册/验证码、档案读写、餐记录增删改查、统计周报与营养缺口、菜单与搜索、好友增删拉黑、好友排行。
 
-因此验收范围应聚焦“登录 + 档案 + 协议负向用例”，不要用页面中的菜单/记录/统计/好友/排行来判定客户端故障。
+| 业务 | 页面/客户端入口 | 服务端 | 实测状态 |
+|---|---|---|---|
+| 验证码 | 登录/注册页 | `auth.captcha` | 可用 |
+| 注册、登录 | 登录/注册页 | `auth.register/login` | 可用，已实测落库 |
+| 档案读取 | 档案页 | `profile.get` | 可用，`source=service` |
+| 档案保存 | 档案页保存 | `profile.patch` | 可用，体重修改已实测落库 |
+| 菜单 | 菜单页 | `food.menu` | 可用，返回真实菜品 |
+| 餐记录读取 | 记录页 | `meal.recent` | 可用 |
+| 餐记录写入 | Agent 工具 `record_meal` | `meal.create` | 可用，已实测落库 |
+| 餐记录写入 | 页面点选菜品“记录” | — | **仅写浏览器 localStorage，不落服务端** |
+| 餐记录修改/删除 | Agent 工具 `update_meal`/`delete_meal` | `meal.patch/delete` 已实现 | **Agent 工具尚未接线服务端**，调用返回 `persisted=false` |
+| 统计周报 | 报告页 | `stats.weekly` | 可用 |
+| 营养缺口 | 报告页 | `stats.nutrition_gap` | 可用 |
+| 好友列表 | 好友页 | `friend.list` | 可用（新账号为空） |
+| 加好友/接受/删除/拉黑 | 好友页操作 | `friend.*` | 服务端已实现，页面入口按实际界面操作 |
+| 好友排行 | 排行页 | `ranking.friends` | 可用（新账号为空） |
+| 聊天 | 聊天页 | 需要模型 Key | 未配置 Key 时不可用，属预期 |
+| 全量同步 | — | `sync.pull` | 未实现 |
+
+**结论**：队友可以完整跑通“注册 → 登录 → 档案读写 → 菜单 → 餐记录写入 → 统计 → 好友/排行”的服务端链路；但“页面点选记录”和“页面删除/修改记录”目前不写服务端，不要用它们判断服务端故障。
 
 ---
 
-## 9. 失败排查
+## 7. 回传格式
+
+```text
+测试路径：Web / 安装包 / 源码构建
+测试机：Windows 10/11，WebView2 是否已装
+网络：9443=?, 8000=?
+登录：成功 / 失败（附提示原文）
+菜单：正常 / 空 / 报错（附提示）
+档案保存：成功 / 失败（附提示）
+餐记录写入：成功 / 未测
+免登录：生效 / 不生效
+UI 改动：改了什么文件、快速预览是否生效、重新构建后是否生效
+异常：截图 + 复现步骤
+构建日志（源码路径）：最后 30 行
+```
+
+安全要求：
+
+- 不要把密码、token、`session.json` 内容发到群里或截图里；
+- 不要新增客户端直连 MySQL / Redis；
+- TCP 是明文，仅限可信局域网，不要做公网端口映射。
+
+---
+
+## 8. 失败排查
 
 | 现象 | 原因 | 处理 |
 |---|---|---|
-| 一直停在登录界面 / `connect_failed` | 服务端未监听、防火墙、IP 错、不同网段 | `Test-NetConnection <IP> -Port 9443`；Linux 侧查 `ss -ltnp`、`ufw status` |
-| 验证码错误 | 验证码一次性、约 120 秒过期 | 点击图片刷新后重新输入 |
-| 账号已存在 | 重复勾选了注册 | 取消勾选“注册新账号” |
-| 密码错误 | 密码不正确或不足 8 位 | 确认密码；首次注册至少 8 位 |
-| 页面能打开但没数据 | 旧会话指向了旧 IP | 删除 `%LOCALAPPDATA%\EatApp\session.json` 后重新登录 |
-| 白屏 | 缺少 `web\index.html` 或 WebView2 Runtime | 检查安装目录；安装 WebView2 Evergreen Runtime |
-| 提示找不到 `eat-agent.exe` | 只复制了 `eat-app.exe` | 使用安装包或完整目录 |
-| 聊天报错 | 未设置模型 Key | 设置 `DEEPSEEK_API_KEY` 后重启 |
-
-更换 WiFi 或服务端 IP 变化时：
-
-```powershell
-Remove-Item "$env:LOCALAPPDATA\EatApp\session.json" -Force -ErrorAction SilentlyContinue
-```
-
-然后重新双击快捷方式，在登录界面填写新地址，不需要重新安装。
+| 网页打不开 | 8000 未监听、IP 错、AP 隔离 | `Test-NetConnection 10.101.17.32 -Port 8000`，确认同网段 |
+| 登录提示连接失败 | 9443 不通、服务端 IP 变了 | `Test-NetConnection ... -Port 9443`，改“服务器设置”里的地址 |
+| 验证码错误 | 一次性，约 120 秒过期 | 点图片刷新后重输 |
+| 账号已存在 | 用了“注册”标签但账号已注册 | 切回“登录”标签 |
+| 密码错误 | 密码不对或不足 8 位 | 核对密码；注册至少 8 位 |
+| 页面能打开但没数据 | 旧会话指向旧 IP | 删 `%LOCALAPPDATA%\EatApp\session.json` 后重登 |
+| GUI 白屏 | `web\` 缺失或 WebView2 Runtime 未装 | 检查安装目录；安装 Evergreen Runtime |
+| 提示找不到 `eat-agent.exe` | 只复制了 `eat-app.exe` | 使用完整目录或安装包 |
+| 改了 UI 但没变化 | 改的是仓库根目录，运行的是 `web\` 副本 | 按 5.2 覆盖 `web\`，或重新构建 |
+| 新增 CSS/JS 在 GUI 里 404 | `CMakeLists.txt` 复制清单没加 | 把新文件加入复制列表后重建 |
+| 构建报 WebView2 not found | SDK 下载失败 | 检查代理；或 `-WebView2Root` 指定已有 SDK |
+| 构建报 OpenSSL 缺失 | vcpkg 安装失败 | 重跑；或 `-VcpkgRoot` 指定已有 vcpkg |
+| 构建报找不到 Python | 未安装或未加 PATH | 装 Python 3.11/3.12，勾选 Add to PATH |
+| 构建报找不到 cmake | CMake 不在 PATH | 安装 CMake 3.20+ 并加入 PATH |
+| 聊天报错 | 没有模型 Key | 设置 `DEEPSEEK_API_KEY` 后重启 |
+| 服务端连不上且自检失败 | 服务端未运行或网络隔离 | 联系服务端同学，不要自己动数据库 |
 
 ---
 
-## 10. 相关文档
+## 9. 服务端同学侧核对（不含任何密码）
 
-- `docs/WIN_LAN_USER_GUIDE.md`：面向普通用户的安装与登录说明
-- `docs/WINDOWS_CLIENT_LAN_RUNBOOK.md`：局域网联调、服务端启动与失败排查
-- `AGENT_win.md`：Windows 构建、Agent 打包与登录方式
-- `packaging/README-client.md`：客户端包结构与已知限制
+确认监听：
+
+```bash
+ss -ltn | grep -E ':9443|:8787|:8000'
+```
+
+确认账号是否落库（密码从本机 `.dev` 配置读取，不要写进仓库）：
+
+```bash
+docker exec eat-mysql-docker2 mysql -uroot -p"$EAT_MYSQL_ROOT_PASSWORD" -e \
+  "SELECT account_id,login_id,registered_at FROM eat_route_a2.account ORDER BY account_id DESC LIMIT 5;"
+```
+
+确认档案写入：
+
+```bash
+docker exec eat-mysql-docker2 mysql -uroot -p"$EAT_MYSQL_ROOT_PASSWORD" -e \
+  "SELECT agent_uid,weight,updated_at FROM eat_route_a2.health_profile ORDER BY updated_at DESC LIMIT 5;"
+```
+
+测试结束清理临时账号（把 login_id 与 agent_uid 换成实际值）：
+
+```sql
+DELETE FROM eat_route_a2.session
+ WHERE account_id IN (SELECT account_id FROM eat_route_a2.account WHERE login_id='win02@test.local');
+DELETE FROM eat_route_a2.account WHERE login_id='win02@test.local';
+DELETE FROM eat_route_a2.health_profile WHERE agent_uid='<该账号的 user_key>';
+```
+
+---
+
+## 10. 版本与产物对照
+
+| 项 | 值 |
+|---|---|
+| 安装包 | `EatAppSetup-x64.exe` @ Release `v0.3.0`（约 14.3 MB） |
+| Release 对应提交 | `3e8f5ad` |
+| 当前分支 HEAD | `8d2cdac`，仅比 Release 多本文档提交 |
+| 源码构建产物 | `dist\eat-app-windows-x64\` 与 `dist\eat-app-windows-x64.zip` |
+| Web 静态页 | `http://10.101.17.32:8000` |
+| 服务端 TCP | `10.101.17.32:9443` |
+| 测试库 | `eat_route_a2`（临时数据，不是正式环境） |
