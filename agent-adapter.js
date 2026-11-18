@@ -921,6 +921,9 @@ bubble.classList.add("is-streaming");
     const citations = [];
     const downloads = [];
     const pendingToolCalls = new Map();
+    const requestSessionId = state.sessionId;
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    state.streamAbort = controller;
     recordHistory("user", text || "请分析图片");
 
     try {
@@ -941,6 +944,8 @@ bubble.classList.add("is-streaming");
       const transport = window.eatTransport;
       if (!transport) throw new Error("transport_unavailable");
       await transport.chatStream(payload, (event, data) => {
+        if (state.sessionId !== requestSessionId) return;
+        if (data && data.session_id && data.session_id !== requestSessionId) return;
         if (event === "meta") {
           const model = data.model && data.model !== "auto" ? data.model : state.modelId || "本地规则";
           status.textContent = `${data.mode_name || "聊天"} · ${model}`;
@@ -1003,7 +1008,7 @@ bubble.classList.add("is-streaming");
           if (!citations.length) status.textContent = "刚刚";
           refreshContextBadge();
         }
-      });
+      }, controller ? { signal: controller.signal } : undefined);
 
       if (!answerText.trim()) {
         answerText = "我这轮没有取到足够的信息。你可以告诉我具体餐次，我再查一次。";
@@ -1015,6 +1020,7 @@ bubble.classList.add("is-streaming");
       article.classList.remove("typing-message");
       bubble.classList.remove("is-streaming");
     } catch (error) {
+      if (error && (error.name === "AbortError" || /abort/i.test(String(error.message || "")))) return;
       console.error("[agent] send failed", error);
       state.ready = false;
       updateConnection("连接失败", "offline");
@@ -1027,6 +1033,7 @@ bubble.classList.add("is-streaming");
       window.eatAgent.fallback = false;
       setTimeout(() => { loadMeta(); }, 3000);
     } finally {
+      if (state.streamAbort === controller) state.streamAbort = null;
       state.sending = false;
     }
   }
@@ -1303,7 +1310,9 @@ bubble.classList.add("is-streaming");
   function archiveCurrentSession() {
     const conversation = document.getElementById("conversation");
     if (!conversation) return;
-    const nodes = [...conversation.querySelectorAll(".message")].slice(1);
+    const all = [...conversation.querySelectorAll(".message")];
+    const hasWelcome = Boolean(all[0] && all[0].querySelector("#inferenceCard"));
+    const nodes = hasWelcome ? all.slice(1) : all;
     const entries = nodes.map(node => {
       const bubble = node.querySelector(".message-bubble");
       const text = bubble ? bubble.textContent.trim() : "";
@@ -1325,12 +1334,29 @@ bubble.classList.add("is-streaming");
 
   function startNewSession() {
     archiveCurrentSession();
-    state.sessionId = `web_${Date.now().toString(36)}`;
+    try { state.streamAbort?.abort(); } catch {}
+    state.streamAbort = null;
+    state.sending = false;
+    state.pending = null;
+    state.sessionId = `web_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     localStorage.setItem(STORE.session, state.sessionId);
     state.images = [];
     renderImagePreview();
     const conversation = document.getElementById("conversation");
-    if (conversation) [...conversation.querySelectorAll(".message")].slice(1).forEach(node => node.remove());
+    const welcome = window.eatLocal?.ensureWelcomeBlock?.() || document.getElementById("inferenceCard")?.closest(".message");
+    conversation?.querySelectorAll(".message").forEach(node => {
+      if (node !== welcome) node.remove();
+    });
+    document.getElementById("typingMessage")?.remove();
+    if (welcome) {
+      welcome.style.display = "";
+      welcome.classList.remove("typing-message");
+    }
+    const userKey = localStorage.getItem("eat-agent-user") || state.userId || "";
+    const onboarding = window.eatLocal?.maybeOnboarding || window.maybeOnboarding;
+    if (typeof onboarding === "function") onboarding(userKey);
+    const render = window.eatLocal?.renderInference || window.renderInference;
+    if (typeof render === "function") render();
     renderHistoryList(document.getElementById("agentHistorySearch")?.value || "");
     toast("已开始新对话");
   }

@@ -100,6 +100,10 @@ def _service_request(app: AgentApp, path: str, init: dict[str, Any]) -> dict[str
         return app.spend_level(user_id)
     if route == "/api/service/status":
         return app.service.status()
+    if route == "/api/profile/cover" and method == "GET":
+        return app.cover_view(user_id)
+    if route == "/api/profile/cover" and method == "POST":
+        return app.save_cover(user_id, body)
     if route == "/api/profile" and method == "GET":
         return app.profile_view(user_id)
     if route == "/api/profile" and method == "PATCH":

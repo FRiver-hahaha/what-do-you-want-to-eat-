@@ -387,6 +387,83 @@ function renderInference() {
   elements.reportBasis.textContent = "本地规则推理：健康档案 + 近 7 天记录 + 当前营养进度，不调用在线模型";
 }
 
+const WELCOME_BLOCK_HTML = `<article class="message agent-message">
+  <div class="agent-avatar" aria-hidden="true"><svg class="icon"><use href="#icon-utensils"></use></svg></div>
+  <div class="message-content">
+    <div class="message-meta"><strong>饭饭</strong><span>结合近 7 天记录与健康档案</span></div>
+    <div class="message-bubble"><p>告诉我今天吃了什么，我会记录这一餐，并结合你近期的饮食节奏、活动量和健康目标更新今日报告。</p><p>泛饭 —— 泛揽三餐，饭伴朝夕。<br>广泛记录每一餐，智能生成健康报告，让好好吃饭变成一件简单的事。</p></div>
+    <article class="inference-card" id="inferenceCard" aria-live="polite">
+      <header class="inference-heading"><div><span class="section-kicker">本地健康画像推理</span><h2>让我猜猜你今天吃了什么</h2></div><span class="report-meal-count" id="mealCount">已记录 0 餐</span></header>
+      <div class="inference-body">
+        <div class="inference-visual"><img id="guessImage" src="https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&amp;fit=crop&amp;w=600&amp;q=82" alt="猜测的食物"><span class="inference-match" id="guessMatch">82% 匹配</span></div>
+        <div class="inference-copy"><span class="inference-period" id="guessPeriod">结合当前时段与健康档案</span><h3 id="guessName">柠檬鸡胸能量碗</h3><p class="inference-reason" id="guessReason">根据你的健康目标与近期饮食节奏做出的猜测</p><div class="inference-track"><i id="guessBar" style="transform:scaleX(0.82)"></i></div><div class="inference-evidence" id="guessEvidence"></div></div>
+      </div>
+      <footer class="inference-footer"><span id="reportBasis">本地规则根据健康档案生成，不调用在线模型</span><div class="inference-actions"><button class="button primary-button" id="acceptGuess" type="button"><svg class="icon"><use href="#icon-check"></use></svg>猜对啦，记录这道菜为</button><div class="meal-type-picker" id="mealTypePicker" hidden><button type="button" data-meal-type="早餐">早餐</button><button type="button" data-meal-type="午餐">午餐</button><button type="button" data-meal-type="下午茶">下午茶</button><button type="button" data-meal-type="晚餐">晚餐</button></div><button class="button secondary-button" id="nextGuess" type="button">再猜一次</button></div></footer>
+      <div class="inference-secondary-actions"><button id="addMealButton" type="button">告诉饭饭实际吃了什么</button><button id="viewFullReport" type="button">查看完整健康报告</button></div>
+    </article>
+  </div>
+</article>`;
+
+function bindInferenceCard() {
+  const next = document.getElementById("nextGuess");
+  if (next && !next.dataset.bound) {
+    next.dataset.bound = "1";
+    next.addEventListener("click", () => {
+      guessIndex += 1;
+      renderInference();
+    });
+  }
+  const accept = document.getElementById("acceptGuess");
+  if (accept && !accept.dataset.bound) {
+    accept.dataset.bound = "1";
+    accept.addEventListener("click", event => {
+      event.stopPropagation();
+      const picker = document.getElementById("mealTypePicker");
+      if (picker) picker.hidden = !picker.hidden;
+    });
+  }
+  const picker = document.getElementById("mealTypePicker");
+  if (picker && !picker.dataset.bound) {
+    picker.dataset.bound = "1";
+    picker.addEventListener("click", event => {
+      const button = event.target.closest("[data-meal-type]");
+      if (!button) return;
+      picker.hidden = true;
+      recordFood(currentGuessFoodId, { type: button.dataset.mealType });
+    });
+  }
+  const add = document.getElementById("addMealButton");
+  if (add && !add.dataset.bound) {
+    add.dataset.bound = "1";
+    add.addEventListener("click", () => elements.chatInput.focus());
+  }
+  const report = document.getElementById("viewFullReport");
+  if (report && !report.dataset.bound) {
+    report.dataset.bound = "1";
+    report.addEventListener("click", () => switchView("report"));
+  }
+}
+
+function ensureWelcomeBlock() {
+  const conversation = document.getElementById("conversation");
+  if (!conversation) return null;
+  let welcome = document.getElementById("inferenceCard")?.closest(".message");
+  if (welcome && conversation.contains(welcome)) {
+    bindInferenceCard();
+    return welcome;
+  }
+  const holder = document.createElement("div");
+  holder.innerHTML = WELCOME_BLOCK_HTML.trim();
+  welcome = holder.firstElementChild;
+  conversation.insertBefore(welcome, conversation.firstChild);
+  elements.mealCount = document.getElementById("mealCount");
+  elements.reportBasis = document.getElementById("reportBasis");
+  bindInferenceCard();
+  renderInference();
+  renderReport();
+  return welcome;
+}
+
 function getNutrition() {
   return meals.reduce((total, meal) => ({
     protein: total.protein + meal.protein,
@@ -539,7 +616,13 @@ function renderTrend(score) {
   trendArea.style.animation = "";
   document.getElementById("trendDots").innerHTML = points.map((point, index) => `<circle class="trend-dot${index === trendIndex ? " selected" : ""}" data-index="${index}" cx="${point[0]}" cy="${point[1]}" r="${index === trendIndex ? 6 : 3.5}"></circle>`).join("");
   document.querySelectorAll(".chart-label").forEach((label, index) => {
-    label.textContent = labels[index] || "";
+    const point = points[index];
+    if (point) {
+      label.setAttribute("x", point[0]);
+      label.textContent = labels[index] || "";
+    } else {
+      label.textContent = "";
+    }
     label.classList.toggle("active", index === trendIndex);
   });
   animateNumber(document.getElementById("trendAverageValue"), Math.round(values.reduce((sum, value) => sum + value, 0) / values.length));
@@ -793,13 +876,22 @@ function renderLeaderboard(currentScore = getHealthAnalysis().score) {
   currentWeeklyRank = weeklyData.findIndex(item => item.current) + 1;
   const data = activeRanking === "week" ? weeklyData : rankings.today.map(item => item.current ? { ...item, score: currentScore, note: `已记录 ${meals.length} 餐` } : { ...item }).sort((a, b) => b.score - a.score);
   const champion = data[0];
-  document.getElementById("championAvatar").textContent = champion.name === "你" ? "我" : champion.name.slice(0, 1);
-  document.getElementById("championName").textContent = champion.name;
+  const championLabel = champion.current ? (profile.name || "我") : champion.name;
+  document.getElementById("championAvatar").textContent = championLabel.slice(0, 1);
+  document.getElementById("championName").textContent = championLabel;
   animateNumber(document.getElementById("championScore"), champion.score);
   document.getElementById("championNote").textContent = `${activeRanking === "week" ? "本周" : "今日"}第 1 名 · ${champion.note}`;
   const previousCurrent = elements.leaderboardList.querySelector(".leaderboard-row.current-user");
   const previousTop = previousCurrent ? previousCurrent.getBoundingClientRect().top : null;
-  elements.leaderboardList.innerHTML = data.map((item, index) => `<div class="leaderboard-row${item.current ? " current-user" : ""}"><span class="rank-number">${index + 1}</span><span class="friend-avatar">${escapeHtml(item.name === "你" ? "我" : item.name.slice(0, 1))}</span><div class="friend-copy"><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.note)}</small></div><span class="friend-score">${item.score}<small>分</small></span></div>`).join("");
+  elements.leaderboardList.innerHTML = data.map((item, index) => {
+    const label = item.current ? (profile.name || "我") : item.name;
+    const avatar = item.avatar || item.cover || (item.current ? localStorage.getItem("eat-user-avatar") || "" : "");
+    const initial = escapeHtml(String(label || "友").slice(0, 1));
+    const avatarMarkup = avatar
+      ? `<img src="${escapeHtml(avatar)}" alt="" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><span class="friend-initial" hidden>${initial}</span>`
+      : initial;
+    return `<div class="leaderboard-row${item.current ? " current-user" : ""}"><span class="rank-number">${index + 1}</span><span class="friend-avatar${avatar ? " has-photo" : ""}">${avatarMarkup}</span><div class="friend-copy"><strong>${escapeHtml(label)}</strong><small>${escapeHtml(item.note)}</small></div><span class="friend-score">${item.score}<small>分</small></span></div>`;
+  }).join("");
   const nextCurrent = elements.leaderboardList.querySelector(".leaderboard-row.current-user");
   if (previousTop !== null && nextCurrent) {
     const delta = previousTop - nextCurrent.getBoundingClientRect().top;
@@ -1224,9 +1316,12 @@ function confirmRandom() {
 function applyChampionCover(champion) {
   const coverImg = document.querySelector(".champion-cover img");
   if (!coverImg || !champion) return;
-  if (champion.current && championCoverSrc) {
-    coverImg.src = championCoverSrc;
-    coverImg.alt = "你的冠军封面";
+  const ownAvatar = localStorage.getItem("eat-user-avatar") || "";
+  const src = champion.cover || (champion.current ? championCoverSrc : "") ||
+    champion.avatar || (champion.current ? ownAvatar : "");
+  if (src) {
+    coverImg.src = src;
+    coverImg.alt = `${champion.name || "好友"}的排行榜封面`;
   } else {
     coverImg.src = defaultChampionCover;
     coverImg.alt = "排行榜第一名的好友封面";
@@ -1282,6 +1377,13 @@ function saveCover() {
   }
   championCoverSrc = coverDraftSrc;
   saveStored(storageKeys.cover, { src: championCoverSrc });
+  if (window.eatTransport && currentUserKey) {
+    window.eatTransport.request("/api/profile/cover", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: currentUserKey, cover: championCoverSrc })
+    }).catch(() => {});
+  }
   renderLeaderboard();
   document.getElementById("coverDialog").close();
   showToast("冠军封面已保存");
@@ -1292,6 +1394,13 @@ function resetCover() {
   championCoverSrc = "";
   syncCoverPreview("");
   try { localStorage.removeItem(storageKeys.cover); } catch {}
+  if (window.eatTransport && currentUserKey) {
+    window.eatTransport.request("/api/profile/cover", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: currentUserKey, cover: "" })
+    }).catch(() => {});
+  }
   renderLeaderboard();
   showToast("已恢复默认冠军封面");
 }
@@ -1405,6 +1514,7 @@ function savePersonalInfo(event) {
   };
   draftProfile = { ...profile };
   saveStored(storageKeys.profile, profile);
+  applyProfileName();
   syncProfileToServer({
     name: profile.name,
     height: profile.height,
@@ -1849,8 +1959,7 @@ elements.chatInput.addEventListener("input", () => {
   elements.chatInput.style.height = `${Math.min(elements.chatInput.scrollHeight, 220)}px`;
 });
 
-document.getElementById("viewFullReport").addEventListener("click", () => switchView("report"));
-document.getElementById("addMealButton").addEventListener("click", () => elements.chatInput.focus());
+bindInferenceCard();
 document.getElementById("profileShortcut").addEventListener("click", () => switchView("profile"));
 document.getElementById("downloadReport").addEventListener("click", downloadReport);
 document.getElementById("dailyCheckin").addEventListener("click", () => {
@@ -1863,23 +1972,9 @@ document.getElementById("dailyCheckin").addEventListener("click", () => {
   showToast("签到成功，本周积分 +10");
 });
 document.getElementById("themeGrid").addEventListener("click", handleThemeAction);
-document.getElementById("nextGuess").addEventListener("click", () => {
-  guessIndex += 1;
-  renderInference();
-});
-const mealTypePicker = document.getElementById("mealTypePicker");
-document.getElementById("acceptGuess").addEventListener("click", event => {
-  event.stopPropagation();
-  if (mealTypePicker) mealTypePicker.hidden = !mealTypePicker.hidden;
-});
-mealTypePicker?.addEventListener("click", event => {
-  const button = event.target.closest("[data-meal-type]");
-  if (!button) return;
-  mealTypePicker.hidden = true;
-  recordFood(currentGuessFoodId, { type: button.dataset.mealType });
-});
 document.addEventListener("click", event => {
-  if (mealTypePicker && !event.target.closest(".inference-actions")) mealTypePicker.hidden = true;
+  const picker = document.getElementById("mealTypePicker");
+  if (picker && !event.target.closest(".inference-actions")) picker.hidden = true;
 });
 elements.sidebarToggle.addEventListener("click", () => setSidebarCollapsed(!elements.appShell.classList.contains("left-collapsed")));
 elements.detailsCollapseButton.addEventListener("click", () => setDetailsCollapsed(!elements.workspace.classList.contains("right-collapsed")));
@@ -1949,6 +2044,7 @@ function applyUserAvatar(src) {
   document.querySelectorAll("#conversation .user-avatar").forEach(node => {
     node.innerHTML = value ? `<img src="${value}" alt="">` : "我";
   });
+  renderLeaderboard();
 }
 document.getElementById("avatarUploadButton").addEventListener("click", () => document.getElementById("avatarUploadInput").click());
 document.getElementById("avatarUploadInput").addEventListener("change", event => {
@@ -1957,6 +2053,14 @@ document.getElementById("avatarUploadInput").addEventListener("change", event =>
   readCoverFile(file, "image/png").then(src => {
     localStorage.setItem(userAvatarKey, src);
     applyUserAvatar(src);
+    if (window.eatTransport && currentUserKey) {
+      window.eatTransport.request("/api/profile/cover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: currentUserKey, avatar: src })
+      }).catch(() => {});
+    }
+    renderLeaderboard();
     showToast("头像已更新");
   }).catch(() => showToast("头像读取失败，请换一张试试"));
   event.target.value = "";
@@ -2119,6 +2223,9 @@ window.eatLocal = {
   applyMealAction,
   syncProfileFromAgent,
   getHealthAnalysis,
+  renderInference,
+  maybeOnboarding,
+  ensureWelcomeBlock,
   showToast
 };
 function initServiceLogin() {
@@ -2244,14 +2351,18 @@ const pageHost = location.hostname && location.hostname !== "localhost" && locat
     if (window.eatTransport) window.eatTransport.quit();
     else window.close();
   });
-  document.getElementById("logoutButton")?.addEventListener("click", async () => {
+  async function logoutService() {
+    if (!window.confirm("确定退出登录吗？")) return;
     try { document.getElementById("settingsDialog")?.close(); } catch {}
+    try { document.getElementById("userInfoDialog")?.close(); } catch {}
     try { await window.eatTransport.logout(); } catch {}
     localStorage.removeItem("eat-server-login");
     localStorage.removeItem("eat-agent-session");
     localStorage.removeItem("eat-agent-user");
     window.location.reload();
-  });
+  }
+  document.getElementById("logoutButton")?.addEventListener("click", logoutService);
+  document.getElementById("personalLogoutButton")?.addEventListener("click", logoutService);
 
   form.addEventListener("submit", async event => {
     event.preventDefault();
@@ -2308,28 +2419,23 @@ async function enterApp(userKey) {
 }
 
 function clearMockContent() {
-  document.querySelectorAll("#conversation .message").forEach(node => node.remove());
-  meals = [];
-  history = [];
+  const welcome = document.getElementById("inferenceCard")?.closest(".message") || ensureWelcomeBlock();
+  document.querySelectorAll("#conversation .message").forEach(node => {
+    if (node !== welcome) node.remove();
+  });
+  if (welcome) welcome.style.display = "";
+  meals = loadStored(storageKeys.meals, []);
+  const seededMeals = meals.length === defaultMeals.length && meals.every((meal, index) => meal.text === defaultMeals[index].text);
+  if (seededMeals && currentUserKey && currentUserKey !== "u_demo") meals = [];
+  history = loadStored(storageKeys.history, []);
   remoteWeekly = null;
   remoteFriends = [];
   remoteRanking = [];
   rankings.week = [];
   rankings.today = [];
-  profile = {
-    name: "",
-    height: "",
-    weight: "",
-    age: "",
-    goal: "均衡饮食",
-    activity: "久坐",
-    waterTarget: 1800,
-    sleep: 7,
-    spend_min: 20,
-    spend_max: 35,
-    note: ""
-  };
+  profile = { ...defaultProfile, ...loadStored(storageKeys.profile, {}) };
   draftProfile = { ...profile };
+  applyProfileName();
 
   renderMeals();
   syncProfileForm();
@@ -2353,13 +2459,22 @@ async function loadRealData(userKey) {
       return null;
     }
   };
-  const [profileData, mealsData, weeklyData, friendsData, rankingData] = await Promise.all([
+  const [profileData, mealsData, weeklyData, friendsData, rankingData, coverData] = await Promise.all([
     read(`/api/profile?user_id=${query}`),
     read(`/api/meals?user_id=${query}&days=7`),
     read(`/api/stats/weekly?user_id=${query}`),
     read(`/api/friends?user_id=${query}`),
-    read(`/api/ranking?user_id=${query}&scope=week`)
+    read(`/api/ranking?user_id=${query}&scope=week`),
+    read(`/api/profile/cover?user_id=${query}`)
   ]);
+  if (coverData && coverData.cover) {
+    championCoverSrc = coverData.cover;
+    saveStored(storageKeys.cover, { src: championCoverSrc });
+  }
+  if (coverData && coverData.avatar) {
+    localStorage.setItem("eat-user-avatar", coverData.avatar);
+    applyUserAvatar(coverData.avatar);
+  }
   applyRemoteProfile(profileData);
   applyRemoteMeals(mealsData);
   applyRemoteWeekly(weeklyData);
@@ -2372,43 +2487,67 @@ async function loadRealData(userKey) {
   renderFriendRanking();
 }
 
+function applyProfileName() {
+  const name = String(profile.name || "我").trim() || "我";
+  const nameInput = document.getElementById("nameInput");
+  if (nameInput) nameInput.value = name;
+  const preview = document.getElementById("personalPreviewName");
+  if (preview) preview.textContent = name;
+  const initial = document.getElementById("avatarInitialText");
+  if (initial) initial.textContent = name.slice(0, 1);
+  renderLeaderboard();
+}
+
 function applyRemoteProfile(data) {
   if (!data) return;
+  const stored = loadStored(storageKeys.profile, {});
   profile = {
     ...profile,
-    name: data.name || "",
-    height: Number(data.height) > 0 ? Number(data.height) : "",
-    weight: Number(data.weight) > 0 ? Number(data.weight) : "",
-    age: Number(data.age) > 0 ? Number(data.age) : "",
-    goal: data.goal || "均衡饮食",
-    activity: data.activity || "久坐",
-    waterTarget: Number(data.water_target) > 0 ? Number(data.water_target) : 1800,
-    sleep: Number.isFinite(parseFloat(data.sleep)) ? parseFloat(data.sleep) : 7,
-    note: data.note || "",
-    spend_min: Number(data.spend_min) >= 0 ? Number(data.spend_min) : 20,
-    spend_max: Number(data.spend_max) > 0 ? Number(data.spend_max) : 35
+    name: stored.name || data.name || "",
+    height: Number(stored.height) > 0 ? Number(stored.height) : (Number(data.height) > 0 ? Number(data.height) : ""),
+    weight: Number(stored.weight) > 0 ? Number(stored.weight) : (Number(data.weight) > 0 ? Number(data.weight) : ""),
+    age: Number(stored.age) > 0 ? Number(stored.age) : (Number(data.age) > 0 ? Number(data.age) : ""),
+    goal: stored.goal || data.goal || "均衡饮食",
+    activity: stored.activity || data.activity || "久坐",
+    waterTarget: Number(stored.waterTarget) > 0 ? Number(stored.waterTarget) : (Number(data.water_target) > 0 ? Number(data.water_target) : 1800),
+    sleep: Number.isFinite(parseFloat(stored.sleep)) ? parseFloat(stored.sleep) : (parseFloat(data.sleep) || 7),
+    note: stored.note || data.note || "",
+    spend_min: Number(stored.spend_min) >= 0 ? Number(stored.spend_min) : (Number(data.spend_min) >= 0 ? Number(data.spend_min) : 20),
+    spend_max: Number(stored.spend_max) > 0 ? Number(stored.spend_max) : (Number(data.spend_max) > 0 ? Number(data.spend_max) : 35)
   };
   if (data.user_id) currentUserKey = data.user_id;
   draftProfile = { ...profile };
+  saveStored(storageKeys.profile, profile);
+  applyProfileName();
 }
 
 function applyRemoteMeals(data) {
+  if (!data || !Array.isArray(data.meals)) return;
   const today = todayKey();
-  const list = data && Array.isArray(data.meals) ? data.meals : [];
-  meals = list
+  const remoteRows = data.meals
     .filter(meal => !meal.date || meal.date === today)
-    .map(meal => ({
-      id: meal.id,
-      version: meal.version,
-      type: meal.type || "加餐",
+    .map(meal => ({ type: meal.type || "加餐",
       time: meal.time || "",
-      text: meal.text || (Array.isArray(meal.items) ? meal.items.join("、") : ""),
+      text: meal.text || (Array.isArray(meal.items)
+        ? meal.items.join("、") : ""),
       protein: Number(meal.protein) || 0,
       fiber: Number(meal.fiber) || 0,
       veggies: Number(meal.veggies) || 0,
       water: Number(meal.water) || 0,
-      penalty: Number(meal.penalty) || 0
-    }));
+      penalty: Number(meal.penalty) || 0 }));
+  if (!remoteRows.length) return;
+  const keyOf = meal => `${meal.type}|${meal.text}`;
+  const merged = new Map();
+  meals.forEach(meal => merged.set(keyOf(meal), meal));
+  remoteRows.forEach(meal => {
+    const prev = merged.get(keyOf(meal));
+    if (prev && !meal.time) meal.time = prev.time;
+    merged.set(keyOf(meal), meal);
+  });
+  meals = [...merged.values()];
+  saveStored(storageKeys.meals, meals);
+  renderMeals();
+  renderReport();
 }
 
 function applyRemoteWeekly(data) {
@@ -2429,12 +2568,17 @@ function applyRemoteFriends(data) {
 function applyRemoteRanking(data) {
   const rows = data && Array.isArray(data.ranking) ? data.ranking : [];
   remoteRanking = rows;
-  rankings.week = rows.map(row => ({
-    name: row.user_id === currentUserKey ? "你" : (row.name || row.user_id),
-    score: Number(row.score) || 0,
-    note: row.user_id === currentUserKey ? "我" : `第 ${row.rank} 名`,
-    current: row.user_id === currentUserKey
-  }));
+  rankings.week = rows.map(row => {
+    const current = row.user_id === currentUserKey;
+    return {
+      name: current ? (profile.name || "我") : (row.name || row.user_id),
+      score: Number(row.score) || 0,
+      note: current ? "我" : `第 ${row.rank} 名`,
+      current,
+      cover: row.cover || "",
+      avatar: row.avatar || ""
+    };
+  });
   rankings.today = rankings.week.map(item => ({ ...item }));
 }
 
@@ -2443,46 +2587,47 @@ function maybeOnboarding(userKey) {
   const key = `eat-onboarded:${userKey}`;
   const conversation = document.getElementById("conversation");
   if (!conversation) return;
-  const firstTime = localStorage.getItem(key) !== "1";
-  if (firstTime) {
-    localStorage.setItem(key, "1");
-    localStorage.removeItem("eat-agent-session");
-    resetPointsForUser();
-    conversation.insertAdjacentHTML("afterbegin", `
-      <article class="message agent-message onboarding-message">
-        <div class="agent-avatar" aria-hidden="true"><svg class="icon"><use href="#icon-utensils"></use></svg></div>
-        <div class="message-content">
-          <div class="message-meta"><strong>饭饭</strong><span>第一次见面</span></div>
-          <div class="message-bubble">
-            <p>我是饭饭，负责记录你每天吃的，也帮你看看营养够不够。</p>
-            <p>开始前想认识你一下：身高、体重、年龄、日常活动量和需要留意的身体状况。填好之后，菜单和报告才会贴合你。</p>
-            <p>你也可以直接对我说，比如「我 170，60 公斤，久坐，想控制体重」，我来帮你改。</p>
-            <p>记录和完成度会积累积分；好友排行榜只显示彼此确认过的好友，不会公开给其他人。</p>
-            <div class="onboarding-actions">
-              <button class="button primary-button" id="onboardingProfile" type="button">带我去填资料</button>
-              <button class="button secondary-button" id="onboardingTell" type="button">直接告诉饭饭</button>
-            </div>
-          </div>
-        </div>
-      </article>
-    `);
-    document.getElementById("onboardingProfile")?.addEventListener("click", () => {
-      document.getElementById("editBodyInfo")?.click();
-    });
-    document.getElementById("onboardingTell")?.addEventListener("click", () => {
-      document.getElementById("chatInput")?.focus();
-    });
+  let welcome = document.getElementById("inferenceCard")?.closest(".message");
+  if (!welcome) welcome = ensureWelcomeBlock();
+  if (!welcome) return;
+  document.querySelector(".onboarding-message")?.remove();
+  if (localStorage.getItem(key) === "1") {
+    welcome.style.display = "";
     return;
   }
+  welcome.style.display = "none";
   conversation.insertAdjacentHTML("afterbegin", `
-    <article class="message agent-message">
+    <article class="message agent-message onboarding-message">
       <div class="agent-avatar" aria-hidden="true"><svg class="icon"><use href="#icon-utensils"></use></svg></div>
       <div class="message-content">
-        <div class="message-meta"><strong>饭饭</strong></div>
-        <div class="message-bubble"><p>今天想记点什么？直接说吃了什么，或者问我一顿饭怎么搭配。</p></div>
+        <div class="message-meta"><strong>饭饭</strong><span>第一次见面</span></div>
+        <div class="message-bubble">
+          <p>我是饭饭，负责记录你每天吃的，也帮你看看营养够不够。</p>
+          <p>开始前想认识你一下：身高、体重、年龄、日常活动量和需要留意的身体状况。填好之后，菜单和报告才会贴合你。</p>
+          <p>你也可以直接对我说，比如「我 170，60 公斤，久坐，想控制体重」，我来帮你改。</p>
+          <p>记录和完成度会积累积分；好友排行榜只显示彼此确认过的好友，不会公开给其他人。</p>
+          <div class="onboarding-actions">
+            <button class="button primary-button" id="onboardingProfile" type="button">带我去填资料</button>
+            <button class="button secondary-button" id="onboardingTell" type="button">直接告诉饭饭</button>
+          </div>
+        </div>
       </div>
     </article>
   `);
+  const complete = () => {
+    localStorage.setItem(key, "1");
+    document.querySelector(".onboarding-message")?.remove();
+    welcome.style.display = "";
+    renderInference();
+  };
+  document.getElementById("onboardingProfile")?.addEventListener("click", () => {
+    complete();
+    document.getElementById("editBodyInfo")?.click();
+  });
+  document.getElementById("onboardingTell")?.addEventListener("click", () => {
+    complete();
+    document.getElementById("chatInput")?.focus();
+  });
 }
 
 function resetPointsForUser() {

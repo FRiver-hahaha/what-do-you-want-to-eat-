@@ -78,11 +78,12 @@
     }
   }
 
-  async function browserStream(payload, onEvent) {
+  async function browserStream(payload, onEvent, signal) {
     const response = await fetch(`${baseUrl}/api/chat/stream`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      signal
     });
     if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
     await consumeSse(response.body, onEvent);
@@ -161,8 +162,8 @@
   window.eatTransport = {
     mode: webview ? "app" : "browser",
     base: baseUrl,
-    chatStream(payload, onEvent) {
-      return webview ? appStream(payload, onEvent) : browserStream(payload, onEvent);
+    chatStream(payload, onEvent, options) {
+      return webview ? appStream(payload, onEvent) : browserStream(payload, onEvent, options && options.signal);
     },
     login(payload) {
       return webview ? appLogin(payload) : browserLogin(payload);

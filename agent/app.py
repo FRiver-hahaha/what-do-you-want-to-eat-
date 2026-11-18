@@ -575,6 +575,19 @@ class AgentApp:
         fields = {key: payload[key] for key in allowed if key in payload}
         return self.service.update_profile(user_id, fields)
 
+    def cover_view(self, user_id: str) -> dict[str, Any]:
+        return self.service.get_user_cover(user_id)
+
+    def save_cover(self, user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        target = str(payload.get("user_id") or user_id)
+        cover = payload.get("cover")
+        avatar = payload.get("avatar")
+        if cover is not None and len(str(cover)) > 2 * 1024 * 1024:
+            return {"ok": False, "message": "cover_too_large"}
+        if avatar is not None and len(str(avatar)) > 2 * 1024 * 1024:
+            return {"ok": False, "message": "avatar_too_large"}
+        return self.service.save_user_cover(target, cover=cover, avatar=avatar)
+
     def meals_view(self, user_id: str, days: int = 7) -> dict[str, Any]:
         return self.service.get_recent_meals(user_id, days)
 

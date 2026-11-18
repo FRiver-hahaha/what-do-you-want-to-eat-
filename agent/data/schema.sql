@@ -152,3 +152,24 @@ CREATE TABLE IF NOT EXISTS spans (
 );
 
 CREATE INDEX IF NOT EXISTS idx_spans_trace ON spans(trace_id, created_at);
+CREATE TABLE IF NOT EXISTS user_covers (
+  user_id TEXT PRIMARY KEY,
+  cover_src TEXT NOT NULL DEFAULT '',
+  avatar_src TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS mock_meals (
+  user_id TEXT NOT NULL,
+  date TEXT NOT NULL,
+  type TEXT NOT NULL,
+  text TEXT NOT NULL,
+  items TEXT NOT NULL DEFAULT '',
+  protein REAL NOT NULL DEFAULT 0,
+  fiber REAL NOT NULL DEFAULT 0,
+  veggies REAL NOT NULL DEFAULT 0,
+  water REAL NOT NULL DEFAULT 0,
+  penalty REAL NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_mock_meals_user ON mock_meals(user_id, date);

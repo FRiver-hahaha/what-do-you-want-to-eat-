@@ -44,6 +44,9 @@ def init_db() -> None:
         columns = {row["name"] for row in conn.execute("PRAGMA table_info(sessions)").fetchall()}
         if "compacted_until_id" not in columns:
             conn.execute("ALTER TABLE sessions ADD COLUMN compacted_until_id INTEGER NOT NULL DEFAULT 0")
+        cover_columns = {row["name"] for row in conn.execute("PRAGMA table_info(user_covers)").fetchall()}
+        if cover_columns and "avatar_src" not in cover_columns:
+            conn.execute("ALTER TABLE user_covers ADD COLUMN avatar_src TEXT NOT NULL DEFAULT ''")
 
 
 def execute(sql: str, params: Sequence[Any] = ()) -> int:

@@ -12,6 +12,7 @@ from typing import Any
 
 from agent.config import (SERVER_BASE_URL, SERVER_TCP_HOST, SERVER_TCP_PORT, SERVER_TOKEN,
                           SERVER_USER_KEY, SERVICE_REQUIRED, SERVICE_TIMEOUT)
+from agent.data.db import execute as db_execute, now_iso, query_all, query_one
 from agent.transport.tcp_frame import TcpFrameClient, TcpFrameError
 
 LOCAL_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -127,8 +128,39 @@ class ServiceClient:
         self.last_error = ""
         self._tcp: TcpFrameClient | None = None
         self._tcp_lock = threading.Lock()
-        self._mock_meals = _build_mock_meals()
         self._profile_overrides: dict[str, dict[str, Any]] = {}
+        self._seed_mock_meals()
+
+    def _seed_mock_meals(self) -> None:
+        try:
+            row = query_one("SELECT COUNT(*) AS n FROM mock_meals WHERE user_id='u_demo'") or {}
+            if int(row.get("n") or 0) > 0:
+                return
+            for meal in _build_mock_meals():
+                db_execute(
+                    "INSERT INTO mock_meals(user_id, date, type, text, items, protein, fiber, "
+                    "veggies, water, penalty, created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                    ("u_demo", meal["date"], meal.get("type") or "加餐",
+                     meal.get("text") or "", json.dumps(meal.get("items") or [], ensure_ascii=False),
+                     float(meal.get("protein") or 0), float(meal.get("fiber") or 0),
+                     float(meal.get("veggies") or 0), float(meal.get("water") or 0),
+                     float(meal.get("penalty") or 0), now_iso()),
+                )
+        except Exception:
+            self.last_error = "mock_meals_seed_failed"
+
+    def _load_mock_meals(self, user_id: str) -> list[dict[str, Any]]:
+        try:
+            rows = query_all("SELECT * FROM mock_meals WHERE user_id=? ORDER BY created_at", (user_id,))
+        except Exception:
+            return []
+        for row in rows:
+            raw = row.get("items") or ""
+            try:
+                row["items"] = json.loads(raw) if raw else []
+            except json.JSONDecodeError:
+                row["items"] = []
+        return rows
 
     @property
     def mode(self) -> str:
@@ -296,7 +328,7 @@ class ServiceClient:
         if remote:
             return remote
         cutoff = (date.today() - timedelta(days=days - 1)).isoformat()
-        meals = [item for item in self._mock_meals if item["date"] >= cutoff]
+        meals = [item for item in self._load_mock_meals(user_id) if item["date"] >= cutoff]
         return {"user_id": user_id, "days": days, "meals": meals, "count": len(meals), "source": "mock"}
 
     def get_nutrition_gap(self, user_id: str, target_date: str | None = None) -> dict[str, Any]:
@@ -395,12 +427,51 @@ class ServiceClient:
             foods = [food for food in foods if meal_type in food["meal_types"]]
         return {"user_id": user_id, "meal_type": meal_type or "全部", "foods": foods, "count": len(foods), "source": "mock"}
 
+    def save_user_cover(self, user_id: str, cover: str | None = None,
+                        avatar: str | None = None) -> dict[str, Any]:
+        row = query_one("SELECT cover_src, avatar_src FROM user_covers WHERE user_id=?", (user_id,)) or {}
+        cover_src = str(row.get("cover_src") or "")
+        avatar_src = str(row.get("avatar_src") or "")
+        if cover is not None:
+            cover_src = str(cover)
+        if avatar is not None:
+            avatar_src = str(avatar)
+        db_execute(
+            "INSERT INTO user_covers(user_id, cover_src, avatar_src, updated_at) VALUES(?,?,?,?) "
+            "ON CONFLICT(user_id) DO UPDATE SET cover_src=excluded.cover_src, "
+            "avatar_src=excluded.avatar_src, updated_at=excluded.updated_at",
+            (user_id, cover_src, avatar_src, now_iso()),
+        )
+        return {"ok": True, "user_id": user_id, "cover": cover_src,
+                "avatar": avatar_src, "source": "agent"}
+
+    def get_user_cover(self, user_id: str) -> dict[str, Any]:
+        row = query_one("SELECT cover_src, avatar_src FROM user_covers WHERE user_id=?", (user_id,))
+        return {"ok": True, "user_id": user_id,
+                "cover": str(row.get("cover_src") or "") if row else "",
+                "avatar": str(row.get("avatar_src") or "") if row else ""}
+
+    def _decorate_ranking(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        for row in rows:
+            uid = str(row.get("user_id") or row.get("id") or "")
+            if not uid:
+                continue
+            saved = self.get_user_cover(uid)
+            row["cover"] = saved["cover"]
+            row["avatar"] = saved["avatar"]
+        return rows
+
     def get_friend_ranking(self, user_id: str, scope: str = "week") -> dict[str, Any]:
         remote = self._remote("ranking.friends", {"scope": scope}, "GET",
                               f"/api/v1/users/{user_id}/ranking?scope={scope}")
         if remote:
+            rows = remote.get("ranking")
+            if isinstance(rows, list):
+                remote["ranking"] = self._decorate_ranking(rows)
             return remote
-        return {"user_id": user_id, "scope": scope, "ranking": copy.deepcopy(MOCK_RANKING), "source": "mock"}
+        ranking = copy.deepcopy(MOCK_RANKING)
+        return {"user_id": user_id, "scope": scope,
+                "ranking": self._decorate_ranking(ranking), "source": "mock"}
 
     def get_friends(self, user_id: str) -> dict[str, Any]:
         remote = self._remote("friend.list", {}, "GET",
@@ -452,14 +523,24 @@ class ServiceClient:
         meal = {
             "date": payload.get("date") or _today(),
             "type": payload.get("type", "加餐"),
-            "text": payload.get("text") or "、".join(payload.get("items", [])),
-            "items": payload.get("items", []),
-            "protein": payload.get("protein", 0),
-            "fiber": payload.get("fiber", 0),
-            "veggies": payload.get("veggies", 0),
-            "water": payload.get("water", 0),
+            "text": payload.get("text") or "、".join(payload.get("items") or []),
+            "items": payload.get("items") or [],
+            "protein": float(payload.get("protein") or 0),
+            "fiber": float(payload.get("fiber") or 0),
+            "veggies": float(payload.get("veggies") or 0),
+            "water": float(payload.get("water") or 0),
+            "penalty": float(payload.get("penalty") or 0),
         }
-        self._mock_meals.append(meal)
+        try:
+            db_execute(
+                "INSERT INTO mock_meals(user_id, date, type, text, items, protein, fiber, "
+                "veggies, water, penalty, created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                (user_id, meal["date"], meal["type"], meal["text"],
+                 json.dumps(meal["items"], ensure_ascii=False), meal["protein"], meal["fiber"],
+                 meal["veggies"], meal["water"], meal["penalty"], now_iso()),
+            )
+        except Exception:
+            self.last_error = "mock_meal_write_failed"
         return {
             "ok": True,
             "receipt_id": f"mock-{idempotency_key}",
