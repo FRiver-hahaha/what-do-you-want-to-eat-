@@ -1374,7 +1374,11 @@ async function syncPeerMedia(items) {
       mediaInFlight.delete(key);
     }
   }));
-  if (results.some(Boolean)) renderLeaderboard();
+  if (results.some(Boolean)) {
+    renderLeaderboard();
+    renderFriends();
+    renderFriendRanking();
+  }
 }
 
 function applyChampionCover(champion) {
@@ -2806,6 +2810,14 @@ function resetPointsForUser() {
   renderShop();
 }
 
+function avatarCellFor(key, name) {
+  const media = key ? peerMedia.get(key) : null;
+  const src = media && (media.avatar || media.cover);
+  const initial = escapeHtml(String(name || "友").slice(0, 1));
+  if (!src) return `<span class="friend-avatar">${initial}</span>`;
+  return `<span class="friend-avatar has-photo"><img src="${escapeHtml(src)}" alt="" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><span class="friend-initial" hidden>${initial}</span></span>`;
+}
+
 function renderFriends() {
   const list = document.getElementById("friendList");
   const empty = document.getElementById("friendsEmpty");
@@ -2817,7 +2829,7 @@ function renderFriends() {
     const name = friend.name || friend.id || friend.user_key || "好友";
     const id = friend.id || friend.user_key || "";
     return `<div class="friend-row" data-peer="${escapeHtml(id)}">
-      <span class="friend-avatar">${escapeHtml(name.slice(0, 1))}</span>
+      ${avatarCellFor(id, name)}
       <div class="friend-copy"><strong>${escapeHtml(name)}</strong><small>${escapeHtml(id)}</small></div>
       <div class="friend-actions">
         <button type="button" data-friend-action="remove">移除</button>
@@ -2825,6 +2837,11 @@ function renderFriends() {
       </div>
     </div>`;
   }).join("");
+  syncPeerMedia(remoteFriends.map(friend => ({
+    id: friend.id || friend.user_key || "",
+    cover_ver: friend.cover_ver,
+    avatar_ver: friend.avatar_ver
+  })));
 }
 
 function renderFriendRanking() {
@@ -2836,11 +2853,16 @@ function renderFriendRanking() {
     const name = row.user_id === currentUserKey ? "你" : (row.name || row.user_id);
     return `<li class="friend-rank-row${row.user_id === currentUserKey ? " is-me" : ""}">
       <span class="rank-number">${row.rank}</span>
-      <span class="friend-avatar">${escapeHtml(name.slice(0, 1))}</span>
+      ${avatarCellFor(row.user_id, name)}
       <span class="friend-copy"><strong>${escapeHtml(name)}</strong><small>${row.user_id === currentUserKey ? "我" : "好友"}</small></span>
       <strong class="friend-score">${Number(row.score) || 0}<small>分</small></strong>
     </li>`;
   }).join("");
+  syncPeerMedia(remoteRanking.map(row => ({
+    id: row.user_id,
+    cover_ver: row.cover_ver,
+    avatar_ver: row.avatar_ver
+  })));
 }
 
 async function refreshFriendData() {
