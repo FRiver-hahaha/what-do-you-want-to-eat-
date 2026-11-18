@@ -286,6 +286,9 @@ class ServiceClient:
         profile = copy.deepcopy(MOCK_PROFILE)
         overrides = self._profile_overrides.get(user_id, {})
         profile.update(overrides)
+        name_row = query_one("SELECT name FROM user_profiles WHERE user_id=?", (user_id,))
+        if name_row and name_row.get("name"):
+            profile["name"] = str(name_row["name"])
         profile["user_id"] = user_id
         profile["source"] = "mock"
         profile["overridden_fields"] = sorted(overrides)
@@ -313,6 +316,12 @@ class ServiceClient:
             return remote
         current = self._profile_overrides.setdefault(user_id, {})
         current.update(fields)
+        if "name" in fields:
+            db_execute(
+                "INSERT INTO user_profiles(user_id, name, updated_at) VALUES(?,?,?) "
+                "ON CONFLICT(user_id) DO UPDATE SET name=excluded.name, updated_at=excluded.updated_at",
+                (user_id, str(fields["name"]), now_iso()),
+            )
         profile = self.get_profile(user_id)
         return {
             "ok": True,
@@ -459,6 +468,9 @@ class ServiceClient:
             saved = self.get_user_cover(uid)
             row["cover"] = saved["cover"]
             row["avatar"] = saved["avatar"]
+            prof = query_one("SELECT name FROM user_profiles WHERE user_id=?", (uid,)) or {}
+            if prof.get("name"):
+                row["name"] = str(prof["name"])
         return rows
 
     def get_friend_ranking(self, user_id: str, scope: str = "week") -> dict[str, Any]:
@@ -478,7 +490,15 @@ class ServiceClient:
                               f"/api/v1/users/{user_id}/friends")
         if remote:
             return remote
-        return {"user_id": user_id, "friends": copy.deepcopy(MOCK_FRIENDS), "source": "mock"}
+        friends = copy.deepcopy(MOCK_FRIENDS)
+        for friend in friends:
+            saved = self.get_user_cover(friend["id"])
+            friend["cover"] = saved["cover"]
+            friend["avatar"] = saved["avatar"]
+            prof = query_one("SELECT name FROM user_profiles WHERE user_id=?", (friend["id"],)) or {}
+            if prof.get("name"):
+                friend["name"] = str(prof["name"])
+        return {"user_id": user_id, "friends": friends, "source": "mock"}
 
     def friend_request(self, user_id: str, peer_key: str) -> dict[str, Any]:
         params = {"peer_key": peer_key,

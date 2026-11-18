@@ -173,3 +173,8 @@ CREATE TABLE IF NOT EXISTS mock_meals (
 );
 
 CREATE INDEX IF NOT EXISTS idx_mock_meals_user ON mock_meals(user_id, date);
+CREATE TABLE IF NOT EXISTS user_profiles (
+  user_id TEXT PRIMARY KEY,
+  name TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL
+);

@@ -128,6 +128,7 @@ let coverDraftSrc = "";
 let randomFoodId = "";
 let randomReturnView = "today";
 let searchTimer;
+let socialTimer = null;
 let editingMealIndex = -1;
 let deletingMealIndex = -1;
 
@@ -1405,10 +1406,19 @@ function resetCover() {
   showToast("已恢复默认冠军封面");
 }
 
+function mealTypeFromTime(hour) {
+  if (hour >= 5 && hour < 10) return "早餐";
+  if (hour >= 10 && hour < 14) return "午餐";
+  if (hour >= 14 && hour < 17) return "下午茶";
+  if (hour >= 17 && hour < 22) return "晚餐";
+  return "加餐";
+}
+
 function recordFood(foodId, options = {}) {
   const food = foods.find(item => item.id === foodId);
   if (!food) return;
-  const meal = recordMeal(food.name, { protein: food.protein, fiber: food.fiber, veggies: food.veggies, water: food.water, penalty: 0 }, options.type || "");
+  const type = options.type || mealTypeFromTime(new Date().getHours());
+  const meal = recordMeal(food.name, { protein: food.protein, fiber: food.fiber, veggies: food.veggies, water: food.water, penalty: 0 }, type);
   if (!options.stay) {
     switchView("today");
     appendUserMessage(`吃了${food.name}`);
@@ -1545,7 +1555,11 @@ function switchView(view) {
   if (view === "friends") {
     renderFriends();
     renderFriendRanking();
-    refreshFriendData();
+    refreshSocial();
+    if (!socialTimer) socialTimer = setInterval(refreshSocial, 30000);
+  } else if (socialTimer) {
+    clearInterval(socialTimer);
+    socialTimer = null;
   }
   if (view === "shop") renderShop();
   activeView = view;
@@ -2322,9 +2336,10 @@ const pageHost = location.hostname && location.hostname !== "localhost" && locat
     }
     try {
       const status = await window.eatTransport.request("/api/service/status");
-      if (status && status.mode === "tcp" && status.user_key) {
+      const storedKey = localStorage.getItem("eat-agent-user") || "";
+      if (status && status.mode === "tcp" && (storedKey || status.user_key)) {
         setAuthenticated(true);
-        await enterApp(status.user_key);
+        await enterApp(storedKey || status.user_key);
         return;
       }
     } catch {
@@ -2359,6 +2374,10 @@ const pageHost = location.hostname && location.hostname !== "localhost" && locat
     localStorage.removeItem("eat-server-login");
     localStorage.removeItem("eat-agent-session");
     localStorage.removeItem("eat-agent-user");
+    ["eat-health-profile-v2", "eat-health-meals-v2", "eat-health-history-v2",
+      "eat-health-points-v1", "eat-user-avatar", "eat-champion-cover-v1"].forEach(key => {
+      try { localStorage.removeItem(key); } catch {}
+    });
     window.location.reload();
   }
   document.getElementById("logoutButton")?.addEventListener("click", logoutService);
@@ -2389,6 +2408,10 @@ const pageHost = location.hostname && location.hostname !== "localhost" && locat
       }
       localStorage.setItem("eat-server-host", hostInput.value.trim());
       localStorage.setItem("eat-server-login", loginInput.value.trim());
+      ["eat-health-profile-v2", "eat-health-meals-v2", "eat-health-history-v2",
+        "eat-health-points-v1", "eat-user-avatar", "eat-champion-cover-v1",
+        "eat-agent-session"].forEach(key => { try { localStorage.removeItem(key); } catch {} });
+      localStorage.setItem("eat-agent-user", (result && result.user_key) || "");
       setAuthenticated(true);
       window.location.reload();
     } catch (error) {
@@ -2471,10 +2494,9 @@ async function loadRealData(userKey) {
     championCoverSrc = coverData.cover;
     saveStored(storageKeys.cover, { src: championCoverSrc });
   }
-  if (coverData && coverData.avatar) {
-    localStorage.setItem("eat-user-avatar", coverData.avatar);
-    applyUserAvatar(coverData.avatar);
-  }
+  const avatar = (coverData && coverData.avatar) || "";
+  localStorage.setItem("eat-user-avatar", avatar);
+  applyUserAvatar(avatar);
   applyRemoteProfile(profileData);
   applyRemoteMeals(mealsData);
   applyRemoteWeekly(weeklyData);
@@ -2580,6 +2602,22 @@ function applyRemoteRanking(data) {
     };
   });
   rankings.today = rankings.week.map(item => ({ ...item }));
+}
+
+async function refreshSocial() {
+  if (!currentUserKey || !window.eatTransport) return;
+  const query = encodeURIComponent(currentUserKey);
+  try {
+    const friendsData = await window.eatTransport.request(`/api/friends?user_id=${query}`);
+    applyRemoteFriends(friendsData);
+  } catch {}
+  try {
+    const rankingData = await window.eatTransport.request(`/api/ranking?user_id=${query}&scope=week`);
+    applyRemoteRanking(rankingData);
+  } catch {}
+  renderFriends();
+  renderFriendRanking();
+  renderLeaderboard();
 }
 
 function maybeOnboarding(userKey) {
