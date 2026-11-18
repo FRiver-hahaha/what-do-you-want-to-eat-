@@ -88,7 +88,7 @@ class AgentApp:
 
     def meta(self) -> dict[str, Any]:
         return {
-            "name": "今天你吃了吗 Agent 服务",
+            "name": "泛饭 Agent 服务",
             "version": __version__,
             "default_model": default_model_id(),
             "models": available_models(),

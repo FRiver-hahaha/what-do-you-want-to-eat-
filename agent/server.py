@@ -149,7 +149,7 @@ class AgentHTTPRequestHandler(BaseHTTPRequestHandler):
 
         if path == "/" and method == "GET":
             return 200, {
-                "name": "今天你吃了吗 Agent 服务",
+                "name": "泛饭 Agent 服务",
                 "version": __version__,
                 "docs": "见 AGENT.md",
                 "health": "/health",

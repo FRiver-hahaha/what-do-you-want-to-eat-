@@ -301,7 +301,7 @@ sudo firewall-cmd --reload
 
 本机已用 MinGW g++ + WebView2 SDK 生成 `dist/eat-app/eat-app.exe`（PE32+ x64，约 208 KB），并完成启动验证：
 
-- 窗口标题为“今天你吃了吗”，进程保持响应；
+- 窗口标题为“泛饭”，进程保持响应；
 - 启动 6 个 `msedgewebview2.exe` 渲染进程；
 - 同目录生成 `webview-data/EBWebView`；
 - `PrintWindow` 截图确认页面完整渲染了同一套 Web UI：食物菜单、聊天输入框、健康报告、好友排行榜等。

@@ -1,4 +1,4 @@
-# 今天你吃了吗（Eat App）
+# 泛饭 FanFan（Eat App）
 
 跨端饮食助手：**Linux 服务端**（C++17 + Muduo + MySQL）+ **Windows 客户端**（Win32 + WebView2，复用现有 Web 页面）+ **Python Agent**（LLM / RAG / MCP / Skill）。
 

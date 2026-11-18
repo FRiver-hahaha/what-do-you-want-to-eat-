@@ -29,7 +29,7 @@ using namespace eat;
 namespace {
 
 constexpr wchar_t kWindowClass[] = L"EatAppShell";
-constexpr wchar_t kWindowTitle[] = L"今天你吃了吗";
+constexpr wchar_t kWindowTitle[] = L"泛饭";
 constexpr UINT kIpcMessage = WM_APP + 1;
 constexpr UINT kTrayMessage = WM_APP + 2;
 constexpr int kTrayId = 1;

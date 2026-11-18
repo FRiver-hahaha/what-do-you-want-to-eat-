@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#f7f8fc">
-  <title>今天你吃了吗 · 饮食健康助手</title>
+  <title>泛饭 · 饮食健康 Agent</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="features.css">
   <link rel="stylesheet" href="agent.css">
@@ -31,7 +31,7 @@
     <section class="auth-story">
       <div class="auth-brand">
         <span class="auth-mark" aria-hidden="true"><svg class="icon"><use href="#icon-utensils"></use></svg></span>
-        <strong>今天你吃了吗</strong>
+        <strong>泛饭</strong>
       </div>
       <p class="auth-eyebrow">饭饭 · 日常饮食助手</p>
       <h1>把每天吃的，<br>记成看得见的变化</h1>
@@ -71,17 +71,17 @@
           <button class="auth-captcha-image" id="serviceCaptchaRefresh" type="button" title="点击刷新验证码">加载中…</button>
         </div>
         <input id="serviceRegister" type="checkbox" hidden>
-        <details class="auth-server">
-          <summary>服务器设置</summary>
+        <div class="auth-server">
+          <p class="auth-server-title">服务器设置（服务端局域网 IP）</p>
           <div class="auth-server-grid">
             <label class="auth-field" for="serviceHost">地址
-              <input id="serviceHost" type="text" placeholder="192.168.1.50" autocomplete="off" required>
+              <input id="serviceHost" type="text" placeholder="例如 10.112.151.15" autocomplete="off" required>
             </label>
             <label class="auth-field" for="servicePort">端口
               <input id="servicePort" type="number" min="1" max="65535" step="1" value="9443" inputmode="numeric" required>
             </label>
           </div>
-        </details>
+        </div>
         <div class="auth-error" id="serviceLoginError" hidden></div>
         <button class="auth-submit" id="serviceLoginButton" type="submit">进入饭饭</button>
       </form>
@@ -139,7 +139,7 @@
     <aside class="sidebar glass-panel" id="leftSidebar">
       <div class="brand">
         <div class="brand-mark" aria-hidden="true"><svg class="icon"><use href="#icon-utensils"></use></svg></div>
-        <div class="brand-copy"><strong>今天你吃了吗</strong><span>记录每一餐，理解每一天</span></div>
+        <div class="brand-copy"><strong>泛饭</strong><span>和饭饭一起，记录每一餐</span></div>
       </div>
 
       <section class="food-module" id="foodModule" aria-label="食物菜单">

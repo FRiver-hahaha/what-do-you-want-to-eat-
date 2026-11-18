@@ -263,7 +263,7 @@ class MCPServer:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="今天你吃了吗 MCP Server")
+    parser = argparse.ArgumentParser(description="泛饭 MCP Server")
     parser.add_argument("--profile", default="diet", choices=["diet", "knowledge"])
     args = parser.parse_args()
     ensure_dirs()

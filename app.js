@@ -1688,7 +1688,7 @@ function initDates() {
 
 function downloadReport() {
   const analysis = getHealthAnalysis();
-  const content = [`今天你吃了吗 · 今日健康报告`, `日期：${todayKey()}`, `综合评分：${analysis.score} / 100（${analysis.status}）`, `已记录：${meals.length} 餐`, "", "饮食记录", ...meals.map(meal => `${meal.time} ${meal.type}：${meal.text}`), "", "营养进度", `蛋白质：${analysis.nutrition.protein} / ${analysis.targets.protein} g`, `膳食纤维：${analysis.nutrition.fiber} / ${analysis.targets.fiber} g`, `蔬菜：${analysis.nutrition.veggies} / ${analysis.targets.veggies} g`, `饮水：${analysis.nutrition.water} / ${analysis.targets.water} ml`, "", "综合分析", analysis.summary, "", "本报告仅用于日常饮食记录和生活方式参考，不用于诊断或治疗。"].join("\n");
+  const content = [`泛饭 · 今日健康报告`, `日期：${todayKey()}`, `综合评分：${analysis.score} / 100（${analysis.status}）`, `已记录：${meals.length} 餐`, "", "饮食记录", ...meals.map(meal => `${meal.time} ${meal.type}：${meal.text}`), "", "营养进度", `蛋白质：${analysis.nutrition.protein} / ${analysis.targets.protein} g`, `膳食纤维：${analysis.nutrition.fiber} / ${analysis.targets.fiber} g`, `蔬菜：${analysis.nutrition.veggies} / ${analysis.targets.veggies} g`, `饮水：${analysis.nutrition.water} / ${analysis.targets.water} ml`, "", "综合分析", analysis.summary, "", "本报告仅用于日常饮食记录和生活方式参考，不用于诊断或治疗。"].join("\n");
   const url = URL.createObjectURL(new Blob([content], { type: "text/plain;charset=utf-8" }));
   const link = document.createElement("a");
   link.href = url;
@@ -2123,7 +2123,8 @@ function initServiceLogin() {
   let captchaId = "";
   let authMode = "login";
 
-  hostInput.value = localStorage.getItem("eat-server-host") || "10.101.17.32";
+  const storedHost = localStorage.getItem("eat-server-host") || "";
+  hostInput.value = storedHost && storedHost !== "10.101.17.32" ? storedHost : "10.112.151.15";
   loginInput.value = localStorage.getItem("eat-server-login") || "";
 
   const showError = message => {
