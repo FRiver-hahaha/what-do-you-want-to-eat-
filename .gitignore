@@ -15,14 +15,14 @@ login.json
 *.db-wal
 *.db-shm
 
-# 工具自动下载的技能缓存（非项目源码）
-.codeartsdoer/skills/code-refactoring/
-.codeartsdoer/skills/code-reviewer/
-.codeartsdoer/skills/dead-code-eliminator/
-.codeartsdoer/skills/design-pattern-applier/
-.codeartsdoer/skills/ProjectSkillStatus.txt
-# Redis 本地快照
-dump.rdb
+# IDE/工具目录：只保留项目规格文档
+.codeartsdoer/*
+!.codeartsdoer/specs/
+!.codeartsdoer/specs/**
+
+# 本地编辑器/调试残留
+.arts/
+*.rdb
 
 # 本地构建产物
 dist/
