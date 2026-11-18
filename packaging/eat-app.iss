@@ -1,8 +1,8 @@
-#define MyAppName "Eat App"
+#define MyAppName "泛饭"
 #ifndef MyAppVersion
   #define MyAppVersion "0.3.0"
 #endif
-#define MyAppPublisher "Eat App"
+#define MyAppPublisher "泛饭"
 #define MyAppExeName "eat-app.exe"
 
 [Setup]

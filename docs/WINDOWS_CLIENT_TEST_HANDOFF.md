@@ -112,7 +112,7 @@ https://github.com/FRiver-hahaha/what-do-you-want-to-eat-/releases/tag/v0.3.0
 ### 3.2 安装与启动
 
 1. 双击 `EatAppSetup-x64.exe`，按提示安装到 `%LOCALAPPDATA%\EatApp`。
-2. 双击桌面 **Eat App** 快捷方式。
+2. 双击桌面 **泛饭** 快捷方式。
 3. 首次启动显示“连接服务端”页面。
 
 依赖：Windows 11 自带 WebView2 Runtime；Windows 10 如白屏，安装微软的 WebView2 Evergreen Runtime 后重试。
@@ -188,7 +188,7 @@ Remove-Item "$env:LOCALAPPDATA\EatApp\session.json" -Force -ErrorAction Silently
         ↓
 构建（或只覆盖 web\ 快速预览）
         ↓
-启动（或重启）Eat App
+启动（或重启）泛饭
         ↓
 看效果，继续改
 ```
@@ -327,7 +327,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build-installer.ps1
 2. 把改过的文件覆盖到：
    - 源码构建版：`dist\eat-app-windows-x64\web\`
    - 安装版：`%LOCALAPPDATA%\EatApp\web\`
-3. 完全退出 Eat App 再启动（不是最小化）；
+3. 完全退出 泛饭 再启动（不是最小化）；
 4. 看到改动即成功。
 
 说明：

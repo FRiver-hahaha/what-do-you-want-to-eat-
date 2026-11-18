@@ -1,4 +1,4 @@
-// Eat App shell: Win32 window + WebView2 (local resources only) + named-pipe
+// FanFan app shell: Win32 window + WebView2 (local resources only) + named-pipe
 // bridge to the local Agent. No HTTP port is opened by the App.
 //
 // Build: see client/app/CMakeLists.txt (requires the WebView2 SDK).

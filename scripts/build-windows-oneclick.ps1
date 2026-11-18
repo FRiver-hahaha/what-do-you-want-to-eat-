@@ -147,7 +147,7 @@ start "" eat-app.exe
 Set-Content -Path (Join-Path $OutDir "Start.bat") -Value $startBat -Encoding OEM
 
 $readme = @"
-Eat App Windows 运行目录
+泛饭 Windows 运行目录
 
 1. 确保这台电脑能访问服务端的 9443 端口：
    Test-NetConnection <服务端IP> -Port 9443

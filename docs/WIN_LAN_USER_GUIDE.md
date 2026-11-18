@@ -10,9 +10,9 @@
 
 1. 双击 `EatAppSetup-x64.exe`。
 2. 按提示完成安装（安装到当前用户目录，不需要管理员权限）。
-3. 安装完成后，桌面会出现 **Eat App** 快捷方式，开始菜单也有入口。
+3. 安装完成后，桌面会出现 **泛饭** 快捷方式，开始菜单也有入口。
 
-以后只需要双击桌面的 **Eat App**。
+以后只需要双击桌面的 **泛饭**。
 
 ---
 
@@ -72,7 +72,7 @@ TcpTestSucceeded : True
 setx DEEPSEEK_API_KEY "你的Key"
 ```
 
-设置后重新打开 **Eat App**。
+设置后重新打开 **泛饭**。
 
 ---
 
@@ -107,7 +107,7 @@ redis-cli --scan --pattern 'eat:v1:*' | head
 
 ## 七、更换 WiFi / 服务端 IP 变化
 
-1. 托盘图标右键退出 **Eat App**。
+1. 托盘图标右键退出 **泛饭**。
 2. PowerShell 执行：
 
 ```powershell

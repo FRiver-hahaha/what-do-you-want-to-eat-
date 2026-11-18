@@ -215,7 +215,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build-installer.ps1
 dist\EatAppSetup-x64.exe
 ```
 
-安装后桌面出现 **Eat App** 快捷方式，默认安装到 `%LOCALAPPDATA%\EatApp`。
+安装后桌面出现 **泛饭** 快捷方式，默认安装到 `%LOCALAPPDATA%\EatApp`。
 
 ### 2.8 GUI 已知边界
 

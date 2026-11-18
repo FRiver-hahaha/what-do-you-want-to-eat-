@@ -1,5 +1,5 @@
 /*
- * Transport adapter for the Eat App.
+ * Transport adapter for FanFan.
  *
  * The page never talks to a port directly: it goes through one interface so the
  * same DOM/CSS/JS can run in two environments:
