@@ -1330,8 +1330,9 @@ function peerMediaFor(item) {
 }
 
 function applyOwnMedia(data) {
-  if (!currentUserKey || !data || data.ok === false) return;
-  peerMedia.set(currentUserKey, {
+  const key = String((data && data.user_id) || currentUserKey || "");
+  if (!key || !data || data.ok === false) return;
+  peerMedia.set(key, {
     cover: String(data.cover || ""),
     avatar: String(data.avatar || ""),
     cover_ver: Number(data.cover_ver || 0),
@@ -1468,7 +1469,7 @@ function saveCover() {
     window.eatTransport.request("/api/profile/cover", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: currentUserKey, cover: draft })
+      body: JSON.stringify({ cover: draft })
     }).then(res => {
       if (!res || res.ok === false) {
         showToast(res && res.message === "cover_too_large" ? "图片太大，请换一张" : "封面已存到本地，服务端同步失败");
@@ -1496,7 +1497,7 @@ function resetCover() {
     window.eatTransport.request("/api/profile/cover", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: currentUserKey, cover: "" })
+      body: JSON.stringify({ cover: "" })
     }).then(res => {
       if (res && res.ok !== false) applyOwnMedia(res);
       renderLeaderboard();
@@ -2170,7 +2171,7 @@ document.getElementById("avatarUploadInput").addEventListener("change", event =>
         const res = await window.eatTransport.request("/api/profile/cover", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: currentUserKey, avatar: src })
+          body: JSON.stringify({ avatar: src })
         });
         if (res && res.ok !== false) {
           applyOwnMedia(res);
@@ -2605,10 +2606,10 @@ async function loadRealData(userKey) {
     read(`/api/stats/weekly?user_id=${query}`),
     read(`/api/friends?user_id=${query}`),
     read(`/api/ranking?user_id=${query}&scope=week`),
-    read(`/api/profile/cover?user_id=${query}`)
+    read(`/api/profile/cover`)
   ]);
   if (coverData && coverData.ok !== false) {
-    peerMedia.set(userKey, {
+    peerMedia.set(String(coverData.user_id || userKey), {
       cover: String(coverData.cover || ""),
       avatar: String(coverData.avatar || ""),
       cover_ver: Number(coverData.cover_ver || 0),
