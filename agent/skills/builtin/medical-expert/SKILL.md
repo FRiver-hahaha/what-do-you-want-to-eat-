@@ -6,7 +6,7 @@ version: 1.0.0
 author: builtin
 category: health
 tags: [医学, 体检, 指标, 慢病饮食]
-allowed-tools: [get_health_profile, get_recent_meals, get_nutrition_gap, search_knowledge, search_foods]
+allowed-tools: [get_health_profile, get_recent_meals, get_nutrition_gap, search_foods]
 permissions: [read:diet, read:knowledge]
 modes: [qa, work]
 triggers: [医生, 指标, 血糖, 血脂, 尿酸, 胆固醇, 体检, 化验, 处方]

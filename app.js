@@ -227,12 +227,28 @@ function ensurePointsState() {
       week: currentWeek,
       baseEarned: 0,
       spent: 0,
+      checkins: { ...(pointsState.checkins || {}) },
+      interactions: { ...(pointsState.interactions || {}) },
+      healthAwards: { ...(pointsState.healthAwards || {}) },
       owned: [...new Set(pointsState.owned || ["aurora"])],
       selected: pointsState.selected || "aurora"
     };
   }
   saveStored(storageKeys.points, pointsState);
   return pointsState;
+}
+
+function getCheckinStreak() {
+  const checkins = pointsState.checkins || {};
+  let streak = 0;
+  const cursor = new Date();
+  for (;;) {
+    const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(cursor.getDate()).padStart(2, "0")}`;
+    if (!checkins[key]) break;
+    streak += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
 }
 
 function getMealPoints() {
@@ -299,11 +315,14 @@ function renderShop() {
   const interactions = pointsState.interactions[today] || 0;
   const healthAward = pointsState.healthAwards[today] || 0;
   const checkedIn = Boolean(pointsState.checkins[today]);
+  const streak = getCheckinStreak();
   animateNumber(document.getElementById("pointsBalance"), balance);
   document.getElementById("pointsEarned").textContent = earned;
   document.getElementById("pointsSpent").textContent = pointsState.spent;
   document.getElementById("dailyCheckin").disabled = checkedIn;
-  document.getElementById("checkinLabel").textContent = checkedIn ? "今日已签到" : "每日签到 +10";
+  document.getElementById("checkinLabel").textContent = checkedIn
+    ? (streak > 1 ? `今日已签到 · 连续 ${streak} 天` : "今日已签到")
+    : (streak > 0 ? `每日签到 +10 · 已连续 ${streak} 天` : "每日签到 +10");
   document.getElementById("pointsProgressCopy").textContent = `今日已上报 ${mealPoints.count} / 3 餐 · 互动 ${interactions} / 20 · 健康奖励 ${healthAward} 分`;
   document.getElementById("weeklyAverageText").textContent = `你的本周健康均分为 ${getWeeklyAverage()}`;
   document.getElementById("weeklyRankText").textContent = `当前第 ${currentWeeklyRank} 名`;
@@ -1838,7 +1857,7 @@ document.getElementById("dailyCheckin").addEventListener("click", () => {
   ensurePointsState();
   const today = todayKey();
   if (pointsState.checkins[today]) return;
-  pointsState.checkins[today] = true;
+  pointsState.checkins[today] = today;
   saveStored(storageKeys.points, pointsState);
   renderShop();
   showToast("签到成功，本周积分 +10");
@@ -2123,8 +2142,11 @@ function initServiceLogin() {
   let captchaId = "";
   let authMode = "login";
 
+const pageHost = location.hostname && location.hostname !== "localhost" && location.hostname !== "127.0.0.1"
+    ? location.hostname
+    : "";
   const storedHost = localStorage.getItem("eat-server-host") || "";
-  hostInput.value = storedHost && storedHost !== "10.101.17.32" ? storedHost : "10.112.151.15";
+  hostInput.value = pageHost || (storedHost && storedHost !== "10.101.17.32" ? storedHost : "10.112.151.15");
   loginInput.value = localStorage.getItem("eat-server-login") || "";
 
   const showError = message => {
@@ -2308,8 +2330,7 @@ function clearMockContent() {
     note: ""
   };
   draftProfile = { ...profile };
-  pointsState = { ...defaultPointsState, week: getWeekKey() };
-  saveStored(storageKeys.points, pointsState);
+
   renderMeals();
   syncProfileForm();
   renderReport();

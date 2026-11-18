@@ -663,7 +663,23 @@
     expertMenu.innerHTML = `<div class="agent-expert-head">选择专家</div><div id="agentExpertList" class="agent-expert-list"></div>`;
     document.body.append(confirmDialog, marketDialog, accessDialog, contextPanel, expertMenu);
     positionMarketIndicator();
-    $("#agentSkillClose")?.addEventListener("click", () => marketDialog.close());
+    const closeMarket = () => {
+      if (marketDialog.open) marketDialog.close();
+      document.body.style.overflow = state.marketBodyOverflow || "";
+    };
+    marketDialog.addEventListener("click", event => {
+      if (event.target === marketDialog) closeMarket();
+    });
+    marketDialog.addEventListener("cancel", event => {
+      event.preventDefault();
+      closeMarket();
+    });
+    marketDialog.addEventListener("close", () => {
+      document.body.style.overflow = state.marketBodyOverflow || "";
+      if (state.marketTrigger && typeof state.marketTrigger.focus === "function") state.marketTrigger.focus();
+      state.marketTrigger = null;
+    });
+    $("#agentSkillClose")?.addEventListener("click", closeMarket);
     $("#agentMarketSearch")?.addEventListener("input", () => {
       clearTimeout(state.marketTimer);
       state.marketTimer = setTimeout(() => openMarket(true), 220);
@@ -1387,7 +1403,12 @@ bubble.classList.add("is-streaming");
     const installedList = $("#agentInstalledList");
     const hint = $("#agentSkillHint");
     if (!dialog || !list) return;
-    if (!dialog.open) dialog.showModal();
+    if (!dialog.open) {
+      state.marketTrigger = document.activeElement;
+      state.marketBodyOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      dialog.showModal();
+    }
     positionMarketIndicator();
     if (force || !list.dataset.loaded) {
       list.innerHTML = `<p class="agent-muted">加载中…</p>`;

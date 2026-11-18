@@ -1229,7 +1229,14 @@
 }
 
 .agent-market-body header {
+  position: relative;
+  z-index: 2;
   padding: 18px 20px 12px;
+}
+
+.agent-market-dialog #agentSkillClose {
+  position: relative;
+  z-index: 3;
 }
 
 .agent-market-toolbar {
@@ -1935,11 +1942,15 @@
   border-bottom-right-radius: 20px;
 }
 /* ---- Skill market: tab switch animation + fixed height ---- */
-.agent-market-dialog {
+.agent-market-dialog[open] {
   height: min(84vh, 720px);
   max-height: 84vh;
   display: flex;
   flex-direction: column;
+}
+
+.agent-market-dialog:not([open]) {
+  display: none;
 }
 
 .agent-market-body {
